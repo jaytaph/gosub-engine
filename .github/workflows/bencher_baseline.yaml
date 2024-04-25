@@ -1,3 +1,5 @@
+name: Bencher.dev benchmarks (baseline)
+
 on:
   push:
     branches: main
@@ -15,7 +17,7 @@ jobs:
           --project gosub-engine \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch main \
-          --testbed ubuntu-latest \
+          --testbed github-action-ci \
           --adapter json \
           --err \
-          cargo bench --all
+          --github-actions '${{ secrets.GITHUB_TOKEN }}'
