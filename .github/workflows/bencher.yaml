@@ -25,4 +25,5 @@ jobs:
           --testbed github-action-ci \
           --adapter json \
           --err \          
-          --github-actions '${{ secrets.GITHUB_TOKEN }}'
+          --github-actions '${{ secrets.GITHUB_TOKEN }}' \
+          cargo bench --all
