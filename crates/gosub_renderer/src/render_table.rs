@@ -4,51 +4,196 @@
 
 use std::cmp;
 
+/*
+How to build up a table. Attempt 1.
 
-enum TableDir {
-    LTR,
-    RTL,
+- Figure out the maximum number of columns and rows.
+- Generate cells of even width and height to fit in the given width.
+- Use the minimum height for each cell.
+- Absorb any colspan into the cell. So cell1 with colspan 2 will add
+  height/width of cell2, and cell2 will not exist.
+- Absorb any rowspan into the cell. So cell1 with rowspan 2 will add
+  the HEIGHT of the cell below and the cell below will not exist.
+- Add any padding to the cells cell, if any. Note that this can change the max-height of the row
+  so make sure all cells in the row will have the same height.
+- How to deal with spacing?
+- If a table is bordered, make sure we add spacing for the border.
+- ???
+- Profit
+ */
+
+
+trait TableRender {
+    fn new(height: usize, width: usize) -> impl TableRender;
+    fn put_str(&mut self, x: usize, y: usize, content: &str);
+    fn put_ch(&mut self, x: usize, y: usize, c: char);
+    fn render(&self) -> String;
 }
 
-enum TableHalign {
-    LEFT,
-    RIGHT,
-    CENTER,
+struct StringRenderer {
+    width: usize,
+    height: usize,
+    buf: Vec<char>,
 }
 
-enum TableValign {
-    TOP,
-    BOTTOM,
-    CENTER,
+impl TableRender for StringRenderer {
+    fn new(height: usize, width: usize) -> StringRenderer {
+        Self{
+            width: width,
+            height: height,
+            buf: vec!(' '; width * height),
+        }
+    }
+
+    fn put_str(&mut self, x: usize, y: usize, content: &str) {
+        for i in 0..content.len() {
+            self.put_ch(x + i, y, content.chars().nth(i).unwrap());
+        }
+    }
+
+    fn put_ch(&mut self, x: usize, y: usize, c: char) {
+        let idx = y * self.width + x;
+        self.buf[idx] = c;
+    }
+
+    fn render(&self) -> String {
+        let mut output = String::with_capacity(self.buf.len() + self.height);
+        for i in 0..self.height {
+            let start = i * self.width;
+            let end = start + self.width;
+            output.push_str(&self.buf[start..end].iter().collect::<String>());
+            output.push('\n');
+        }
+
+        output
+    }
 }
 
+
+/// Table direction
+#[derive(Debug)]
+pub enum TableDir {
+    LTR,            // Table is left-to-right
+    RTL,            // Table is right-to-left
+}
+
+/// Horizontal alignment of a cell
+#[derive(Debug)]
+pub enum TableHalign {
+    LEFT,           // Align text to the left
+    RIGHT,          // Align text to the right
+    CENTER,         // Align text to the center
+}
+
+// Vertical alignment of a cell
+#[derive(Debug)]
+pub enum TableValign {
+    TOP,            // Align text to the top
+    BOTTOM,         // Align text to the bottom
+    CENTER,         // Align text to the center
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
 // Calculated variables based on the table
 struct TableVars {
-    // width (in chars) of the table, including a border
+    /// width (in chars) of the table, including a border
     width: usize,
-    // (max) Number of columns per row in the table
-    num_cols: u32,
-    // (max) Number of rows in the table
-    num_rows: u32,
-    // Height of the table in chars
-    height: u32,
-    // Offsets for each column in the table
-    offsets: Vec<Vec<u32>>,
+    /// (max) Number of columns per row in the table
+    num_cols: usize,
+    /// (max) Number of rows in the table
+    num_rows: usize,
+    /// Height of the table in chars
+    height: usize,
+    /// Each cell offset in the table
+    cells: Vec<TableCellVars>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+struct TableCellVars {
+    offset_x: usize,      // Offset of the cell, or the border if bordered
+    offset_y: usize,      //
+    width: usize,         // Width (incl border)
+    height: usize,        // Height (incl border)
+    bordered: bool,     // Bordered or not
+    content: String,    // Actual content
 }
 
 impl TableVars {
     fn compute(table: &Table, width: usize) -> Self {
-        let width = cmp::max(3, width); // Minimum width of 3 chars
-        let height = 2; // Minimum height of 2 chars
 
-        Self {
-            num_cols: Self::compute_max_cols(table),
-            num_rows: Self::compute_max_rows(table),
-            width: Self::Compute_width(table),
-            height: Self::compute_height(table),
-            offsets: Self::compute_offsets(table),
+        let mut max_cols = 1;
+        for row in &table.head_rows {
+            max_cols = cmp::max(max_cols, calc_cols_in_row(&row.cells));
+        }
+        for row in &table.body_rows {
+            max_cols = cmp::max(max_cols, calc_cols_in_row(&row.cells));
+        }
+        for row in &table.footer_rows {
+            max_cols = cmp::max(max_cols, calc_cols_in_row(&row.cells));
+        }
+
+        let max_rows = table.head_rows.len() + table.body_rows.len() + table.footer_rows.len();
+
+        let width = cmp::max(3, width); // Minimum width of 3 chars
+        let height;
+        if table.bordered {
+            height = max_rows * 2 + 1;      // One extra for the bottom border line
+        } else {
+            height = max_rows;
+        }
+
+        let mut tablevars = Self {
+            num_cols: max_rows,
+            num_rows: max_cols,
+            width: width,
+            height: height,
+            cells: Vec::new(),
+        };
+
+        let cell_height;
+        if table.bordered {
+            cell_height = 2;
+        } else {
+            cell_height = 1;
+        }
+
+        // Start with a regular table where all cells are the same size
+        let cell_width = (width as f32 / max_rows as f32) as usize;
+
+        for row in 0..max_rows {
+            for col in 0..max_cols {
+                tablevars.cells.push(TableCellVars {
+                    offset_x: (cell_width * col),
+                    offset_y: (cell_height * row),
+                    width: cell_width,
+                    height: cell_height,
+                    bordered: table.bordered,
+                    content: String::new(),
+                });
+            }
+        }
+
+        dbg!(&tablevars);
+        tablevars
+    }
+}
+
+
+/// Calculate the number of columns in this row. Note that colspans are counted as well.
+fn calc_cols_in_row(row: &Vec<TableCell>) -> usize {
+    let mut num_cols_in_row = 0;
+
+    for cell in row.iter() {
+        if cell.colspan > 0 {
+            num_cols_in_row += cell.colspan;
+        } else {
+            num_cols_in_row += 1;
         }
     }
+
+    num_cols_in_row
 }
 
 
@@ -58,8 +203,8 @@ pub struct TableCell {
     pub wrapping: bool,             // Any text should either wrap to next line or increases cell width
     pub h_alignment: TableHalign,          // Horizontal alignment: (L)eft (R)ight (C)enter
     pub v_alignment: TableValign,          // Vertical alignment: (T)op (B)ottom (C)enter
-    pub colspan: u32,               // This cell spans X cols
-    pub rowspan: u32,               // This cell spans X rows
+    pub colspan: usize,               // This cell spans X cols
+    pub rowspan: usize,               // This cell spans X rows
 }
 
 #[allow(dead_code)]
@@ -76,8 +221,8 @@ pub struct Table {
     body_rows: Vec<TableRow>,   // <TBODY> (default) rows
     footer_rows: Vec<TableRow>, // <TFOOT> rows
     bordered: bool,             // Cells are bordered or not
-    cell_spacing: u32,          // Spacing between cells
-    cell_padding: u32,          // Padding inside cells
+    cell_spacing: usize,          // Spacing between cells
+    cell_padding: usize,          // Padding inside cells
 }
 
 #[allow(dead_code)]
@@ -131,12 +276,12 @@ impl Table {
         self
     }
 
-    pub fn with_cell_spacing(mut self, cell_spacing: u32) -> Self {
+    pub fn with_cell_spacing(mut self, cell_spacing: usize) -> Self {
         self.cell_spacing = cell_spacing;
         self
     }
 
-    pub fn with_cell_padding(mut self, cell_padding: u32) -> Self {
+    pub fn with_cell_padding(mut self, cell_padding: usize) -> Self {
         self.cell_padding = cell_padding;
         self
     }
@@ -154,29 +299,23 @@ impl Table {
     }
 
     pub fn render(&self, width: usize) -> String {
-        let mut width = cmp::max(3, width);
+        let width = cmp::max(3, width);
         let tv = TableVars::compute(self, width);
 
-
-        let mut output = String::new();
-
-        output.push_str("+");
-        output.push_str("-".repeat(width-2).as_str());
-        output.push_str("+");
-        output.push('\n');
-
-        output.push_str(self.render_caption(t).as_str());
+        let output = StringRenderer::new(tv.height, tv.width);
+        self.render_ruler(&output, tv.width);
+        self.render_caption(&output, &tv);
 
         if self.bordered {
-            output.push_str(self.render_bordered(t).as_str())
+            self.render_bordered(&output, &tv);
         } else {
-            output.push_str(self.render_unbordered(t).as_str())
+            self.render_unbordered(&output, &tv);
         }
 
-        output
+        output.render()
     }
 
-    fn render_caption(&self, vars: TableVars) -> String {
+    fn render_caption(&self, _renderer: &impl TableRender, vars: &TableVars) -> String {
         if self.caption.is_empty() {
             return String::new();
         }
@@ -200,8 +339,8 @@ impl Table {
         return "".into();
     }
 
-    fn render_bordered(&self, vars: TableVars) -> String {
-        let mut output = String::new();
+    fn render_bordered(&self, _renderer: &impl TableRender, _vars: &TableVars) -> String {
+        let output = String::new();
         // output.push_str(self.render_border_top(width).as_str());
         // output.push_str(self.render_border_row(width, &self.head_rows).as_str());
         // output.push_str(self.render_border_row(width, &self.body_rows).as_str());
@@ -210,14 +349,60 @@ impl Table {
         output
     }
 
-    fn render_unbordered(&self, vars: TableVars) -> String {
-        let mut output = String::new();
+    fn render_unbordered(&self, _renderer: &impl TableRender, _vars: &TableVars) -> String {
+        let output = String::new();
         // output.push_str(self.render_row(&self.head_rows).as_str());
         // output.push_str(self.render_row(&self.body_rows).as_str());
         // output.push_str(self.render_row(&self.footer_rows).as_str());
         output
     }
+
+    fn render_ruler(&self, _renderer: &impl TableRender, width: usize) -> String {
+        // Render a ruler for the table
+
+        // 0         1         2         3         4         5         6
+        // 0123456789012345678901234567890123456789012345678901234567890123456789
+
+        let mut ruler_top = String::new();
+        let mut ruler_bottom = String::new();
+
+        for i in 0..(width / 10) {
+            let number = format!("{:<width$}", i, width = 10);
+            ruler_top.push_str(&number);
+        }
+
+        for i in 0..width {
+            ruler_bottom.push_str(&(i % 10) .to_string());
+        }
+
+        format!("{}\n{}\n", ruler_top, ruler_bottom)
+    }
 }
+
+
+/***
+
+    <table>
+        <tr>
+            <td colspan=2>a</td>
+            <td>b</td>
+            <td>c</td>
+        </tr>
+        <tr>
+            <td>d</td>
+            <td>e</td>
+            <td>f</td>
+            <td rowspan=2>g</td>
+        </tr>
+        <tr>
+            <td>h</td>
+            <td>i</td>
+            <td>j</td>
+        </tr>
+    </table>
+
+***/
+
 
 
 #[cfg(test)]
@@ -225,61 +410,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_table_1() {
-        let mut t = Table::new()
-            .with_summary("This is the summary of the table")
-            .with_caption("This is the caption of the table")
-            .with_bordered(true)
-            .with_cell_spacing(1)
-            .with_cell_padding(1)
-            .with_width(100)
-            .with_height(100);
+    fn test_stringrenderer() {
+        let mut sr = StringRenderer::new(20, 20);
+        for i in 0..20 {
+            sr.put_ch(19, i, '.');
+        }
+        sr.put_str(3, 3, "Hello, world!");
+        sr.put_str(0, 0, "A");
+        sr.put_str(0, 19, "B");
+        sr.put_str(19, 19, "C");
+        sr.put_str(19, 0, "D");
+        sr.put_ch( 9,  9, '1');
+        sr.put_ch(10,  9, '2');
+        sr.put_ch(11,  9, '3');
+        sr.put_ch( 9, 10, '4');
+        sr.put_ch(10, 10, 'X');
+        sr.put_ch(11, 10, '5');
+        sr.put_ch( 9, 11, '6');
+        sr.put_ch(10, 11, '7');
+        sr.put_ch(11, 11, '8');
+        sr.put_str(18, 5, "WRAP");
 
-        t.add_head_row(TableRow {
-            cells: vec![
-                TableCell {
-                    content: "Head 1".to_string(),
-                    colspan: 1,
-                    rowspan: 1,
-                },
-                TableCell {
-                    content: "Head 2".to_string(),
-                    colspan: 1,
-                    rowspan: 1,
-                },
-            ]
-        });
-
-        t.add_body_row(TableRow {
-            cells: vec![
-                TableCell {
-                    content: "Body 1".to_string(),
-                    colspan: 1,
-                    rowspan: 1,
-                },
-                TableCell {
-                    content: "Body 2".to_string(),
-                    colspan: 1,
-                    rowspan: 1,
-                },
-            ]
-        });
-
-        t.add_footer_row(TableRow {
-            cells: vec![
-                TableCell {
-                    content: "Footer 1".to_string(),
-                    colspan: 1,
-                    rowspan: 1,
-                },
-                TableCell {
-                    content: "Footer 2".to_string(),
-                    colspan: 1,
-                    rowspan: 1,
-                },
-            ]
-        });
-
-        println!("{}", t.render(80));
+        assert_eq!(sr.render(), r"A                  D
+                   .
+                   .
+   Hello, world!   .
+                   .
+                  WR
+AP                 .
+                   .
+                   .
+         123       .
+         4X5       .
+         678       .
+                   .
+                   .
+                   .
+                   .
+                   .
+                   .
+                   .
+B                  C
+");
     }
 }

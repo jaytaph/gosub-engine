@@ -1,4 +1,4 @@
-use gosub_renderer::render_table::{Table, TableCell, TableRow};
+use gosub_renderer::render_table::{Table, TableCell, TableHalign, TableRow, TableValign};
 
 fn main() {
     let mut t = Table::new()
@@ -7,18 +7,25 @@ fn main() {
         .with_bordered(true)
         .with_cell_spacing(1)
         .with_cell_padding(1)
-        .with_width(100)
-        .with_height(100);
+    ;
+        // .with_width(100)
+        // .with_height(100);
 
     t.add_head_row(TableRow {
         cells: vec![
             TableCell {
                 content: "Head 1".to_string(),
+                wrapping: false,
+                h_alignment: TableHalign::LEFT,
+                v_alignment: TableValign::TOP,
                 colspan: 1,
                 rowspan: 1,
             },
             TableCell {
                 content: "Head 2".to_string(),
+                wrapping: false,
+                h_alignment: TableHalign::RIGHT,
+                v_alignment: TableValign::BOTTOM,
                 colspan: 1,
                 rowspan: 1,
             },
@@ -29,11 +36,38 @@ fn main() {
         cells: vec![
             TableCell {
                 content: "Body 1".to_string(),
+                wrapping: false,
+                h_alignment: TableHalign::LEFT,
+                v_alignment: TableValign::TOP,
                 colspan: 1,
                 rowspan: 1,
             },
             TableCell {
                 content: "Body 2".to_string(),
+                wrapping: false,
+                h_alignment: TableHalign::LEFT,
+                v_alignment: TableValign::TOP,
+                colspan: 1,
+                rowspan: 1,
+            },
+        ]
+    });
+
+    t.add_body_row(TableRow {
+        cells: vec![
+            TableCell {
+                content: "Body 3".to_string(),
+                wrapping: false,
+                h_alignment: TableHalign::RIGHT,
+                v_alignment: TableValign::BOTTOM,
+                colspan: 1,
+                rowspan: 1,
+            },
+            TableCell {
+                content: "Body 4\nwith some extra\ntext".to_string(),
+                wrapping: false,
+                h_alignment: TableHalign::LEFT,
+                v_alignment: TableValign::TOP,
                 colspan: 1,
                 rowspan: 1,
             },
@@ -44,11 +78,17 @@ fn main() {
         cells: vec![
             TableCell {
                 content: "Footer 1".to_string(),
+                wrapping: false,
+                h_alignment: TableHalign::LEFT,
+                v_alignment: TableValign::TOP,
                 colspan: 1,
                 rowspan: 1,
             },
             TableCell {
                 content: "Footer 2".to_string(),
+                wrapping: false,
+                h_alignment: TableHalign::LEFT,
+                v_alignment: TableValign::TOP,
                 colspan: 1,
                 rowspan: 1,
             },
