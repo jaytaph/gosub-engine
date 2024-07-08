@@ -1,27 +1,5 @@
-// const MAX_TABLE_COLS: u32 = 200;
-// const MAX_TABLE_ROWS: u32 = 200;
-
-
 use std::cmp;
-
-/*
-How to build up a table. Attempt 1.
-
-- Figure out the maximum number of columns and rows.
-- Generate cells of even width and height to fit in the given width.
-- Use the minimum height for each cell.
-- Absorb any colspan into the cell. So cell1 with colspan 2 will add
-  height/width of cell2, and cell2 will not exist.
-- Absorb any rowspan into the cell. So cell1 with rowspan 2 will add
-  the HEIGHT of the cell below and the cell below will not exist.
-- Add any padding to the cells cell, if any. Note that this can change the max-height of the row
-  so make sure all cells in the row will have the same height.
-- How to deal with spacing?
-- If a table is bordered, make sure we add spacing for the border.
-- ???
-- Profit
- */
-
+use std::ops::Add;
 
 trait TableRender {
     fn new(height: usize, width: usize) -> impl TableRender;
@@ -37,10 +15,10 @@ struct StringRenderer {
 }
 
 impl TableRender for StringRenderer {
-    fn new(height: usize, width: usize) -> StringRenderer {
+    fn new(width: usize, height: usize) -> StringRenderer {
         Self{
-            width: width,
-            height: height,
+            width,
+            height,
             buf: vec!(' '; width * height),
         }
     }
@@ -69,6 +47,106 @@ impl TableRender for StringRenderer {
     }
 }
 
+/// A border style
+#[allow(dead_code)]
+struct BorderStyle {
+    pub top_left: char,
+    pub top_right: char,
+    pub bottom_left: char,
+    pub bottom_right: char,
+    pub horizontal: char,
+    pub vertical: char,
+    pub cross: char,
+}
+
+impl BorderStyle {
+    fn single() -> Self {
+        Self {
+            top_left: '┌',
+            top_right: '┐',
+            bottom_left: '└',
+            bottom_right: '┘',
+            horizontal: '─',
+            vertical: '│',
+            cross: '┼',
+        }
+    }
+    fn double() -> Self {
+        Self {
+            top_left: '╔',
+            top_right: '╗',
+            bottom_left: '╚',
+            bottom_right: '╝',
+            horizontal: '═',
+            vertical: '║',
+            cross: '╬',
+        }
+    }
+
+    #[allow(dead_code)]
+    fn heavy() -> Self {
+        Self {
+            top_left: '┏',
+            top_right: '┓',
+            bottom_left: '┗',
+            bottom_right: '┛',
+            horizontal: '━',
+            vertical: '┃',
+            cross: '╋',
+        }
+    }
+
+    #[allow(dead_code)]
+    fn light() -> Self {
+        Self {
+            top_left: '┍',
+            top_right: '┑',
+            bottom_left: '┕',
+            bottom_right: '┙',
+            horizontal: '─',
+            vertical: '│',
+            cross: '┼',
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Coord {
+    /// X position
+    pub x: usize,
+    /// Y position
+    pub y: usize,
+    /// Width
+    pub width: usize,
+    /// Height
+    pub height: usize,
+}
+
+impl Coord {
+    pub fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+}
+
+impl Add for Coord {
+    type Output = Coord;
+
+    /// Coordinates can be added onto each other. Note we need to do something with width/height when
+    /// adding two coordinates together. We take the maximum of the two for now.
+    fn add(self, rhs: Self) -> Self::Output {
+        Coord {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            width: cmp::max(self.width, rhs.width),
+            height: cmp::max(self.height, rhs.height),
+        }
+    }
+}
 
 /// Table direction
 #[derive(Debug)]
@@ -93,36 +171,46 @@ pub enum TableValign {
     CENTER,         // Align text to the center
 }
 
+#[derive(Debug, PartialEq)]
+pub enum TableCaptionPos {
+    TOP,
+    BOTTOM,
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 // Calculated variables based on the table
 struct TableVars {
-    /// width (in chars) of the table, including a border
-    width: usize,
     /// (max) Number of columns per row in the table
     num_cols: usize,
     /// (max) Number of rows in the table
     num_rows: usize,
-    /// Height of the table in chars
-    height: usize,
     /// Each cell offset in the table
     cells: Vec<TableCellVars>,
+    // Total rectangle of the table including all parts like rulers and captions
+    box_coords: Coord,
+    // Box coordinates of the ruler, if any
+    ruler_coords: Option<Coord>,
+    // Box coordinates of the caption, if any
+    caption_coords: Option<Coord>,
+    // Box coordinates of the table itself
+    table_coords: Coord
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
 struct TableCellVars {
-    offset_x: usize,      // Offset of the cell, or the border if bordered
-    offset_y: usize,      //
-    width: usize,         // Width (incl border)
-    height: usize,        // Height (incl border)
-    bordered: bool,     // Bordered or not
-    content: String,    // Actual content
+    coord: Coord,
+    // Bordered or not
+    bordered: bool,
+    // Actual content
+    content: String,
 }
 
 impl TableVars {
-    fn compute(table: &Table, width: usize) -> Self {
-
+    fn compute(table: &Table, box_width: usize) -> Self {
+        ////////////////
+        // Step: Calculate the maximum number of columns we can find in the table (including colspans)
         let mut max_cols = 1;
         for row in &table.head_rows {
             max_cols = cmp::max(max_cols, calc_cols_in_row(&row.cells));
@@ -134,77 +222,115 @@ impl TableVars {
             max_cols = cmp::max(max_cols, calc_cols_in_row(&row.cells));
         }
 
-        let max_rows = table.head_rows.len() + table.body_rows.len() + table.footer_rows.len();
+        ////////////////
+        // Step: Calculate the maximum number of rows in the table
+        let max_rows = cmp::max(table.head_rows.len(), cmp::max(table.body_rows.len(), table.footer_rows.len()));
 
-        let width = cmp::max(3, width); // Minimum width of 3 chars
-        let height;
-        if table.bordered {
-            height = max_rows * 2 + 1;      // One extra for the bottom border line
-        } else {
-            height = max_rows;
-        }
 
-        let mut tablevars = Self {
-            num_cols: max_rows,
-            num_rows: max_cols,
-            width: width,
-            height: height,
-            cells: Vec::new(),
-        };
+        ////////////////
+        // Step: Calculate the width of each cell in the table
+
+
+        ////////////////
+        // Step: Setup coordinates for the different elements of the table
+        let mut box_coords = Coord::new(0, 0, cmp::max(3, box_width), 0);
+        let mut table_coords = Coord::new(0, 0, cmp::max(3, box_width), 0);
+        let mut caption_coords = None;
+        let mut ruler_coords = None;
+
+
+        ////////////////
+        // Step: Create actual table. Make sure width/height of table_coords are set properly
+        ////////////////
+
+        // We have max_cols and max_rows. It needs to fit in width chars, so calculate what each row width
+        // should be (including borders)
+        let cell_widths = calc_cell_width(box_width, max_cols);
 
         let cell_height;
+        let cell_offset;
         if table.bordered {
-            cell_height = 2;
+            cell_height = 3;        // Each cell is 3 lines high
+            cell_offset = 2;        // But start at offset 2, so they will overlap with the top of the previous cell
+
+            // Increase height of table and box with the number of rows, including the borders and the fact that borders overlap
+            table_coords.height += 2 * max_rows + 1;
+            box_coords.height += 2 * max_rows + 1;
+
         } else {
             cell_height = 1;
+            cell_offset = 1;
+
+            // Increase height of table and box with the number of rows
+            table_coords.height += max_rows;
+            box_coords.height += max_rows;
         }
 
         // Start with a regular table where all cells are the same size
-        let cell_width = (width as f32 / max_rows as f32) as usize;
+        let cell_width = (box_width as f32 / max_rows as f32) as usize;
+        let mut cells = Vec::new();
 
         for row in 0..max_rows {
+            let mut cur_x = 0;
             for col in 0..max_cols {
-                tablevars.cells.push(TableCellVars {
-                    offset_x: (cell_width * col),
-                    offset_y: (cell_height * row),
-                    width: cell_width,
-                    height: cell_height,
+                cells.push(TableCellVars {
+                    coord: Coord {
+                        x: cur_x,
+                        y: cell_offset * row + 1,
+                        width: cell_width,
+                        height: cell_height,
+                    },
                     bordered: table.bordered,
-                    content: String::new(),
+                    content: "Xcell contentX".into(),
                 });
+                cur_x += cell_widths[col];
             }
         }
 
-        dbg!(&tablevars);
-        tablevars
-    }
-}
+        ////////////////
+        // Step: Add additional ruler and caption
 
+        if table.ruler {
+            ruler_coords = Some(Coord::new(0, 0, box_coords.width, 2));
+            // Move up the table and increase height
+            table_coords.y += 2;
+            box_coords.height += 2;
+        }
 
-/// Calculate the number of columns in this row. Note that colspans are counted as well.
-fn calc_cols_in_row(row: &Vec<TableCell>) -> usize {
-    let mut num_cols_in_row = 0;
+        if !table.caption.is_empty() && table.caption_pos == TableCaptionPos::TOP {
+            // Caption is at the top of the table, move table and increase height
+            caption_coords = Some(Coord::new(0, 0, box_coords.width, 1));
+            table_coords.y += 1;
+            box_coords.height += 1;
+        }
 
-    for cell in row.iter() {
-        if cell.colspan > 0 {
-            num_cols_in_row += cell.colspan;
-        } else {
-            num_cols_in_row += 1;
+        if table.caption_pos == TableCaptionPos::BOTTOM {
+            // Caption is at the bottom, so only increase height
+            caption_coords = Some(Coord::new(0, box_coords.height, box_coords.width, 1));
+            box_coords.height += 1;
+        }
+
+        Self {
+            num_cols: max_rows,
+            num_rows: max_cols,
+            cells,
+            box_coords,
+            table_coords,
+            ruler_coords,
+            caption_coords,
         }
     }
-
-    num_cols_in_row
 }
 
 
 #[allow(dead_code)]
 pub struct TableCell {
-    pub content: String,            // Content, will adhere to \n for line breaks
-    pub wrapping: bool,             // Any text should either wrap to next line or increases cell width
-    pub h_alignment: TableHalign,          // Horizontal alignment: (L)eft (R)ight (C)enter
-    pub v_alignment: TableValign,          // Vertical alignment: (T)op (B)ottom (C)enter
-    pub colspan: usize,               // This cell spans X cols
-    pub rowspan: usize,               // This cell spans X rows
+    pub content: String,                // Content, will adhere to \n for line breaks
+    pub wrapping: bool,                 // Any text should either wrap to next line or increases cell width
+    pub h_alignment: TableHalign,       // Horizontal alignment: (L)eft (R)ight (C)enter
+    pub v_alignment: TableValign,       // Vertical alignment: (T)op (B)ottom (C)enter
+    pub colspan: usize,                 // This cell spans X cols
+    pub rowspan: usize,                 // This cell spans X rows
 }
 
 #[allow(dead_code)]
@@ -214,23 +340,26 @@ pub struct TableRow {
 
 #[allow(dead_code)]
 pub struct Table {
-    summary: String,            // Screen reader summary
-    caption: String,            // Caption of the table, if set it will be displayed
-    direction: TableDir,          // LTR or RTL direction
-    head_rows: Vec<TableRow>,   // <THEAD> rows
-    body_rows: Vec<TableRow>,   // <TBODY> (default) rows
-    footer_rows: Vec<TableRow>, // <TFOOT> rows
-    bordered: bool,             // Cells are bordered or not
-    cell_spacing: usize,          // Spacing between cells
-    cell_padding: usize,          // Padding inside cells
+    summary: String,                // Screen reader summary
+    caption: String,                // Caption of the table, if set it will be displayed
+    caption_pos: TableCaptionPos,   // Position of the caption
+    direction: TableDir,            // LTR or RTL direction
+    head_rows: Vec<TableRow>,       // <THEAD> rows
+    body_rows: Vec<TableRow>,       // <TBODY> (default) rows
+    footer_rows: Vec<TableRow>,     // <TFOOT> rows
+    bordered: bool,                 // Cells are bordered or not
+    cell_spacing: usize,            // Spacing between cells
+    cell_padding: usize,            // Padding inside cells
+    ruler: bool,                    // Render a ruler for the table
 }
 
 #[allow(dead_code)]
 impl Table {
-    pub fn new() -> Self {
+    pub fn new(ruler: bool) -> Self {
         Self {
             summary: String::new(),
             caption: String::new(),
+            caption_pos: TableCaptionPos::TOP,
             direction: TableDir::LTR,
             head_rows: Vec::new(),
             body_rows: Vec::new(),
@@ -238,6 +367,7 @@ impl Table {
             bordered: false,
             cell_spacing: 0,
             cell_padding: 0,
+            ruler,
         }
     }
 
@@ -246,8 +376,9 @@ impl Table {
         self
     }
 
-    pub fn with_caption(mut self, caption: &str) -> Self {
+    pub fn with_caption(mut self, caption: &str, position: TableCaptionPos) -> Self {
         self.caption = caption.into();
+        self.caption_pos = position;
         self
     }
 
@@ -301,13 +432,18 @@ impl Table {
     pub fn render(&self, width: usize) -> String {
         let width = cmp::max(3, width);
         let tv = TableVars::compute(self, width);
+        dbg!(&tv);
 
-        let output = StringRenderer::new(tv.height, tv.width);
-        self.render_ruler(&output, tv.width);
-        self.render_caption(&output, &tv);
+        let mut output = StringRenderer::new(tv.box_coords.width, tv.box_coords.height);
+        if self.ruler {
+            self.render_ruler(&mut output, &tv);
+        }
+        if !self.caption.is_empty() {
+            self.render_caption(&mut output, &tv);
+        }
 
         if self.bordered {
-            self.render_bordered(&output, &tv);
+            self.render_bordered(&mut output, &tv);
         } else {
             self.render_unbordered(&output, &tv);
         }
@@ -315,38 +451,33 @@ impl Table {
         output.render()
     }
 
-    fn render_caption(&self, _renderer: &impl TableRender, vars: &TableVars) -> String {
-        if self.caption.is_empty() {
-            return String::new();
+    fn render_caption(&self, renderer: &mut impl TableRender, vars: &TableVars) {
+        if vars.caption_coords.is_none() {
+            return;
         }
+
+        let c = vars.caption_coords.unwrap();
 
         let mut caption = self.caption.clone();
-
-        // Cap the caption to the width
-        if self.caption.len() > vars.width {
-            caption = format!("{}...\n", caption[..vars.width].to_string());
+        if caption.len() > c.width {
+            // Caption is too long, truncate it
+            caption = caption[0..c.width].to_string();
         }
 
-        // Center caption if there is room to place it
-        if caption.len() <= vars.width {
-            let total_padding = vars.width - caption.len();
-            let left_pad = total_padding / 2;
-            let right_pad = total_padding - left_pad;
+        let total_padding = c.width - caption.len();
+        let left_pad = total_padding / 2;
 
-            return format!("{}{}{}\n", " ".repeat(left_pad), caption, " ".repeat(right_pad));
-        }
-
-        return "".into();
+        renderer.put_str(left_pad, c.y, &caption);
     }
 
-    fn render_bordered(&self, _renderer: &impl TableRender, _vars: &TableVars) -> String {
-        let output = String::new();
-        // output.push_str(self.render_border_top(width).as_str());
-        // output.push_str(self.render_border_row(width, &self.head_rows).as_str());
-        // output.push_str(self.render_border_row(width, &self.body_rows).as_str());
-        // output.push_str(self.render_border_row(width, &self.footer_rows).as_str());
-        // output.push_str(self.render_border_bottom(width).as_str());
-        output
+    fn render_bordered(&self, renderer: &mut impl TableRender, vars: &TableVars) {
+        // Render each cell border
+        for cell in &vars.cells {
+            self.render_border_box(renderer, vars.table_coords, cell.coord, BorderStyle::single());
+        }
+
+        // Main table border
+        self.render_border_box(renderer, vars.box_coords, vars.table_coords, BorderStyle::double());
     }
 
     fn render_unbordered(&self, _renderer: &impl TableRender, _vars: &TableVars) -> String {
@@ -357,14 +488,40 @@ impl Table {
         output
     }
 
-    fn render_ruler(&self, _renderer: &impl TableRender, width: usize) -> String {
-        // Render a ruler for the table
+    fn render_border_box(&self, renderer: &mut impl TableRender, parent_coord: Coord, box_coord: Coord, border: BorderStyle) {
+        let c = parent_coord + box_coord;
 
+        renderer.put_ch(c.x, c.y, border.top_left);
+        renderer.put_ch(c.x + c.width - 1, c.y, border.top_right);
+        renderer.put_ch(c.x, c.y + c.height - 1, border.bottom_left);
+        renderer.put_ch(c.x + c.width - 1, c.y + c.height - 1, border.bottom_right);
+
+        for i in 1..(c.width - 1) {
+            renderer.put_ch(c.x + i, c.y, border.horizontal);
+            renderer.put_ch(c.x + i, c.y + c.height - 1, border.horizontal);
+        }
+
+        for i in 1..(c.height - 1) {
+            renderer.put_ch(c.x, c.y + i, border.vertical);
+            renderer.put_ch(c.x + c.width - 1, c.y + i, border.vertical);
+        }
+    }
+
+    fn render_ruler(&self, renderer: &mut impl TableRender, vars: &TableVars) {
+        // Render a ruler for the table:
         // 0         1         2         3         4         5         6
         // 0123456789012345678901234567890123456789012345678901234567890123456789
 
+        if vars.ruler_coords.is_none() {
+            return;
+        }
+
+        let c = vars.box_coords + vars.ruler_coords.unwrap();
+
         let mut ruler_top = String::new();
         let mut ruler_bottom = String::new();
+
+        let width = vars.box_coords.width;
 
         for i in 0..(width / 10) {
             let number = format!("{:<width$}", i, width = 10);
@@ -375,10 +532,44 @@ impl Table {
             ruler_bottom.push_str(&(i % 10) .to_string());
         }
 
-        format!("{}\n{}\n", ruler_top, ruler_bottom)
+        renderer.put_str(0, c.y, &ruler_top);
+        renderer.put_str(0, c.y+1, &ruler_bottom);
     }
 }
 
+
+/// Returns a vector with the width of each cell in the row based on the width and the number of columns.
+fn calc_cell_width(width: usize, num_cols: usize) -> Vec<usize> {
+    let mut cell_widths = Vec::new();
+    let cell_width = width / num_cols;
+    let remainder = width % num_cols;
+
+    for _ in 0..num_cols {
+        cell_widths.push(cell_width);
+    }
+
+    let l = cell_widths.len();
+    for i in 0..remainder {
+        cell_widths[l - i - 1] += 1;
+    }
+
+    cell_widths
+}
+
+/// Calculate the number of columns in this row. Note that colspans are counted as well.
+fn calc_cols_in_row(row: &Vec<TableCell>) -> usize {
+    let mut num_cols_in_row = 0;
+
+    for cell in row.iter() {
+        if cell.colspan > 0 {
+            num_cols_in_row += cell.colspan;
+        } else {
+            num_cols_in_row += 1;
+        }
+    }
+
+    num_cols_in_row
+}
 
 /***
 
@@ -403,14 +594,111 @@ impl Table {
 
 ***/
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_stringrenderer() {
+    fn test_table() {
+        let mut t = Table::new(true)
+            .with_summary("This is the summary of the table")
+            .with_caption("This is the caption of the table", TableCaptionPos::TOP)
+            .with_bordered(true)
+            .with_cell_spacing(0)
+            .with_cell_padding(0)
+        ;
+
+        t.add_head_row(TableRow {
+            cells: vec![
+                TableCell {
+                    content: "Head 1".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::LEFT,
+                    v_alignment: TableValign::TOP,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+                TableCell {
+                    content: "Head 2".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::RIGHT,
+                    v_alignment: TableValign::BOTTOM,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+            ]
+        });
+
+        t.add_body_row(TableRow {
+            cells: vec![
+                TableCell {
+                    content: "Body 1".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::LEFT,
+                    v_alignment: TableValign::TOP,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+                TableCell {
+                    content: "Body 2".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::LEFT,
+                    v_alignment: TableValign::TOP,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+            ]
+        });
+
+        t.add_body_row(TableRow {
+            cells: vec![
+                TableCell {
+                    content: "Body 3".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::RIGHT,
+                    v_alignment: TableValign::BOTTOM,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+                TableCell {
+                    content: "Body 4\nwith some extra\ntext".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::LEFT,
+                    v_alignment: TableValign::TOP,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+            ]
+        });
+
+        t.add_footer_row(TableRow {
+            cells: vec![
+                TableCell {
+                    content: "Footer 1".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::LEFT,
+                    v_alignment: TableValign::TOP,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+                TableCell {
+                    content: "Footer 2".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::LEFT,
+                    v_alignment: TableValign::TOP,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+            ]
+        });
+
+        println!("TABLE START");
+        println!("{}", t.render(100));
+        println!("TABLE END");
+    }
+
+    #[test]
+    fn test_string_renderer() {
         let mut sr = StringRenderer::new(20, 20);
         for i in 0..20 {
             sr.put_ch(19, i, '.');
@@ -431,6 +719,7 @@ mod tests {
         sr.put_ch(11, 11, '8');
         sr.put_str(18, 5, "WRAP");
 
+        println!("{}", sr.render());
         assert_eq!(sr.render(), r"A                  D
                    .
                    .
@@ -452,5 +741,36 @@ AP                 .
                    .
 B                  C
 ");
+    }
+
+    #[test]
+    fn test_calc_cell_width() {
+        assert_eq!(vec!(20, 20, 21, 21), calc_cell_width(82, 4));
+        assert_eq!(vec!(20, 20, 20, 21), calc_cell_width(81, 4));
+        assert_eq!(vec!(20, 20, 20, 20), calc_cell_width(80, 4));
+        assert_eq!(vec!(19, 20, 20, 20), calc_cell_width(79, 4));
+        assert_eq!(vec!(19, 19, 20, 20), calc_cell_width(78, 4));
+        assert_eq!(vec!(19, 19, 19, 20), calc_cell_width(77, 4));
+        assert_eq!(vec!(19, 19, 19, 19), calc_cell_width(76, 4));
+    }
+
+    #[test]
+    fn test_coords() {
+        let c1 = Coord::new(0, 0, 10, 5);
+        let c2 = Coord::new(5, 5, 10, 5);
+        assert_eq!(Coord::new(5, 5, 10, 5), c1 + c2);
+
+        let c1 = Coord::new(0, 0, 10, 5);
+        let c2 = Coord::new(5, 5, 20, 5);
+        assert_eq!(Coord::new(5, 5, 20, 5), c1 + c2);
+
+        let c1 = Coord::new(0, 0, 20, 4);
+        let c2 = Coord::new(5, 5, 10, 50);
+        assert_eq!(Coord::new(5, 5, 20, 50), c1 + c2);
+
+        let c1 = Coord::new(0, 0, 10, 5);
+        let c2 = Coord::new(0, 5, 10, 5);
+        assert_eq!(Coord::new(0, 10, 10, 5), c1 + c2 + c2);
+        assert_eq!(Coord::new(0, 15, 10, 5), c1 + c2 + c2 + c2);
     }
 }
