@@ -136,14 +136,13 @@ impl Coord {
 impl Add for Coord {
     type Output = Coord;
 
-    /// Coordinates can be added onto each other. Note we need to do something with width/height when
-    /// adding two coordinates together. We take the maximum of the two for now.
+    /// Coordinates can be added onto each other
     fn add(self, rhs: Self) -> Self::Output {
         Coord {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
-            width: cmp::max(self.width, rhs.width),
-            height: cmp::max(self.height, rhs.height),
+            width: rhs.width,
+            height: rhs.height,
         }
     }
 }
@@ -228,10 +227,6 @@ impl TableVars {
 
 
         ////////////////
-        // Step: Calculate the width of each cell in the table
-
-
-        ////////////////
         // Step: Setup coordinates for the different elements of the table
         let mut box_coords = Coord::new(0, 0, cmp::max(3, box_width), 0);
         let mut table_coords = Coord::new(0, 0, cmp::max(3, box_width), 0);
@@ -246,6 +241,7 @@ impl TableVars {
         // We have max_cols and max_rows. It needs to fit in width chars, so calculate what each row width
         // should be (including borders)
         let cell_widths = calc_cell_width(box_width, max_cols);
+        dbg!(&cell_widths);
 
         let cell_height;
         let cell_offset;
@@ -255,7 +251,7 @@ impl TableVars {
 
             // Increase height of table and box with the number of rows, including the borders and the fact that borders overlap
             table_coords.height += 2 * max_rows + 1;
-            box_coords.height += 2 * max_rows + 1;
+            box_coords.height += 2 * max_rows + 1 + 1;
 
         } else {
             cell_height = 1;
@@ -276,14 +272,14 @@ impl TableVars {
                 cells.push(TableCellVars {
                     coord: Coord {
                         x: cur_x,
-                        y: cell_offset * row + 1,
+                        y: cell_offset * row,
                         width: cell_width,
                         height: cell_height,
                     },
                     bordered: table.bordered,
                     content: "Xcell contentX".into(),
                 });
-                cur_x += cell_widths[col];
+                cur_x += cell_widths[col] - 1;
             }
         }
 
@@ -432,7 +428,6 @@ impl Table {
     pub fn render(&self, width: usize) -> String {
         let width = cmp::max(3, width);
         let tv = TableVars::compute(self, width);
-        dbg!(&tv);
 
         let mut output = StringRenderer::new(tv.box_coords.width, tv.box_coords.height);
         if self.ruler {
@@ -476,8 +471,8 @@ impl Table {
             self.render_border_box(renderer, vars.table_coords, cell.coord, BorderStyle::single());
         }
 
-        // Main table border
-        self.render_border_box(renderer, vars.box_coords, vars.table_coords, BorderStyle::double());
+        // // Main table border
+        // self.render_border_box(renderer, vars.box_coords, vars.table_coords, BorderStyle::double());
     }
 
     fn render_unbordered(&self, _renderer: &impl TableRender, _vars: &TableVars) -> String {
@@ -490,6 +485,7 @@ impl Table {
 
     fn render_border_box(&self, renderer: &mut impl TableRender, parent_coord: Coord, box_coord: Coord, border: BorderStyle) {
         let c = parent_coord + box_coord;
+        dbg!(&c);
 
         renderer.put_ch(c.x, c.y, border.top_left);
         renderer.put_ch(c.x + c.width - 1, c.y, border.top_right);
@@ -509,8 +505,9 @@ impl Table {
 
     fn render_ruler(&self, renderer: &mut impl TableRender, vars: &TableVars) {
         // Render a ruler for the table:
-        // 0         1         2         3         4         5         6
-        // 0123456789012345678901234567890123456789012345678901234567890123456789
+        //
+        //      0         1         2         3         4         5         6
+        //      0123456789012345678901234567890123456789012345678901234567890123456789
 
         if vars.ruler_coords.is_none() {
             return;
@@ -541,16 +538,16 @@ impl Table {
 /// Returns a vector with the width of each cell in the row based on the width and the number of columns.
 fn calc_cell_width(width: usize, num_cols: usize) -> Vec<usize> {
     let mut cell_widths = Vec::new();
-    let cell_width = width / num_cols;
-    let remainder = width % num_cols;
+    let cell_width = (width-1) / num_cols;
+    let remainder = (width-1) % num_cols;
 
     for _ in 0..num_cols {
         cell_widths.push(cell_width);
     }
 
-    let l = cell_widths.len();
+    // Divide the remainder of the first cells
     for i in 0..remainder {
-        cell_widths[l - i - 1] += 1;
+        cell_widths[i] += 1;
     }
 
     cell_widths
@@ -698,6 +695,19 @@ mod tests {
     }
 
     #[test]
+    fn test_box_renderer() {
+        let mut sr = StringRenderer::new(20, 20);
+
+
+        let table = Table::new(false);
+
+        table.render_border_box(&mut sr, Coord::new(0, 0, 20, 20), Coord::new(5, 5, 10, 10), BorderStyle::single());
+        table.render_border_box(&mut sr, Coord::new(0, 0, 20, 20), Coord::new(4, 4, 12, 12), BorderStyle::double());
+
+        println!("{}", sr.render());
+    }
+
+    #[test]
     fn test_string_renderer() {
         let mut sr = StringRenderer::new(20, 20);
         for i in 0..20 {
@@ -743,15 +753,49 @@ B                  C
 ");
     }
 
+/*
+0         1         2         3         4         5         6         7         8         9        9
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+|                                                |                                                 |
+
++-------------------+-------------------+-------------------+------------------+
+|                   |                   |                   |                  |
+|1234567890123456789|1234567890123456789|1234567890123456789|123456789012345678|
++------------------------------------------------------------------------------+
+|                          |                         |                         |
+|12345678901234567890123456|1234567890123456789012345|1234567890123456789012345|
++------------------------------------------------------------------------------+
+|                                       |                                      |
+|123456789012345678901234567890123456789|12345678901234567890123456789012345678|
++------------------------------------------------------------------------------+
+|               |               |               |               |              |
+|123456789012345|123456789012345|123456789012345|123456789012345|12345678901234|
++------------------------------------------------------------------------------+
+|          |          |          |          |           |           |          |
+|1234567890|1234567890|1234567890|1234567890|12345678901|12345678901|1234567890|
++------------------------------------------------------------------------------+
+
+|2345678901234567890                    |2345678901234567890
+                    |2345678901234567890                    |234567890123456789|
+ */
+
+
     #[test]
     fn test_calc_cell_width() {
-        assert_eq!(vec!(20, 20, 21, 21), calc_cell_width(82, 4));
-        assert_eq!(vec!(20, 20, 20, 21), calc_cell_width(81, 4));
-        assert_eq!(vec!(20, 20, 20, 20), calc_cell_width(80, 4));
-        assert_eq!(vec!(19, 20, 20, 20), calc_cell_width(79, 4));
-        assert_eq!(vec!(19, 19, 20, 20), calc_cell_width(78, 4));
-        assert_eq!(vec!(19, 19, 19, 20), calc_cell_width(77, 4));
-        assert_eq!(vec!(19, 19, 19, 19), calc_cell_width(76, 4));
+        assert_eq!(vec!(40, 39), calc_cell_width(80, 2));
+        assert_eq!(vec!(27, 26, 26), calc_cell_width(80, 3));
+        assert_eq!(vec!(20, 20, 20, 19), calc_cell_width(80, 4));
+        assert_eq!(vec!(16, 16, 16, 16, 15), calc_cell_width(80, 5));
+        assert_eq!(vec!(14, 13, 13, 13, 13, 13), calc_cell_width(80, 6));
+        assert_eq!(vec!(12, 12, 11, 11, 11, 11, 11), calc_cell_width(80, 7));
+
+        assert_eq!(vec!(21, 20, 20, 20), calc_cell_width(82, 4));
+        assert_eq!(vec!(20, 20, 20, 20), calc_cell_width(81, 4));
+        assert_eq!(vec!(20, 20, 20, 19), calc_cell_width(80, 4));
+        assert_eq!(vec!(20, 20, 19, 19), calc_cell_width(79, 4));
+        assert_eq!(vec!(20, 19, 19, 19), calc_cell_width(78, 4));
+        assert_eq!(vec!(19, 19, 19, 19), calc_cell_width(77, 4));
+        assert_eq!(vec!(19, 19, 19, 18), calc_cell_width(76, 4));
     }
 
     #[test]
@@ -774,3 +818,18 @@ B                  C
         assert_eq!(Coord::new(0, 15, 10, 5), c1 + c2 + c2 + c2);
     }
 }
+
+
+
+
+/*
+
+
+0 +---------------
+1 |
+2 +---------------
+3 |
+4 +---------------
+5 |
+6 +---------------
+ */
