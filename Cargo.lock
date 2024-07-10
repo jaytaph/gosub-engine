@@ -1588,6 +1588,7 @@ dependencies = [
  "gosub_shared",
  "gosub_styling",
  "image",
+ "rand 0.9.0-alpha.1",
  "taffy",
  "url",
  "wasm-bindgen-futures",
