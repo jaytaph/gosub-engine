@@ -454,9 +454,9 @@ impl TableVars {
                 // Make sure we are never go beyond the max rows of the given section of the table (thead, tbody, tfoot)
                 // This means that when the last row in a tbody has a rowspan of 10, it still will only render 1 row.
                 let mut capped_rowspan = table_cell.rowspan;
-                let rows_in_section = table.get_rows_in_section(cell_section);
-                if src_idx.0 + capped_rowspan > rows_in_section {
-                    capped_rowspan = rows_in_section - src_idx.0;
+                let (section_start_row, section_row_count) = table.get_section_boundaries(cell_section);
+                if src_idx.0 + capped_rowspan - 1 > section_start_row + section_row_count {
+                    capped_rowspan = section_start_row + section_row_count - src_idx.0;
                 }
 
                 let cell_height = cell_height * capped_rowspan - (capped_rowspan - 1);
@@ -554,34 +554,52 @@ pub enum TableSection {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct TableCell {
-    pub content: String,                // Content, will adhere to \n for line breaks
-    pub wrapping: bool,                 // Any text should either wrap to next line or increases cell width
-    pub h_alignment: TableHalign,       // Horizontal alignment: (L)eft (R)ight (C)enter
-    pub v_alignment: TableValign,       // Vertical alignment: (T)op (B)ottom (C)enter
-    pub colspan: usize,                 // This cell spans X cols
-    pub rowspan: usize,                 // This cell spans X rows
+    /// Content, will adhere to \n for line breaks
+    pub content: String,
+    /// Any text should either wrap to next line or increases cell width
+    pub wrapping: bool,
+    /// Horizontal alignment: (L)eft (R)ight (C)enter
+    pub h_alignment: TableHalign,
+    /// Vertical alignment: (T)op (B)ottom (C)enter
+    pub v_alignment: TableValign,
+    /// This cell spans X cols
+    pub colspan: usize,
+    /// This cell spans X rows
+    pub rowspan: usize,
 }
 
 /// A table row is a simple list of cells. The number of cells in a row does not have to be equal for all rows.
 #[allow(dead_code)]
 pub struct TableRow {
-    pub cells: Vec<TableCell>,      // Number of cells in the row. Does not have to be equal for all rows
+    /// Number of cells in the row. Does not have to be equal for all rows
+    pub cells: Vec<TableCell>,
 }
 
 /// A table is a collection of rows, with a summary, caption, and other settings.
 #[allow(dead_code)]
 pub struct Table {
-    summary: String,                // Screen reader summary
-    caption: String,                // Caption of the table, if set it will be displayed
-    caption_pos: TableCaptionPos,   // Position of the caption
-    direction: TableDir,            // LTR or RTL direction
-    thead_rows: Vec<TableRow>,            // Defined rows for thead
-    tbody_rows: Vec<TableRow>,            // Defined rows for tbody (or default)
-    tfoot_rows: Vec<TableRow>,            // Defined rows for tfoot
-    bordered: bool,                 // Cells are bordered or not
-    cell_spacing: usize,            // Spacing between cells
-    cell_padding: usize,            // Padding inside cells
-    ruler: bool,                    // Render a ruler for the table
+    /// Screen reader summary
+    summary: String,
+    /// Caption of the table, if set it will be displayed
+    caption: String,
+    /// Position of the caption
+    caption_pos: TableCaptionPos,
+    /// LTR or RTL direction
+    direction: TableDir,
+    /// Defined rows for thead
+    thead_rows: Vec<TableRow>,
+    /// Defined rows for tbody (or default)
+    tbody_rows: Vec<TableRow>,
+    /// Defined rows for tfoot
+    tfoot_rows: Vec<TableRow>,
+    /// Cells are bordered or not
+    bordered: bool,
+    /// Spacing between cells
+    cell_spacing: usize,
+    /// Padding inside cells
+    cell_padding: usize,
+    /// Render a ruler for the table
+    ruler: bool,
 }
 
 impl Table {
@@ -613,13 +631,13 @@ impl Table {
         }
     }
 
-    /// Returns the number of rows in a given section. Needed so we can cap rowspans since they cannot
-    /// exceed the number of rows in the section.
-    pub(crate) fn get_rows_in_section(&self, section: TableSection) -> usize {
+    /// Returns the starting row and the number of rows in a given section. Needed so we can cap rowspans since they
+    /// cannot exceed the number of rows in the section.
+    pub(crate) fn get_section_boundaries(&self, section: TableSection) -> (usize, usize) {
         match section {
-            TableSection::Header => self.thead_rows.len(),
-            TableSection::Body => self.tbody_rows.len(),
-            TableSection::Footer => self.tfoot_rows.len(),
+            TableSection::Header => (0, self.thead_rows.len()),
+            TableSection::Body => (0 + self.thead_rows.len(), self.tbody_rows.len()),
+            TableSection::Footer => (0 + self.thead_rows.len() + self.tbody_rows.len(), self.tfoot_rows.len()),
         }
     }
 }
@@ -685,6 +703,7 @@ impl Table {
         self.tfoot_rows.push(row);
     }
 
+    /// Renders the table into a string with the given width
     pub fn render(&self, width: usize) -> String {
         let width = cmp::max(3, width);
         let tv = TableVars::compute(self, width);
@@ -706,6 +725,7 @@ impl Table {
         output.render()
     }
 
+    /// Render a caption (if any)
     fn render_caption(&self, renderer: &mut impl TableRender, vars: &TableVars) {
         if vars.caption_rect.is_none() {
             return;
@@ -725,6 +745,7 @@ impl Table {
         renderer.put_str(left_pad, c.y, &caption);
     }
 
+    /// Render the actual table as bordered
     fn render_bordered(&self, renderer: &mut impl TableRender, vars: &TableVars) {
         // Render each cell border
         for cell in &vars.cells {
@@ -745,6 +766,7 @@ impl Table {
         self.render_border_box(renderer, vars.box_rect + vars.table_rect, &BorderStyle::double());
     }
 
+    /// Render the actual table as unbordered
     fn render_unbordered(&self, _renderer: &impl TableRender, _vars: &TableVars) -> String {
         let output = String::new();
         // output.push_str(self.render_row(&self.head_rows).as_str());
@@ -804,6 +826,7 @@ impl Table {
         render_box_char(renderer, x2, y2, style.bottom_right, &style);
     }
 
+    /// Render a ruler
     fn render_ruler(&self, renderer: &mut impl TableRender, vars: &TableVars) {
         // Render a ruler for the table:
         //
@@ -834,7 +857,6 @@ impl Table {
     }
 }
 
-
 /// Returns a vector with the width of each cell in the row based on the width and the
 /// number of columns.
 fn calc_cell_width(width: usize, num_cols: usize) -> Vec<usize> {
@@ -857,6 +879,7 @@ fn calc_cell_width(width: usize, num_cols: usize) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use super::*;
 
     #[test]
@@ -958,26 +981,26 @@ mod tests {
             ],
         });
 
-        // t.add_body_row(TableRow {
-        //     cells: vec![
-        //         TableCell {
-        //             content: "Body 6".to_string(),
-        //             wrapping: false,
-        //             h_alignment: TableHalign::LEFT,
-        //             v_alignment: TableValign::TOP,
-        //             colspan: 1,
-        //             rowspan: 1,
-        //         },
-        //         TableCell {
-        //             content: "Body 7".to_string(),
-        //             wrapping: false,
-        //             h_alignment: TableHalign::LEFT,
-        //             v_alignment: TableValign::TOP,
-        //             colspan: 1,
-        //             rowspan: 1,
-        //         },
-        //     ],
-        // });
+        t.add_body_row(TableRow {
+            cells: vec![
+                TableCell {
+                    content: "Body 6".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::LEFT,
+                    v_alignment: TableValign::TOP,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+                TableCell {
+                    content: "Body 7".to_string(),
+                    wrapping: false,
+                    h_alignment: TableHalign::LEFT,
+                    v_alignment: TableValign::TOP,
+                    colspan: 1,
+                    rowspan: 1,
+                },
+            ],
+        });
 
 
         t.add_footer_row(TableRow {
@@ -1222,7 +1245,147 @@ B                  C
         let (max_rows, max_cols) = TableVars::calculate_dimensions(&t.tbody_rows);
         assert_eq!(max_rows, 4);
         assert_eq!(max_cols, 4);
-
-
     }
+
+    #[test]
+    fn test_tables() {
+        let s = r"
+Table | b | ct | 80
+  H,1,1 | H,1,1 | H,2,1
+  H,1,1 | H,1,1 | H,2,1
+  B,1,2 | B,2,1 | B,2,1
+  F,1,1 | F,1,1
+
+Table | u | cb | 35
+  H,1,1  | H,2,1
+  B,1,2 | B,2,1 | B,2,1
+  ";
+
+        let mut lines = s.lines().collect::<VecDeque<&str>>();
+
+
+        let mut cell_idx = 1;
+
+        while let Some(line) = lines.pop_front() {
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            let parts = line.split('|').collect::<Vec<&str>>();
+            if parts.len() < 4 {
+                break;
+            }
+            let table = parts[0].trim();
+            let bordered = parts[1].trim();
+            let caption = parts[2].trim();
+            let width = parts[3].trim().parse::<usize>().unwrap();
+
+            println!("Table: {}, bordered: {}, caption: {}, width: {}", table, bordered, caption, width);
+
+            let mut t = Table::new(false)
+                .with_bordered(bordered == "b")
+            ;
+
+            if caption == "ct" {
+                t = t.with_caption("Test Caption", TableCaptionPos::TOP);
+            } else if caption == "cb" {
+                t = t.with_caption("Test Caption", TableCaptionPos::BOTTOM);
+            }
+
+
+            while let Some(line) = lines.pop_front() {
+                if line.is_empty() {
+                    continue;
+                }
+                if line.starts_with("  ") {
+                    let parts = line.split('|').collect::<Vec<&str>>();
+                    for part in parts {
+                        let parts = part.split(',').collect::<Vec<&str>>();
+                        if parts.len() < 3 {
+                            continue;
+                        }
+                        let section = parts[0].trim();
+                        let row = parts[1].trim().parse::<usize>().unwrap();
+                        let col = parts[2].trim().parse::<usize>().unwrap();
+                        println!("  Cell: {}, row: {}, col: {}", section, row, col);
+
+                        if section == "H" {
+                            t.add_header_row(TableRow {
+                                cells: vec![
+                                    TableCell {
+                                        content: format!("Header {}", cell_idx),
+                                        wrapping: false,
+                                        h_alignment: TableHalign::LEFT,
+                                        v_alignment: TableValign::TOP,
+                                        rowspan: row,
+                                        colspan: col,
+                                    }
+                                ]
+                            });
+                            cell_idx += 1;
+                        } else if section == "B" {
+                            t.add_body_row(TableRow {
+                                cells: vec![
+                                    TableCell {
+                                        content: format!("Body {}", cell_idx),
+                                        wrapping: false,
+                                        h_alignment: TableHalign::LEFT,
+                                        v_alignment: TableValign::TOP,
+                                        rowspan: row,
+                                        colspan: col,
+                                    }
+                                ]
+                            });
+                            cell_idx += 1;
+                        } else if section == "F" {
+                            t.add_footer_row(TableRow {
+                                cells: vec![
+                                    TableCell {
+                                        content: format!("Footer {}", cell_idx),
+                                        wrapping: false,
+                                        h_alignment: TableHalign::LEFT,
+                                        v_alignment: TableValign::TOP,
+                                        rowspan: row,
+                                        colspan: col,
+                                    }
+                                ]
+                            });
+                            cell_idx += 1;
+                        }
+                    }
+                } else {
+                    lines.push_front(line);
+                    break;
+                }
+            }
+
+
+            println!("{}", t.render(width));
+        }
+    }
+
+
 }
+
+
+
+
+/*
+ Test format for table:
+
+Table | 'b'ordered or 'u'nbordered | 'ct' caption top or 'cb' caption bottom or 'nc' no caption | width
+space space 'H'eader or 'B'ody or 'F'ooter cell, rowspan, colspan
+--
+<actual table rendering>
+--
+
+Table | b | ct | 80
+  H,1,1 | H,1,1 | H,2,1
+  H,1,1 | H,1,1 | H,2,1
+  B,1,2 | B,2,1 | B,2,1
+  F,1,1 | F,1,1
+--
+<table rendering>
+--
+
+*/
