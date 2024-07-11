@@ -720,7 +720,7 @@ impl Table {
         if self.bordered {
             self.render_bordered(&mut output, &tv);
         } else {
-            self.render_unbordered(&output, &tv);
+            self.render_unbordered(&mut output, &tv);
         }
 
         output.render()
@@ -768,12 +768,12 @@ impl Table {
     }
 
     /// Render the actual table as unbordered
-    fn render_unbordered(&self, _renderer: &impl TableRender, _vars: &TableVars) -> String {
-        let output = String::new();
-        // output.push_str(self.render_row(&self.head_rows).as_str());
-        // output.push_str(self.render_row(&self.body_rows).as_str());
-        // output.push_str(self.render_row(&self.footer_rows).as_str());
-        output
+    fn render_unbordered(&self, renderer: &mut impl TableRender, vars: &TableVars) {
+        // Render each cell border
+        for cell in &vars.cells {
+            let c = vars.box_rect + vars.table_rect + cell.rect;
+            renderer.put_str(c.x + 1, c.y + 1, &cell.content);
+        }
     }
 
     // Render a single box based on the rect
@@ -1310,6 +1310,14 @@ B | 1,1 | 1,1 | 1,1 | 1,1 | 1,1
 B | 1,4 | 1,1
 F | 1,2 | 1,1 | 1,1 | 1,1
 F | 1,1 | 1,1 | 1,2
+
+
+T | u | ct | 80
+H | 1,1 | 1,1 | 2,1
+H | 1,1 | 1,1 | 2,1
+B | 1,2 | 2,1 | 2,1
+B | 1,1 | 1,1 | 1,1
+F | 1,1 | 1,3
 ";
 
         let mut cell_idx = 1;
