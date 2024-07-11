@@ -313,7 +313,7 @@ impl TableVars {
         for (row_index, row) in rows.iter().enumerate() {
             let mut current_col = 0;
 
-            while current_col < col_tracker.len() && col_tracker[current_col] > row_index {
+            while current_col < col_tracker.len() && col_tracker[current_col] >= row_index {
                 current_col += 1;
             }
 
@@ -348,10 +348,10 @@ impl TableVars {
         // separately, but the maximum cols are used for the final table.
         let mut max_cols = 0;
 
-        let (_, col_cnt) = Self::calculate_dimensions(&table.tbody_rows);
+        let (_, col_cnt) = Self::calculate_dimensions(&table.thead_rows);
         max_cols = max_cols.max(col_cnt);
 
-        let (_, col_cnt) = Self::calculate_dimensions(&table.thead_rows);
+        let (_, col_cnt) = Self::calculate_dimensions(&table.tbody_rows);
         max_cols = max_cols.max(col_cnt);
 
         let (_, col_cnt) = Self::calculate_dimensions(&table.tfoot_rows);
@@ -432,14 +432,6 @@ impl TableVars {
                     }
                 }
 
-                // Mark all destination cells that this cell spans as occupied. This makes the code
-                // above work, as it will skip over these cells.
-                for i in 0..table_cell.rowspan {
-                    for j in 0..table_cell.colspan {
-                        occupied_cells[dst_idx.0 + i][dst_idx.1 + j] = true;
-                    }
-                }
-
                 // Find the actual X and Y position for the given destination cell
                 let mut cell_x = 0;
                 for i in 0..dst_idx.1 {
@@ -455,9 +447,18 @@ impl TableVars {
                 // This means that when the last row in a tbody has a rowspan of 10, it still will only render 1 row.
                 let mut capped_rowspan = table_cell.rowspan;
                 let (section_start_row, section_row_count) = table.get_section_boundaries(cell_section);
-                if src_idx.0 + capped_rowspan - 1 > section_start_row + section_row_count {
+                if src_idx.0 + capped_rowspan - 1 >= section_start_row + section_row_count {
                     capped_rowspan = section_start_row + section_row_count - src_idx.0;
                 }
+
+                // Mark all destination cells that this cell spans as occupied so we can skip this cell
+                // as a destination
+                for i in 0..capped_rowspan {
+                    for j in 0..table_cell.colspan {
+                        occupied_cells[dst_idx.0 + i][dst_idx.1 + j] = true;
+                    }
+                }
+
 
                 let cell_height = cell_height * capped_rowspan - (capped_rowspan - 1);
                 let mut cell_width= 0;
@@ -1250,120 +1251,104 @@ B                  C
     #[test]
     fn test_tables() {
         let s = r"
-Table | b | ct | 80
-  H,1,1 | H,1,1 | H,2,1
-  H,1,1 | H,1,1 | H,2,1
-  B,1,2 | B,2,1 | B,2,1
-  F,1,1 | F,1,1
+T | b | ct | 80
+H | 1,1 | 1,1 | 2,1
+H | 1,1 | 1,1 | 2,1
+B | 1,2 | 2,1 | 2,1
+B | 1,1 | 1,1 | 1,1
+F | 1,1 | 1,3
 
-Table | u | cb | 35
-  H,1,1  | H,2,1
-  B,1,2 | B,2,1 | B,2,1
-  ";
+T | b | cb | 35
+H | 1,1 | 2,1
+B | 1,2 | 2,1 | 2,1
 
-        let mut lines = s.lines().collect::<VecDeque<&str>>();
+";
 
-
+        let mut tables: Vec<(Table, usize)> = vec![];
+        let mut current_table_idx: isize = -1;
         let mut cell_idx = 1;
 
+        let mut lines = s.lines().collect::<VecDeque<&str>>();
         while let Some(line) = lines.pop_front() {
             if line.trim().is_empty() {
                 continue;
             }
 
             let parts = line.split('|').collect::<Vec<&str>>();
-            if parts.len() < 4 {
-                break;
-            }
-            let table = parts[0].trim();
-            let bordered = parts[1].trim();
-            let caption = parts[2].trim();
-            let width = parts[3].trim().parse::<usize>().unwrap();
-
-            println!("Table: {}, bordered: {}, caption: {}, width: {}", table, bordered, caption, width);
-
-            let mut t = Table::new(false)
-                .with_bordered(bordered == "b")
-            ;
-
-            if caption == "ct" {
-                t = t.with_caption("Test Caption", TableCaptionPos::TOP);
-            } else if caption == "cb" {
-                t = t.with_caption("Test Caption", TableCaptionPos::BOTTOM);
+            if parts.len() == 0 {
+                continue;
             }
 
+            let section = parts[0].trim();
+            match section {
+                "T" => {
+                    let bordered = parts.get(1).unwrap_or(&"b").trim();
+                    let caption = parts.get(2).unwrap_or(&"nc").trim();
+                    let width = parts.get(3).unwrap_or(&"80").trim().parse::<usize>().unwrap();
 
-            while let Some(line) = lines.pop_front() {
-                if line.is_empty() {
-                    continue;
+                    println!("Table: bordered: {}, caption: {}, width: {}", bordered, caption, width);
+
+                    let mut t = Table::new(false).with_bordered(bordered == "b");
+                    if caption == "ct" {
+                        t = t.with_caption("Test Caption", TableCaptionPos::TOP);
+                    } else if caption == "cb" {
+                        t = t.with_caption("Test Caption", TableCaptionPos::BOTTOM);
+                    }
+
+                    tables.push((t, width));
+                    current_table_idx = (tables.len() - 1) as isize;
                 }
-                if line.starts_with("  ") {
-                    let parts = line.split('|').collect::<Vec<&str>>();
+                "B" | "H" | "F" => {
+                    if current_table_idx == -1 {
+                        continue;
+                    }
+
+                    let mut cells = vec![];
+
+                    println!("  Row");
                     for part in parts {
                         let parts = part.split(',').collect::<Vec<&str>>();
-                        if parts.len() < 3 {
+                        if parts.len() != 2 {
                             continue;
                         }
-                        let section = parts[0].trim();
-                        let row = parts[1].trim().parse::<usize>().unwrap();
-                        let col = parts[2].trim().parse::<usize>().unwrap();
-                        println!("  Cell: {}, row: {}, col: {}", section, row, col);
+                        let row = parts[0].trim().parse::<usize>().unwrap();
+                        let col = parts[1].trim().parse::<usize>().unwrap();
+                        println!("    Cell: {}, row: {}, col: {}", section, row, col);
 
-                        if section == "H" {
-                            t.add_header_row(TableRow {
-                                cells: vec![
-                                    TableCell {
-                                        content: format!("Header {}", cell_idx),
-                                        wrapping: false,
-                                        h_alignment: TableHalign::LEFT,
-                                        v_alignment: TableValign::TOP,
-                                        rowspan: row,
-                                        colspan: col,
-                                    }
-                                ]
-                            });
-                            cell_idx += 1;
-                        } else if section == "B" {
-                            t.add_body_row(TableRow {
-                                cells: vec![
-                                    TableCell {
-                                        content: format!("Body {}", cell_idx),
-                                        wrapping: false,
-                                        h_alignment: TableHalign::LEFT,
-                                        v_alignment: TableValign::TOP,
-                                        rowspan: row,
-                                        colspan: col,
-                                    }
-                                ]
-                            });
-                            cell_idx += 1;
-                        } else if section == "F" {
-                            t.add_footer_row(TableRow {
-                                cells: vec![
-                                    TableCell {
-                                        content: format!("Footer {}", cell_idx),
-                                        wrapping: false,
-                                        h_alignment: TableHalign::LEFT,
-                                        v_alignment: TableValign::TOP,
-                                        rowspan: row,
-                                        colspan: col,
-                                    }
-                                ]
-                            });
-                            cell_idx += 1;
-                        }
+                        cells.push(TableCell {
+                            content: format!("{} {}", section, cell_idx),
+                            wrapping: false,
+                            h_alignment: TableHalign::LEFT,
+                            v_alignment: TableValign::TOP,
+                            rowspan: row,
+                            colspan: col,
+                        });
+                        cell_idx += 1;
                     }
-                } else {
-                    lines.push_front(line);
-                    break;
+
+                    match section {
+                        "H" => tables[current_table_idx as usize].0.add_header_row(TableRow {
+                            cells,
+                        }),
+                        "B" => tables[current_table_idx as usize].0.add_body_row(TableRow {
+                            cells,
+                        }),
+                        "F" => tables[current_table_idx as usize].0.add_footer_row(TableRow {
+                            cells,
+                        }),
+                        _ => (),
+                    }
+                }
+                _ => {
+                    // Skip unknown line
                 }
             }
+        }
 
-
-            println!("{}", t.render(width));
+        for (t, width) in tables.iter() {
+            println!("{}", t.render(*width));
         }
     }
-
 
 }
 
