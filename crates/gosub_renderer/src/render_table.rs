@@ -313,11 +313,11 @@ impl TableVars {
         for (row_index, row) in rows.iter().enumerate() {
             let mut current_col = 0;
 
-            while current_col < col_tracker.len() && col_tracker[current_col] >= row_index {
-                current_col += 1;
-            }
-
             for cell in row.cells.iter() {
+                while current_col < col_tracker.len() && col_tracker[current_col] > row_index {
+                    current_col += 1;
+                }
+
                 max_cols = max_cols.max(current_col + cell.colspan);
 
                 for _ in 0..cell.colspan {
@@ -1262,11 +1262,60 @@ T | b | cb | 35
 H | 1,1 | 2,1
 B | 1,2 | 2,1 | 2,1
 
+T | b | cb | 50
+H | 1,1 | 1,1
+B | 1,1 | 1,1
+
+T | b | ct | 100
+H | 1,3 | 1,1 | 1,1 | 1,1
+H | 2,1 | 1,1 | 1,2 | 1,1
+B | 1,1 | 1,1 | 1,2 | 1,1 | 1,1
+B | 3,1 | 1,1 | 1,1 | 1,2
+B | 1,1 | 1,1 | 1,1 | 1,1 | 1,1
+F | 1,2 | 1,1 | 1,1 | 1,1 | 1,1
+
+
+T | b | cb | 120
+H | 2,2 | 1,3 | 1,1
+H | 1,1 | 1,1 | 1,1 | 1,2 | 1,1
+B | 1,1 | 2,1 | 1,1 | 1,1 | 1,1
+B | 1,2 | 1,2 | 1,1 | 1,2
+B | 1,1 | 1,1 | 1,1 | 1,1 | 1,1
+F | 1,3 | 1,1 | 1,2
+
+T | b | nc | 50
+H | 1,2 | 1,1 | 1,1
+H | 1,1 | 1,2
+B | 1,3 | 1,1
+B | 1,1 | 1,1 | 1,1
+B | 2,1 | 1,1 | 1,1
+F | 1,2 | 1,1
+
+T | b | ct | 150
+H | 1,4 | 1,1
+H | 1,1 | 2,3
+B | 1,2 | 1,1 | 2,2
+B | 2,1 | 1,2 | 1,1
+B | 1,1 | 1,1 | 1,1 | 1,1
+F | 1,1 | 1,1 | 1,2 | 1,1
+F | 1,3 | 1,1
+F | 1,1 | 1,1 | 1,1 | 1,1
+
+T | b | cb | 200
+H | 1,5
+H | 1,1 | 1,1 | 1,1 | 1,2
+B | 2,2 | 1,3
+B | 1,1 | 1,1 | 1,1 | 1,1 | 1,1
+B | 1,1 | 1,1 | 1,1 | 1,1 | 1,1
+B | 1,4 | 1,1
+F | 1,2 | 1,1 | 1,1 | 1,1
+F | 1,1 | 1,1 | 1,2
 ";
+
+        let mut cell_idx = 1;
 
         let mut tables: Vec<(Table, usize)> = vec![];
         let mut current_table_idx: isize = -1;
-        let mut cell_idx = 1;
 
         let mut lines = s.lines().collect::<VecDeque<&str>>();
         while let Some(line) = lines.pop_front() {
@@ -1282,11 +1331,11 @@ B | 1,2 | 2,1 | 2,1
             let section = parts[0].trim();
             match section {
                 "T" => {
+                    cell_idx = 1;
+
                     let bordered = parts.get(1).unwrap_or(&"b").trim();
                     let caption = parts.get(2).unwrap_or(&"nc").trim();
                     let width = parts.get(3).unwrap_or(&"80").trim().parse::<usize>().unwrap();
-
-                    println!("Table: bordered: {}, caption: {}, width: {}", bordered, caption, width);
 
                     let mut t = Table::new(false).with_bordered(bordered == "b");
                     if caption == "ct" {
@@ -1305,7 +1354,6 @@ B | 1,2 | 2,1 | 2,1
 
                     let mut cells = vec![];
 
-                    println!("  Row");
                     for part in parts {
                         let parts = part.split(',').collect::<Vec<&str>>();
                         if parts.len() != 2 {
@@ -1313,7 +1361,6 @@ B | 1,2 | 2,1 | 2,1
                         }
                         let row = parts[0].trim().parse::<usize>().unwrap();
                         let col = parts[1].trim().parse::<usize>().unwrap();
-                        println!("    Cell: {}, row: {}, col: {}", section, row, col);
 
                         cells.push(TableCell {
                             content: format!("{} {}", section, cell_idx),
@@ -1358,17 +1405,14 @@ B | 1,2 | 2,1 | 2,1
 /*
  Test format for table:
 
-Table | 'b'ordered or 'u'nbordered | 'ct' caption top or 'cb' caption bottom or 'nc' no caption | width
-space space 'H'eader or 'B'ody or 'F'ooter cell, rowspan, colspan
---
-<actual table rendering>
---
+T | 'b'ordered or 'u'nbordered | 'ct' caption top or 'cb' caption bottom or 'nc' no caption | width
+'H'eader or 'B'ody or 'F'ooter | rowspan,colspan | ...
 
-Table | b | ct | 80
-  H,1,1 | H,1,1 | H,2,1
-  H,1,1 | H,1,1 | H,2,1
-  B,1,2 | B,2,1 | B,2,1
-  F,1,1 | F,1,1
+T | b | ct | 80
+H | 1,1 | 1,1 | 2,1
+H | 1,1 | 1,1 | 2,1
+B | 1,2 | 2,1 | 2,1
+F | 1,1 | 1,1
 --
 <table rendering>
 --
