@@ -38,8 +38,8 @@ fn match_internal(value: &CssValue, component: &SyntaxComponent, depth: usize) -
             CssValue::None if keyword.eq_ignore_ascii_case("none") => return Some(value.clone()),
             CssValue::String(v) if v.eq_ignore_ascii_case(keyword) => {
                 // println!("double fin.. matching keyword  {} {}", v, keyword);
-                return Some(value.clone())
-            },
+                return Some(value.clone());
+            }
             _ => {
                 // Did not match the keyword
                 // panic!("Unknown generic keyword: {:?}", keyword);
@@ -55,25 +55,31 @@ fn match_internal(value: &CssValue, component: &SyntaxComponent, depth: usize) -
         }
 
         SyntaxComponent::Builtin { datatype, .. } => match datatype.as_str() {
-            "percentage" => {
-                match value {
-                    CssValue::Percentage(_) => return Some(value.clone()),
-                    _ => {}
-                }
-            }
-        //     "number" | "<number>" => {
-        //         if matches!(value, CssValue::Number(_)) {
-        //             return Some(value.clone());
-        //         }
-        //     }
+            "percentage" => match value {
+                CssValue::Percentage(_) => return Some(value.clone()),
+                _ => {}
+            },
+            //     "number" | "<number>" => {
+            //         if matches!(value, CssValue::Number(_)) {
+            //             return Some(value.clone());
+            //         }
+            //     }
             "angle" => match value {
                 CssValue::Zero => return Some(value.clone()),
-                CssValue::Unit(_, u) if u.eq_ignore_ascii_case("deg") => return Some(value.clone()),
-                CssValue::Unit(_, u) if u.eq_ignore_ascii_case("grad") => return Some(value.clone()),
-                CssValue::Unit(_, u) if u.eq_ignore_ascii_case("rad") => return Some(value.clone()),
-                CssValue::Unit(_, u) if u.eq_ignore_ascii_case("turn") => return Some(value.clone()),
+                CssValue::Unit(_, u) if u.eq_ignore_ascii_case("deg") => {
+                    return Some(value.clone())
+                }
+                CssValue::Unit(_, u) if u.eq_ignore_ascii_case("grad") => {
+                    return Some(value.clone())
+                }
+                CssValue::Unit(_, u) if u.eq_ignore_ascii_case("rad") => {
+                    return Some(value.clone())
+                }
+                CssValue::Unit(_, u) if u.eq_ignore_ascii_case("turn") => {
+                    return Some(value.clone())
+                }
                 _ => {}
-            }
+            },
             "hex-color" => match value {
                 CssValue::Color(_) => return Some(value.clone()),
                 CssValue::String(v) if v.starts_with('#') => return Some(value.clone()),
@@ -83,7 +89,7 @@ fn match_internal(value: &CssValue, component: &SyntaxComponent, depth: usize) -
                 CssValue::Zero => return Some(value.clone()),
                 CssValue::Unit(_, u) if LENGTH_UNITS.contains(&u.as_str()) => {
                     // println!("oh fun.. we matched length: {}", value.clone());
-                    return Some(value.clone())
+                    return Some(value.clone());
                 }
                 _ => {}
             },
@@ -131,8 +137,12 @@ fn match_internal(value: &CssValue, component: &SyntaxComponent, depth: usize) -
             ..
         } => {
             return match combinator {
-                GroupCombinators::Juxtaposition => match_group_juxtaposition(value, components, depth),
-                GroupCombinators::AllAnyOrder => match_group_all_any_order(value, components, depth),
+                GroupCombinators::Juxtaposition => {
+                    match_group_juxtaposition(value, components, depth)
+                }
+                GroupCombinators::AllAnyOrder => {
+                    match_group_all_any_order(value, components, depth)
+                }
                 GroupCombinators::AtLeastOneAnyOrder => {
                     match_group_at_least_one_any_order(value, components, depth)
                 }
@@ -186,7 +196,9 @@ fn match_internal(value: &CssValue, component: &SyntaxComponent, depth: usize) -
         //         }
         //     }
         // }
-        SyntaxComponent::Value { value: css_value, ..} => {
+        SyntaxComponent::Value {
+            value: css_value, ..
+        } => {
             if value == css_value {
                 return Some(css_value.clone());
             }
@@ -203,7 +215,7 @@ fn match_internal(value: &CssValue, component: &SyntaxComponent, depth: usize) -
 struct Matches {
     /// Entry is either -1 for each element in the value, or the index of the component that matched
     entries: Vec<isize>,
-    all: isize,     // @todo: "all" is not the best name. We need to change this.
+    all: isize, // @todo: "all" is not the best name. We need to change this.
 }
 
 /// Resolves a group of values against a group of components based on their position. So if the
@@ -265,11 +277,22 @@ fn resolve_group(value: &CssValue, components: &Vec<SyntaxComponent>, depth: usi
 fn match_group_exactly_one(
     value: &CssValue,
     components: &Vec<SyntaxComponent>,
-    depth: usize
+    depth: usize,
 ) -> Option<CssValue> {
     let matches = resolve_group(value, components, depth);
-    println!("[{}]{}match_group_exactly_one: {:?} {:?}", depth, "  ".repeat(depth), value, matches);
-    println!("[{}]{}Value to match: {:?}", depth, "  ".repeat(depth), value);
+    println!(
+        "[{}]{}match_group_exactly_one: {:?} {:?}",
+        depth,
+        "  ".repeat(depth),
+        value,
+        matches
+    );
+    println!(
+        "[{}]{}Value to match: {:?}",
+        depth,
+        "  ".repeat(depth),
+        value
+    );
 
     if matches.all != -1 {
         return Some(value.clone());
@@ -296,7 +319,12 @@ fn match_group_at_least_one_any_order(
 ) -> Option<CssValue> {
     // Step: convert to matches
     let matches = resolve_group(value, components, depth);
-    println!("[{}]{}match_group_at_least_one_any_order: {:?}", depth, "  ".repeat(depth), matches);
+    println!(
+        "[{}]{}match_group_at_least_one_any_order: {:?}",
+        depth,
+        "  ".repeat(depth),
+        matches
+    );
 
     let len = if let CssValue::List(list) = value {
         list.len()
@@ -344,7 +372,12 @@ fn match_group_all_any_order(
     depth: usize,
 ) -> Option<CssValue> {
     let matches = resolve_group(value, components, depth);
-    println!("[{}]{}match_group_all_any_order: {:?}", depth, "  ".repeat(depth), matches);
+    println!(
+        "[{}]{}match_group_all_any_order: {:?}",
+        depth,
+        "  ".repeat(depth),
+        matches
+    );
 
     // If we do not the same length in our matches, we definitely don't have a match
     if matches.entries.len() != components.len() {
@@ -373,11 +406,22 @@ fn match_group_juxtaposition(
 ) -> Option<CssValue> {
     // Step: Convert to matches
     let matches = resolve_group(value, components, depth);
-    println!("[{}]{}match_group_juxtaposition: {:?}: {:?} {:?}", depth, "  ".repeat(depth), matches, value, components);
+    println!(
+        "[{}]{}match_group_juxtaposition: {:?}: {:?} {:?}",
+        depth,
+        "  ".repeat(depth),
+        matches,
+        value,
+        components
+    );
 
     // Step: Check if there are -1 in the list. If so, we found unknown values, and thus we can return immediately
     if matches.entries.iter().any(|x| *x == -1) {
-        println!("[{}]{}Found -1 in the list, returning None", depth, "  ".repeat(depth));
+        println!(
+            "[{}]{}Found -1 in the list, returning None",
+            depth,
+            "  ".repeat(depth)
+        );
         return None;
     }
 
@@ -393,11 +437,22 @@ fn match_group_juxtaposition(
             .unwrap_or(&(c_idx, 0))
             .1;
 
-        println!("[{}]{}Checking component: {:?} with count: {:?}", depth, "  ".repeat(depth), group_component, value_count);
+        println!(
+            "[{}]{}Checking component: {:?} with count: {:?}",
+            depth,
+            "  ".repeat(depth),
+            group_component,
+            value_count
+        );
 
         // Check if this count is correct for the group validator
         if !check_multiplier(group_component, value_count) {
-            println!("[{}]{}Multiplier check failed for component: {:?}", depth, "  ".repeat(depth), group_component);
+            println!(
+                "[{}]{}Multiplier check failed for component: {:?}",
+                depth,
+                "  ".repeat(depth),
+                group_component
+            );
             return None;
         }
     }
@@ -408,12 +463,23 @@ fn match_group_juxtaposition(
         if *idx >= last_idx {
             last_idx = *idx;
         } else {
-            println!("[{}]{}Order check failed: {:?} < {:?}", depth, "  ".repeat(depth), idx, last_idx);
+            println!(
+                "[{}]{}Order check failed: {:?} < {:?}",
+                depth,
+                "  ".repeat(depth),
+                idx,
+                last_idx
+            );
             return None;
         }
     }
 
-    println!("[{}]{}Returning value: {:?}", depth, "  ".repeat(depth), value);
+    println!(
+        "[{}]{}Returning value: {:?}",
+        depth,
+        "  ".repeat(depth),
+        value
+    );
     Some(value.clone())
 }
 
@@ -465,7 +531,8 @@ fn check_multiplier(component: &SyntaxComponent, count: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use gosub_css3::stylesheet::CssValue;
-    use crate::css_definitions::{parse_mdn_definition_files, PropertyDefinition};
+
+    use crate::css_definitions::{parse_definition_files, PropertyDefinition};
     use crate::syntax::CssSyntax;
 
     use super::*;
@@ -814,8 +881,11 @@ mod tests {
     fn test_match_group_at_least_one_any_order() {
         let tree = CssSyntax::new("auto none block").compile().unwrap();
         if let SyntaxComponent::Group { components, .. } = &tree.components[0] {
-            let res =
-                match_group_at_least_one_any_order(&CssValue::List(vec![str!("auto")]), components, 0);
+            let res = match_group_at_least_one_any_order(
+                &CssValue::List(vec![str!("auto")]),
+                components,
+                0,
+            );
             assert_some!(res);
 
             let res = match_group_at_least_one_any_order(
@@ -861,7 +931,7 @@ mod tests {
                     str!("none"),
                 ]),
                 components,
-                0
+                0,
             );
             assert_none!(res);
         }
@@ -1144,19 +1214,24 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_matcher() {
-        let mut definitions = parse_mdn_definition_files();
-        definitions.add_property("testprop", PropertyDefinition{
-            name: "testprop".to_string(),
-            computed: vec![],
-            syntax: CssSyntax::new("[ left | right ] <length>? | [ top | bottom ] <length> | [ left | bottom ]").compile().unwrap(),
-            inherited: false,
-            initial_value: None,
-            mdn_url: "".to_string(),
-            resolved: false,
-        });
+        let mut definitions = parse_definition_files();
+        definitions.add_property(
+            "testprop",
+            PropertyDefinition {
+                name: "testprop".to_string(),
+                computed: vec![],
+                syntax: CssSyntax::new(
+                    "[ left | right ] <length>? | [ top | bottom ] <length> | [ left | bottom ]",
+                )
+                .compile()
+                .unwrap(),
+                inherited: false,
+                initial_value: None,
+                resolved: false,
+            },
+        );
 
         let prop = definitions.find_property("testprop").unwrap();
 
@@ -1176,33 +1251,32 @@ mod tests {
             CssValue::String("right".into()),
             CssValue::Unit(5.0, "px".into()),
         ])));
-        assert_some!(prop.clone().matches(&CssValue::List(vec![
-            CssValue::String("left".into()),
-        ])));
+        assert_some!(prop
+            .clone()
+            .matches(&CssValue::List(vec![CssValue::String("left".into()),])));
 
-        assert_some!(prop.clone().matches(&CssValue::List(vec![
-            CssValue::String("bottom".into()),
-        ])));
+        assert_some!(prop
+            .clone()
+            .matches(&CssValue::List(vec![CssValue::String("bottom".into()),])));
 
-        assert_some!(prop.clone().matches(&CssValue::List(vec![
-            CssValue::String("right".into()),
-        ])));
+        assert_some!(prop
+            .clone()
+            .matches(&CssValue::List(vec![CssValue::String("right".into()),])));
 
-        assert_none!(prop.clone().matches(&CssValue::List(vec![
-            CssValue::String("top".into()),
-        ])));
+        assert_none!(prop
+            .clone()
+            .matches(&CssValue::List(vec![CssValue::String("top".into()),])));
     }
 
     #[test]
     fn test_matcher_2() {
-        let mut definitions = parse_mdn_definition_files();
+        let mut definitions = parse_definition_files();
         definitions.add_property("testprop", PropertyDefinition{
             name: "testprop".to_string(),
             computed: vec![],
             syntax: CssSyntax::new("[ [ left | center | right | top | bottom | <length-percentage> ] | [ left | center | right | <length-percentage> ] [ top | center | bottom | <length-percentage> ] ]").compile().unwrap(),
             inherited: false,
             initial_value: None,
-            mdn_url: "".to_string(),
             resolved: false,
         });
         definitions.resolve();
@@ -1247,27 +1321,31 @@ mod tests {
             CssValue::Percentage(20.0),
         ])));
 
-        assert_some!(prop.clone().matches(&CssValue::List(vec![
-            CssValue::String("right".into()),
-        ])));
+        assert_some!(prop
+            .clone()
+            .matches(&CssValue::List(vec![CssValue::String("right".into()),])));
 
-        assert_none!(prop.clone().matches(&CssValue::List(vec![
-            CssValue::String("top".into()),
-        ])));
+        assert_none!(prop
+            .clone()
+            .matches(&CssValue::List(vec![CssValue::String("top".into()),])));
     }
 
     #[test]
     fn test_matcher_3() {
-        let mut definitions = parse_mdn_definition_files();
-        definitions.add_property("testprop", PropertyDefinition{
-            name: "testprop".to_string(),
-            computed: vec![],
-            syntax: CssSyntax::new("foo | [ foo [ foo | bar ] ]").compile().unwrap(),
-            inherited: false,
-            initial_value: None,
-            mdn_url: "".to_string(),
-            resolved: false,
-        });
+        let mut definitions = parse_definition_files();
+        definitions.add_property(
+            "testprop",
+            PropertyDefinition {
+                name: "testprop".to_string(),
+                computed: vec![],
+                syntax: CssSyntax::new("foo | [ foo [ foo | bar ] ]")
+                    .compile()
+                    .unwrap(),
+                inherited: false,
+                initial_value: None,
+                resolved: false,
+            },
+        );
         definitions.resolve();
 
         let prop = definitions.find_property("testprop").unwrap();
