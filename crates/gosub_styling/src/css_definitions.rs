@@ -225,7 +225,7 @@ impl CssDefinitions {
         match component {
             SyntaxComponent::Definition {
                 datatype,
-                multiplier,
+                multipliers,
                 ..
             } => {
                 // println!("Resolving definition {:?}", datatype);
@@ -245,7 +245,7 @@ impl CssDefinitions {
                     return SyntaxComponent::Group {
                         components: syntax_element.syntax.components.clone(),
                         combinator: Juxtaposition,
-                        multiplier: multiplier.clone(),
+                        multipliers: multipliers.clone(),
                     };
                 }
 
@@ -271,7 +271,7 @@ impl CssDefinitions {
                         return SyntaxComponent::Group {
                             components: resolved_prop.syntax.components.clone(),
                             combinator: Juxtaposition,
-                            multiplier: multiplier.clone(),
+                            multipliers: multipliers.clone(),
                         };
                     }
                 }
@@ -283,7 +283,7 @@ impl CssDefinitions {
                     // Ok, it's a built-in datatype, convert it to a built-in type
                     return SyntaxComponent::Builtin {
                         datatype: datatype.clone(),
-                        multiplier: multiplier.clone(),
+                        multipliers: multipliers.clone(),
                     };
                 }
 
@@ -292,7 +292,7 @@ impl CssDefinitions {
             SyntaxComponent::Group {
                 components,
                 combinator,
-                multiplier,
+                multipliers,
             } => {
                 // Resolve each component from the group
                 let mut resolved_components = vec![];
@@ -305,7 +305,7 @@ impl CssDefinitions {
                 return SyntaxComponent::Group {
                     components: resolved_components,
                     combinator: combinator.clone(),
-                    multiplier: multiplier.clone(),
+                    multipliers: multipliers.clone(),
                 };
             }
             _ => {
@@ -331,12 +331,6 @@ impl CssDefinitions {
 /// Parses the internal CSS definition file
 #[memoize]
 pub fn parse_definition_files() -> CssDefinitions {
-    // First, parse all functions so we can use them in the properties and syntax
-    // let contents = include_str!("../resources/definitions/definitions_functions.json");
-    // let json: serde_json::Value =
-    //     serde_json::from_str(contents).expect("JSON was not well-formatted");
-    // let functions = parse_functions_file(json);
-
     // parse all syntax so we can use them in the properties
     let contents = include_str!("../resources/definitions/definitions_values.json");
     let json: serde_json::Value =
@@ -351,7 +345,6 @@ pub fn parse_definition_files() -> CssDefinitions {
 
     let mut definitions = CssDefinitions {
         properties,
-        // functions,
         syntax,
     };
 
@@ -365,28 +358,6 @@ pub fn parse_definition_files() -> CssDefinitions {
 /// and caches them if needed.
 pub fn get_css_definitions() -> CssDefinitions {
     parse_definition_files()
-}
-
-/// Parses a function JSON import file
-fn parse_functions_file(json: serde_json::Value) -> HashMap<String, FunctionDefinition> {
-    let mut functions = HashMap::new();
-
-    for obj in json.as_array().unwrap() {
-        let syntax = obj.get("syntax").unwrap().as_str().unwrap();
-        let syntax = CssSyntax::new(syntax)
-            .compile()
-            .expect("Could not compile syntax");
-        functions.insert(
-            obj.get("name").unwrap().to_string(),
-            FunctionDefinition {
-                name: obj.get("name").unwrap().clone().to_string(),
-                syntax,
-                mdn_url: obj.get("mdn_url").unwrap().to_string(),
-            },
-        );
-    }
-
-    functions
 }
 
 /// Parses a syntax JSON import file
