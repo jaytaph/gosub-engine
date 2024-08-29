@@ -62,6 +62,7 @@ impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree
                     eprintln!("Error resuming window: {e:?}");
                     return;
                 }
+
                 self.windows.insert(window.id(), window);
             }
             CustomEvent::CloseWindow(id) => {

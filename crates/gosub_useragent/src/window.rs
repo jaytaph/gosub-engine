@@ -5,7 +5,7 @@ use std::sync::Arc;
 use url::Url;
 use winit::dpi::LogicalSize;
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Window as WinitWindow, WindowId};
+use winit::window::{Icon, Window as WinitWindow, WindowId};
 
 use gosub_render_backend::geo::SizeU32;
 use gosub_render_backend::layout::{LayoutTree, Layouter};
@@ -108,9 +108,14 @@ impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree
 }
 
 fn create_window(event_loop: &ActiveEventLoop) -> Result<Arc<WinitWindow>> {
+    let rgba = include_bytes!("../resources/gosub.png.dat");
+    let icon = Icon::from_rgba(rgba.to_vec(), 256, 256)?;
+
     let attributes = WinitWindow::default_attributes()
         .with_title("Gosub Browser")
-        .with_inner_size(LogicalSize::new(1920, 1080));
+        .with_window_icon(Some(icon))
+        .with_inner_size(LogicalSize::new(640, 480))
+    ;
 
     event_loop
         .create_window(attributes)
