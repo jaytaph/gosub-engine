@@ -1,18 +1,20 @@
+use gosub_shared::traits::document::{Document, DocumentFragment};
+use gosub_shared::traits::node::{ElementDataType, Node, QuirksMode};
 use crate::parser::Html5Parser;
 
-#[derive(PartialEq, Debug, Copy, Clone)]
-pub enum QuirksMode {
-    Quirks,
-    LimitedQuirks,
-    NoQuirks,
-}
 
-impl Html5Parser<'_> {
+
+impl<'chars, D: Document> Html5Parser<'chars, D>
+    where
+        D: Document,
+        <<D as Document>::Node as Node>::ElementData: ElementDataType<Document=D>,
+        <<<D as Document>::Node as Node>::ElementData as ElementDataType>::DocumentFragment: DocumentFragment<Document=D>,
+{
     // returns the correct quirk mode for the given doctype
     pub(crate) fn identify_quirks_mode(
         &self,
         name: &Option<String>,
-        pub_identifer: Option<String>,
+        pub_identifier: Option<String>,
         sys_identifier: Option<String>,
         force_quirks: bool,
     ) -> QuirksMode {
@@ -20,7 +22,7 @@ impl Html5Parser<'_> {
             return QuirksMode::Quirks;
         }
 
-        if let Some(value) = pub_identifer {
+        if let Some(value) = pub_identifier {
             let pub_id = value.to_lowercase();
             if QUIRKS_PUB_IDENTIFIER_EQ.contains(&pub_id.as_str()) {
                 return QuirksMode::Quirks;

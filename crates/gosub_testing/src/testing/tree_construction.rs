@@ -4,6 +4,7 @@ pub(crate) mod parser;
 pub mod result;
 
 use generator::TreeOutputGenerator;
+use gosub_html5::document::builder::DocumentBuilder;
 use gosub_html5::node::NodeId;
 use gosub_html5::node::{HTML_NAMESPACE, MATHML_NAMESPACE, SVG_NAMESPACE};
 use gosub_html5::parser::document::DocumentBuilder;

@@ -13,10 +13,7 @@ impl Css3<'_> {
         let value = value.to_string();
 
         if unit.chars().nth(0).unwrap().to_lowercase().to_string() != "n" {
-            return Err(Error::new(
-                format!("Expected n, found {}", unit).to_string(),
-                self.tokenizer.current_location(),
-            ));
+            return Err(Error::Parse(format!("Expected n, found {}", unit).to_string(), self.tokenizer.current_location()));
         }
         Ok(if unit.len() == 1 {
             (value.to_string(), self.parse_anplusb_b()?)
@@ -41,10 +38,7 @@ impl Css3<'_> {
 
         if sign == "+" || sign == "-" {
             if !allow_sign {
-                return Err(Error::new(
-                    format!("Unexpected sign {}", sign).to_string(),
-                    self.tokenizer.current_location(),
-                ));
+                return Err(Error::Parse(format!("Unexpected sign {}", sign).to_string(), self.tokenizer.current_location()));
             }
             pos += 1;
         }
@@ -66,10 +60,7 @@ impl Css3<'_> {
             .to_lowercase()
             .to_string();
         if nval != c {
-            return Err(Error::new(
-                format!("Expected {}", c).to_string(),
-                self.tokenizer.current_location(),
-            ));
+            return Err(Error::Parse(format!("Expected {}", c).to_string(), self.tokenizer.current_location()));
         }
 
         Ok(true)
@@ -107,14 +98,7 @@ impl Css3<'_> {
                 false
             }
             _ => {
-                return Err(Error::new(
-                    format!(
-                        "Expected +, - or number, found {:?}",
-                        self.tokenizer.lookahead(0).token_type
-                    )
-                    .to_string(),
-                    self.tokenizer.current_location(),
-                ));
+                return Err(Error::Parse(format!("Expected +, - or number, found {:?}", self.tokenizer.lookahead(0).token_type).to_string(), self.tokenizer.current_location()));
             }
         };
 
@@ -228,10 +212,7 @@ impl Css3<'_> {
             }
             _ => {
                 self.tokenizer.reconsume();
-                return Err(Error::new(
-                    "Expected anplusb".to_string(),
-                    self.tokenizer.current_location(),
-                ));
+                return Err(Error::Parse(format!("Expected anplusb").to_string(), self.tokenizer.current_location()));
             }
         }
 
@@ -251,6 +232,8 @@ impl Css3<'_> {
 mod test {
     use super::*;
     use gosub_shared::byte_stream::{ByteStream, Encoding};
+    use crate::parser_config::ParserConfig;
+    use crate::stylesheet::CssOrigin;
 
     macro_rules! test {
         ($func:ident, $input:expr, $expected:expr) => {
@@ -258,7 +241,7 @@ mod test {
             stream.read_from_str($input, Some(Encoding::UTF8));
             stream.close();
 
-            let mut parser = crate::Css3::new(&mut stream);
+            let mut parser = crate::Css3::new(&mut stream, ParserConfig::default(), CssOrigin::User, "");
             let result = parser.$func().unwrap();
 
             assert_eq!(result.node_type, $expected);

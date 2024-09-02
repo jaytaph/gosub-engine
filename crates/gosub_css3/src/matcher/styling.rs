@@ -1,4 +1,5 @@
 use crate::property_definitions::{get_css_definitions, CSS_DEFINITIONS};
+use gosub_shared::traits::node::ElementDataType;
 use core::fmt::Debug;
 use gosub_css3::stylesheet::{
     Combinator, CssOrigin, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity,
@@ -8,10 +9,18 @@ use gosub_html5::parser::document::{Document, DocumentHandle};
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use gosub_shared::document::DocumentHandle;
+use crate::matcher::property_definitions::get_css_definitions;
+use crate::stylesheet::{
+    CssOrigin, CssSelector, CssSelectorPart, CssSelectorType, CssValue, MatcherType, Specificity,
+};
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::document::Document;
+use gosub_shared::traits::node::Node;
 
 // Matches a complete selector (all parts) against the given node(id)
-pub(crate) fn match_selector(
-    document: DocumentHandle,
+pub(crate) fn match_selector<D: Document>(
+    document: DocumentHandle<D>,
     node_id: NodeId,
     selector: &CssSelector,
 ) -> (bool, Specificity) {
@@ -35,8 +44,8 @@ fn consume<'a, T>(this: &mut &'a [T]) -> Option<&'a T> {
 }
 
 /// Returns true when the given node matches the part(s)
-fn match_selector_parts(
-    document: DocumentHandle,
+fn match_selector_parts<D: Document>(
+    document: DocumentHandle<D>,
     node_id: NodeId,
     mut parts: &[CssSelectorPart],
 ) -> bool {
@@ -559,8 +568,8 @@ pub fn prop_is_inherit(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::colors::RgbColor;
     use super::*;
-    use gosub_css3::colors::RgbColor;
 
     #[test]
     fn css_props() {

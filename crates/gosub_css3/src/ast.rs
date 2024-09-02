@@ -73,6 +73,7 @@ pub fn convert_ast_to_stylesheet(
         rules: vec![],
         origin,
         location: location.to_string(),
+        parse_log: vec![],
     };
 
     for node in css_ast.as_stylesheet() {
@@ -229,7 +230,7 @@ mod tests {
 
     #[test]
     fn convert_font_family() {
-        let ast = Css3::parse(
+        let stylesheet = Css3::parse_str(
             r#"
               body {
                 border: 1px solid black;
@@ -241,29 +242,27 @@ mod tests {
               }
             "#,
             ParserConfig::default(),
-        )
-        .unwrap();
+            CssOrigin::User,
+            "test.css"
+        ).unwrap();
 
-        let tree = convert_ast_to_stylesheet(&ast, CssOrigin::UserAgent, "test.css").unwrap();
-
-        dbg!(&tree);
+        dbg!(&stylesheet);
     }
 
     #[test]
     fn convert_test() {
-        let ast = Css3::parse(
+        let stylesheet = Css3::parse_str(
             r#"
             h1 { color: red; }
             h3, h4 { border: 1px solid black; }
             "#,
             ParserConfig::default(),
-        )
-        .unwrap();
-
-        let tree = convert_ast_to_stylesheet(&ast, CssOrigin::UserAgent, "test.css").unwrap();
+            CssOrigin::User,
+            "test.css"
+        ).unwrap();
 
         assert_eq!(
-            tree.rules
+            stylesheet.rules
                 .first()
                 .unwrap()
                 .declarations
@@ -273,7 +272,7 @@ mod tests {
             "color"
         );
         assert_eq!(
-            tree.rules
+            stylesheet.rules
                 .first()
                 .unwrap()
                 .declarations
@@ -284,7 +283,7 @@ mod tests {
         );
 
         assert_eq!(
-            tree.rules
+            stylesheet.rules
                 .get(1)
                 .unwrap()
                 .declarations
@@ -294,7 +293,7 @@ mod tests {
             "border"
         );
         assert_eq!(
-            tree.rules
+            stylesheet.rules
                 .get(1)
                 .unwrap()
                 .declarations

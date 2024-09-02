@@ -45,7 +45,7 @@ fn display_node(document: &Document, node: &Node) {
         }
     }
     for child_id in &node.children {
-        if let Some(child) = document.get_node_by_id(*child_id) {
+        if let Some(child) = document.node_by_id(*child_id) {
             display_node(document, child);
         }
     }

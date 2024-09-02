@@ -55,7 +55,7 @@ impl Css3<'_> {
         }
 
         if list.is_empty() {
-            return Err(Error::new("Expected condition".to_string(), loc));
+            return Err(Error::Parse("Expected condition".to_string(), loc));
         }
 
         Ok(Node::new(NodeType::Condition { list }, loc))

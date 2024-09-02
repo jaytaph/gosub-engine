@@ -7,7 +7,6 @@ mod replacement_tables;
 #[cfg(test)]
 mod test_cases;
 
-use crate::error_logger::{ErrorLogger, ParserError};
 use crate::errors::Error;
 use crate::node::HTML_NAMESPACE;
 use crate::tokenizer::state::State;
@@ -18,6 +17,7 @@ use gosub_shared::types::Result;
 use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
+use crate::parser::errors::{ErrorLogger, ParserError};
 
 /// Constants that are not directly captured as visible chars
 pub const CHAR_NUL: char = '\u{0000}';

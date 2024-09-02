@@ -1,11 +1,11 @@
 use std::collections::hash_map::Entry;
 
-use gosub_css3::stylesheet::{CssOrigin, CssValue, Specificity};
+use crate::stylesheet::{CssOrigin, CssValue, Specificity};
 
-use crate::property_definitions::CssDefinitions;
-use crate::styling::{CssProperties, CssProperty, DeclarationProperty};
-use crate::syntax::{SyntaxComponent, SyntaxComponentMultiplier};
-use crate::syntax_matcher::CssSyntaxTree;
+use crate::matcher::property_definitions::CssDefinitions;
+use crate::matcher::styling::{CssProperties, CssProperty, DeclarationProperty};
+use crate::matcher::syntax::{SyntaxComponent, SyntaxComponentMultiplier};
+use crate::matcher::syntax_matcher::CssSyntaxTree;
 
 impl CssSyntaxTree {
     pub fn has_property_syntax(&self, property: &str) -> Option<Shorthand> {
@@ -603,11 +603,10 @@ impl CssDefinitions {
 
 #[cfg(test)]
 mod tests {
-    use gosub_css3::colors::RgbColor;
-    use gosub_css3::stylesheet::CssValue;
-
-    use crate::property_definitions::get_css_definitions;
-    use crate::shorthands::FixList;
+    use crate::colors::RgbColor;
+    use crate::matcher::property_definitions::get_css_definitions;
+    use crate::matcher::shorthands::FixList;
+    use crate::matcher::shorthands::CssValue;
 
     macro_rules! str {
         ($s:expr) => {

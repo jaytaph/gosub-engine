@@ -27,7 +27,7 @@ impl Css3<'_> {
         match t.token_type {
             TokenType::Ident(value) => Ok(value),
             TokenType::Hash(value) => Ok(value),
-            _ => Err(Error::new(
+            _ => Err(Error::Parse(
                 format!("Unexpected token {:?}", t),
                 self.tokenizer.current_location(),
             )),
@@ -69,7 +69,7 @@ impl Css3<'_> {
         let value = self.parse_value_sequence()?;
 
         if value.is_empty() {
-            return Err(Error::new(
+            return Err(Error::Parse(
                 "Expected value in declaration".to_string(),
                 self.tokenizer.current_location(),
             ));

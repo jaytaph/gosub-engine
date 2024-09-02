@@ -85,7 +85,7 @@ impl Css3<'_> {
                 _ => match mode {
                     BlockParseMode::StyleBlock => {
                         if !semicolon_seperated {
-                            return Err(Error::new(
+                            return Err(Error::Parse(
                                 format!("Expected a ; got {:?}", t),
                                 self.tokenizer.current_location(),
                             ));

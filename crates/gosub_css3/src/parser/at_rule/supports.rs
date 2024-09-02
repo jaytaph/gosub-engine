@@ -17,6 +17,7 @@ impl Css3<'_> {
 #[cfg(test)]
 mod tests {
     use crate::walker::Walker;
+    use crate::{ParserConfig, CssOrigin};
     use gosub_shared::byte_stream::{ByteStream, Encoding};
 
     #[test]
@@ -25,7 +26,7 @@ mod tests {
         stream.read_from_str("(display: flex)", Some(Encoding::UTF8));
         stream.close();
 
-        let mut parser = crate::Css3::new(&mut stream);
+        let mut parser = crate::Css3::new(&mut stream, ParserConfig::default(), CssOrigin::User, "");
         let node = parser.parse_at_rule_supports_prelude().unwrap();
 
         let w = Walker::new(&node);

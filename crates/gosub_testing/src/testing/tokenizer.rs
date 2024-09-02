@@ -1,7 +1,7 @@
 use super::FIXTURE_ROOT;
 use gosub_html5::tokenizer::ParserData;
 use gosub_html5::{
-    error_logger::ErrorLogger,
+    errors::ErrorLogger,
     tokenizer::{
         state::State as TokenState,
         token::Token,

@@ -1,8 +1,7 @@
-use gosub_css3::colors::{is_named_color, is_system_color};
-use gosub_css3::stylesheet::CssValue;
-
-use crate::shorthands::{copy_resolver, ShorthandResolver};
-use crate::syntax::{GroupCombinators, SyntaxComponent, SyntaxComponentMultiplier};
+use crate::colors::{is_named_color, is_system_color};
+use crate::stylesheet::CssValue;
+use crate::matcher::shorthands::{copy_resolver, ShorthandResolver};
+use crate::matcher::syntax::{GroupCombinators, SyntaxComponent, SyntaxComponentMultiplier};
 
 /// Structure to return from a matching function.
 #[derive(Debug, Clone)]
@@ -818,11 +817,9 @@ fn first_match(input: &[CssValue]) -> MatchResult {
 
 #[cfg(test)]
 mod tests {
-    use gosub_css3::stylesheet::CssValue;
 
-    use crate::property_definitions::{get_css_definitions, PropertyDefinition};
-    use crate::syntax::CssSyntax;
-
+    use crate::matcher::property_definitions::{get_css_definitions, PropertyDefinition};
+    use crate::matcher::syntax::CssSyntax;
     use super::*;
 
     macro_rules! str {

@@ -32,7 +32,7 @@ pub struct RenderTree {
 
 impl RenderTree {
     #[must_use]
-    pub fn new(document: &DocumentHandle) -> Self {
+    pub fn new(document: DocumentHandle) -> Self {
         Self {
             document: Document::clone(document),
             root: Rc::new(RefCell::new(Node::new())),

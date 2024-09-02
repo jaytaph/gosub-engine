@@ -10,7 +10,7 @@ impl Css3<'_> {
 
         let name = self.consume_function()?;
         if name.to_ascii_lowercase() != "url" {
-            return Err(Error::new(
+            return Err(Error::Parse(
                 format!("Expected url, got {:?}", name),
                 self.tokenizer.current_location(),
             ));
@@ -20,7 +20,7 @@ impl Css3<'_> {
         let url = match t.token_type {
             TokenType::QuotedString(url) => url,
             _ => {
-                return Err(Error::new(
+                return Err(Error::Parse(
                     format!("Expected url, got {:?}", t),
                     self.tokenizer.current_location(),
                 ))
@@ -36,6 +36,7 @@ impl Css3<'_> {
 #[cfg(test)]
 mod tests {
     use crate::walker::Walker;
+    use crate::{ParserConfig, CssOrigin};
     use gosub_shared::byte_stream::{ByteStream, Encoding};
 
     macro_rules! test {
@@ -44,7 +45,7 @@ mod tests {
             stream.read_from_str($input, Some(Encoding::UTF8));
             stream.close();
 
-            let mut parser = crate::Css3::new(&mut stream);
+            let mut parser = crate::Css3::new(&mut stream, ParserConfig::default(), CssOrigin::User, "");
             let result = parser.$func().unwrap();
 
             let w = Walker::new(&result);
@@ -58,7 +59,7 @@ mod tests {
     //         stream.read_from_str($input, Some(Encoding::UTF8));
     //         stream.close();
     //
-    //         let mut parser = crate::Css3::new(&mut stream);
+    //         let mut parser = crate::Css3::new(&mut stream, Default::default(), Default::default(), "");
     //         let result = parser.$func();
     //
     //         assert_eq!(true, result.is_err());

@@ -51,7 +51,7 @@ impl Css3<'_> {
                 let node = Node::new(NodeType::Operator(",".into()), t.location);
                 Ok(Some(node))
             }
-            TokenType::LBracket => Err(Error::new(
+            TokenType::LBracket => Err(Error::Parse(
                 "Unexpected token [".to_string(),
                 self.tokenizer.current_location(),
             )),
@@ -132,7 +132,7 @@ impl Css3<'_> {
                             t.location,
                         ),
                         _ => {
-                            return Err(Error::new(
+                            return Err(Error::Parse(
                                 format!("Expected number or ident, got {:?}", t),
                                 self.tokenizer.current_location(),
                             ))
@@ -156,7 +156,7 @@ impl Css3<'_> {
                     let node = self.parse_operator()?;
                     Ok(Some(node))
                 }
-                '#' => Err(Error::new(
+                '#' => Err(Error::Parse(
                     format!("Unexpected token {:?}", t),
                     self.tokenizer.current_location(),
                 )),

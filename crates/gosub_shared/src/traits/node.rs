@@ -1,0 +1,137 @@
+use std::cell::{Ref, RefMut};
+use crate::traits::document::DocumentFragment;
+use std::collections::HashMap;
+use crate::byte_stream::Location;
+use crate::document::DocumentHandle;
+use crate::node::NodeId;
+use crate::traits::document::Document;
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub enum QuirksMode {
+    Quirks,
+    LimitedQuirks,
+    NoQuirks,
+}
+
+/// Different types of nodes that all have their own data structures (NodeData)
+#[derive(Debug, PartialEq)]
+pub enum NodeType {
+    DocumentNode,
+    DocTypeNode,
+    TextNode,
+    CommentNode,
+    ElementNode,
+}
+
+/// Different types of nodes
+#[derive(Debug, PartialEq)]
+pub enum NodeData<'a, N: Node> {
+    Document(&'a N::DocumentData),
+    DocType(&'a N::DocTypeData),
+    Text(&'a N::TextData),
+    Comment(&'a N::CommentData),
+    Element(&'a N::ElementData),
+}
+
+pub trait DocumentDataType {
+    fn quirks_mode(&self) -> QuirksMode;
+    fn set_quirks_mode(&mut self, quirks_mode: QuirksMode);
+}
+
+pub trait DocTypeDataType {
+    fn name(&self) -> &str;
+    fn pub_identifier(&self) -> &str;
+    fn sys_identifier(&self) -> &str;
+}
+
+pub trait TextDataType {
+    fn value(&self) -> &str;
+    fn value_mut(&mut self) -> &mut String;
+}
+
+pub trait CommentDataType {
+    fn value(&self) -> &str;
+}
+
+pub trait ElementDataType {
+    type Document: Document;
+    type DocumentFragment: DocumentFragment;
+
+    /// Returns the name of the element
+    fn name(&self) -> &str;
+    /// Returns the namespace
+    fn namespace(&self) -> &str;
+    /// Returns true if the namespace matches the element
+    fn is_namespace(&self, namespace: &str) -> bool;
+    /// Returns the classes of the element
+    fn classes(&self) -> Vec<String>;
+    /// Returns the active classes of the element
+    fn active_classes(&self) -> Vec<String>;
+    /// Returns the given attribute (or None when not found)
+    fn attribute(&self, name: &str) -> Option<&String>;
+    /// Returns all attributes of the element
+    fn attributes(&self) -> &HashMap<String, String>;
+    /// Returns mutable attributes of the element
+    fn attributes_mut(&mut self) -> &mut HashMap<String, String>;
+
+    fn matches_tag_and_attrs_without_order(&self, other_data: &Self) -> bool;
+    fn is_mathml_integration_point(&self) -> bool;
+    fn is_html_integration_point(&self) -> bool;
+
+    /// Returns true if this is a "special" element node
+    fn is_special(&self) -> bool;
+    /// Add a class to the element
+    fn add_class(&mut self, class: &str);
+    // Return the template document of the element
+    fn template_contents(&self) -> Option<&Self::DocumentFragment>;
+    /// Returns true if the given node is a "formatting" node
+    fn is_formatting(&self) -> bool;
+}
+
+pub trait Node: Clone {
+    type Document: Document;
+    type DocumentData: DocumentDataType;
+    type DocTypeData: DocTypeDataType;
+    type TextData: TextDataType;
+    type CommentData: CommentDataType;
+    type ElementData: ElementDataType;
+
+    /// Return the ID of the node
+    fn id(&self) -> NodeId;
+    /// Sets the ID of the node
+    fn set_id(&mut self, id: NodeId);
+    /// Returns the location of the node
+    fn location(&self) -> Location;
+    /// Returns the ID of the parent node or None when the node is the root
+    fn parent_id(&self) -> Option<NodeId>;
+    /// Sets the parent of the node, or None when the node is the root
+    fn set_parent(&mut self, parent_id: Option<NodeId>);
+
+    /// Returns true when this node is the root node
+    fn is_root(&self) -> bool;
+    /// Returns the children of the node
+    fn children(&self) -> &[NodeId];
+
+    /// Returns the type of the node
+    fn type_of(&self) -> NodeType;
+
+    fn is_element_node(&self) -> bool;
+    fn get_element_data(&self) -> Option<Ref<Self::ElementData>>;
+    fn get_element_data_mut(&self) -> Option<RefMut<Self::ElementData>>;
+
+    fn is_text_node(&self) -> bool;
+    fn get_text_data(&self) -> Option<Ref<Self::TextData>>;
+    fn get_text_data_mut(&self) -> Option<RefMut<Self::TextData>>;
+
+    fn get_comment_data(&self) -> Option<Ref<Self::CommentData>>;
+    fn get_doctype_data(&self) -> Option<Ref<Self::DocTypeData>>;
+    
+    /// Returns the document handle of the node
+    fn handle(&self) -> DocumentHandle<Self::Document>;
+    /// Removes a child node from the node
+    fn remove(&mut self, node_id: NodeId);
+    /// Inserts a child node to the node at a specific index
+    fn insert(&mut self, node_id: NodeId, idx: usize);
+    /// Pushes a child node to the node
+    fn push(&mut self, node_id: NodeId);
+}

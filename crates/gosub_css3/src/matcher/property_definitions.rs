@@ -1,15 +1,13 @@
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use log::warn;
 
-use gosub_css3::stylesheet::CssValue;
-
-use crate::shorthands::{FixList, Shorthands};
-use std::sync::LazyLock;
-
-use crate::syntax::GroupCombinators::Juxtaposition;
-use crate::syntax::{CssSyntax, SyntaxComponent};
-use crate::syntax_matcher::CssSyntaxTree;
+use crate::stylesheet::CssValue;
+use crate::matcher::shorthands::{FixList, Shorthands};
+use crate::matcher::syntax::GroupCombinators::Juxtaposition;
+use crate::matcher::syntax::{CssSyntax, SyntaxComponent};
+use crate::matcher::syntax_matcher::CssSyntaxTree;
 
 /// List of elements that are built-in data types in the CSS specification. These will be handled
 /// by the syntax matcher as built-in types.
@@ -354,13 +352,13 @@ pub static CSS_DEFINITIONS: LazyLock<CssDefinitions, fn() -> CssDefinitions> =
 /// Parses the internal CSS definition file
 fn pars_definition_files() -> CssDefinitions {
     // parse all syntax, so we can use them in the properties
-    let contents = include_str!("../resources/definitions/definitions_values.json");
+    let contents = include_str!("../../resources/definitions/definitions_values.json");
     let json: serde_json::Value =
         serde_json::from_str(contents).expect("JSON was not well-formatted");
     let syntax = parse_syntax_file(json);
 
     // Parse property definitions
-    let contents = include_str!("../resources/definitions/definitions_properties.json");
+    let contents = include_str!("../../resources/definitions/definitions_properties.json");
     let json: serde_json::Value =
         serde_json::from_str(contents).expect("JSON was not well-formatted");
     let properties = parse_property_file(json);
@@ -503,8 +501,7 @@ fn parse_property_file(json: serde_json::Value) -> HashMap<String, PropertyDefin
 
 #[cfg(test)]
 mod tests {
-    use gosub_css3::colors::RgbColor;
-
+    use crate::colors::RgbColor;
     use super::*;
 
     macro_rules! assert_false {

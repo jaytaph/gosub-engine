@@ -18,7 +18,7 @@ impl Css3<'_> {
             }
         }
 
-        Err(Error::new(
+        Err(Error::Parse(
             format!("Expected operator, got {:?}", operator),
             self.tokenizer.current_location(),
         ))

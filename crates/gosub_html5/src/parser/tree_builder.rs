@@ -1,4 +1,4 @@
-use crate::parser::NodeId;
+use gosub_shared::node::NodeId;
 use gosub_shared::byte_stream::Location;
 use gosub_shared::types::Result;
 

@@ -1,11 +1,11 @@
 extern crate lazy_static;
 
-use crate::error_logger::ParserError;
 use crate::tokenizer::replacement_tables::{TOKEN_NAMED_CHARS, TOKEN_REPLACEMENTS};
 use crate::tokenizer::{Tokenizer, CHAR_REPLACEMENT};
 use gosub_shared::byte_stream::Character::Ch;
 use gosub_shared::byte_stream::{Character, Stream};
 use lazy_static::lazy_static;
+use crate::parser::errors::ParserError;
 
 /// Different states for the character references
 pub enum CcrState {
@@ -404,7 +404,7 @@ lazy_static! {
 
 #[cfg(test)]
 mod tests {
-    use crate::error_logger::ErrorLogger;
+    use crate::errors::ErrorLogger;
     use crate::tokenizer::{ParserData, Tokenizer};
     use gosub_shared::byte_stream::{ByteStream, Encoding, Location};
     use std::cell::RefCell;

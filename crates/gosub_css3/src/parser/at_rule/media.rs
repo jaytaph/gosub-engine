@@ -28,10 +28,7 @@ impl Css3<'_> {
                     loc,
                 ))
             }
-            _ => Err(Error::new(
-                "Expected identifier, number, dimension, or ratio".to_string(),
-                loc,
-            )),
+            _ => Err(Error::Parse(format!("Expected identifier, number, dimension, or ratio"), loc))
         }
     }
 
@@ -55,7 +52,7 @@ impl Css3<'_> {
             return Ok(Node::new(NodeType::Operator(format!("{}", delim)), loc));
         }
 
-        Err(Error::new("Expected comparison operator".to_string(), loc))
+        Err(Error::Parse("Expected comparison operator".to_string(), loc))
     }
 
     pub fn parse_media_query_list(&mut self) -> Result<Node, Error> {
@@ -105,7 +102,7 @@ impl Css3<'_> {
 
         if t.token_type != TokenType::RParen {
             if !t.is_colon() {
-                return Err(Error::new("Expected colon".to_string(), t.location));
+                return Err(Error::Parse("Expected colon".to_string(), t.location));
             }
             self.consume_whitespace_comments();
 
@@ -130,10 +127,7 @@ impl Css3<'_> {
                     ))
                 }
                 _ => {
-                    return Err(Error::new(
-                        "Expected identifier, number, dimension, or ratio".to_string(),
-                        t.location,
-                    ));
+                    return Err(Error::Parse("Expected identifier, number, dimension, or ratio".to_string(), t.location));
                 }
             };
 
@@ -228,7 +222,7 @@ impl Css3<'_> {
             match nt.token_type {
                 TokenType::Ident(s) => {
                     if s != "and" {
-                        return Err(Error::new("Expected 'and'".to_string(), nt.location));
+                        return Err(Error::Parse("Expected 'and'".to_string(), t.location));
                     }
 
                     self.consume_ident("and")?;
@@ -238,10 +232,7 @@ impl Css3<'_> {
                     // skip;
                 }
                 _ => {
-                    return Err(Error::new(
-                        "Expected identifier or parenthesis".to_string(),
-                        t.location,
-                    ));
+                    return Err(Error::Parse("Expected identifier or parenthesis".to_string(), t.location));
                 }
             }
         } else {
@@ -255,10 +246,7 @@ impl Css3<'_> {
                     // skip
                 }
                 _ => {
-                    return Err(Error::new(
-                        "Expected identifier or parenthesis".to_string(),
-                        t.location,
-                    ));
+                    return Err(Error::Parse("Expected identifier or parenthesis".to_string(), t.location));
                 }
             }
         }

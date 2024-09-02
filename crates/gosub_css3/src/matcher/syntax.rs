@@ -12,11 +12,11 @@ use nom::sequence::{delimited, pair, preceded, separated_pair, tuple};
 use nom::Err;
 use nom::IResult;
 
-use gosub_css3::stylesheet::CssValue;
 use gosub_shared::types::Result;
 
 use crate::errors::Error;
-use crate::syntax_matcher::CssSyntaxTree;
+use crate::matcher::syntax_matcher::CssSyntaxTree;
+use crate::stylesheet::CssValue;
 
 // When debugging the parser, it's nice to have some additional information ready. This should maybe
 // be inside a cfg setting, but for now (un)commenting the appropriate line is good enough.
@@ -268,7 +268,7 @@ impl CssSyntax {
         match p {
             Ok((input, components)) => {
                 if !input.trim().is_empty() {
-                    return Err(Error::CssCompile(format!(
+                    return Err(Error::CssFailure(format!(
                         "Failed to parse all input (left: '{}')",
                         input
                     ))
@@ -276,7 +276,7 @@ impl CssSyntax {
                 }
                 Ok(CssSyntaxTree::new(vec![components]))
             }
-            Err(err) => Err(Error::CssCompile(err.to_string()).into()),
+            Err(err) => Err(Error::CssFailure(err.to_string()).into()),
         }
     }
 }
@@ -832,9 +832,8 @@ fn parse(input: &str) -> IResult<&str, SyntaxComponent> {
 
 #[cfg(test)]
 mod tests {
-    use crate::property_definitions::get_css_definitions;
-
     use super::*;
+    use crate::matcher::property_definitions::get_css_definitions;
 
     #[test]
     fn test_compile_empty() {

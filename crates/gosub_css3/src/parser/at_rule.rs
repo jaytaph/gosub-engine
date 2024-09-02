@@ -79,7 +79,7 @@ impl Css3<'_> {
             && t.token_type != TokenType::Semicolon
             && t.token_type != TokenType::LCurly
         {
-            return Err(Error::new(
+            return Err(Error::Parse(
                 "Expected semicolon or left curly brace".to_string(),
                 t.location.clone(),
             ));
@@ -160,7 +160,7 @@ impl Css3<'_> {
         if let TokenType::AtKeyword(keyword) = t.token_type {
             name = keyword;
         } else {
-            return Err(Error::new("Expected at keyword".to_string(), t.location));
+            return Err(Error::Parse("Expected at keyword".to_string(), t.location));
         }
         self.consume_whitespace_comments();
 

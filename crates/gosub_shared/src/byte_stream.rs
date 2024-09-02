@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::char::REPLACEMENT_CHARACTER;
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::io::Read;
 use std::{fmt, io};
 
@@ -566,6 +566,12 @@ impl Location {
             column,
             offset,
         }
+    }
+}
+
+impl Display for Location {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "({}:{})", self.line, self.column)
     }
 }
 

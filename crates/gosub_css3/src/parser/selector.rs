@@ -17,7 +17,7 @@ impl Css3<'_> {
             _ => {
                 self.tokenizer.reconsume();
 
-                return Err(Error::new(
+                return Err(Error::Parse(
                     format!("Expected attribute operator, got {:?}", c),
                     loc,
                 ));
@@ -65,7 +65,7 @@ impl Css3<'_> {
                 self.tokenizer.consume();
                 Ok("*".to_string())
             }
-            _ => Err(Error::new(
+            _ => Err(Error::Parse(
                 format!("Unexpected token {:?}", t),
                 self.tokenizer.current_location(),
             )),
@@ -137,7 +137,7 @@ impl Css3<'_> {
                 } else if t.is_ident() {
                     value = self.consume_any_ident()?;
                 } else {
-                    return Err(Error::new(
+                    return Err(Error::Parse(
                         format!("Unexpected token {:?}", t),
                         self.tokenizer.current_location(),
                     ));
@@ -178,7 +178,7 @@ impl Css3<'_> {
         let value = match t.token_type {
             TokenType::Ident(s) => s,
             _ => {
-                return Err(Error::new(
+                return Err(Error::Parse(
                     format!("Unexpected token {:?}", t),
                     self.tokenizer.current_location(),
                 ));
@@ -200,7 +200,7 @@ impl Css3<'_> {
         let value = if t.is_ident() {
             self.consume_any_ident()?
         } else {
-            return Err(Error::new(
+            return Err(Error::Parse(
                 format!("Unexpected token {:?}", t),
                 self.tokenizer.current_location(),
             ));
@@ -233,7 +233,7 @@ impl Css3<'_> {
                 )
             }
             _ => {
-                return Err(Error::new(
+                return Err(Error::Parse(
                     format!("Unexpected token {:?}", t),
                     self.tokenizer.current_location(),
                 ));

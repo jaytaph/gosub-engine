@@ -1,18 +1,17 @@
-use crate::node::Node;
 use std::collections::HashMap;
-
-use super::NodeId;
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::node::Node;
 
 /// The node arena is the single source for nodes in a document (or fragment).
 #[derive(Debug, Clone, PartialEq)]
-pub struct NodeArena {
+pub struct NodeArena<N: Node> {
     /// Current nodes stored as <id, node>
-    nodes: HashMap<NodeId, Node>,
+    nodes: HashMap<NodeId, N>,
     /// Next node ID to use
     next_id: NodeId,
 }
 
-impl NodeArena {
+impl<N: Node> NodeArena<N> {
     /// Creates a new NodeArena
     #[must_use]
     pub fn new() -> Self {
@@ -22,12 +21,6 @@ impl NodeArena {
         }
     }
 
-    /// Count the number of nodes registered in the arena
-    #[allow(dead_code)]
-    pub(crate) fn count_nodes(&self) -> usize {
-        self.nodes.len()
-    }
-
     /// Peek what the next node ID is without incrementing the internal counter.
     /// Used by DocumentTaskQueue for create_element() tasks.
     pub(crate) fn peek_next_id(&self) -> NodeId {
@@ -35,12 +28,12 @@ impl NodeArena {
     }
 
     /// Gets the node with the given id
-    pub fn get_node(&self, node_id: NodeId) -> Option<&Node> {
+    pub fn node(&self, node_id: NodeId) -> Option<&N> {
         self.nodes.get(&node_id)
     }
 
     /// Get the node with the given id as a mutable reference
-    pub fn get_node_mut(&mut self, node_id: NodeId) -> Option<&mut Node> {
+    pub fn node_mut(&mut self, node_id: NodeId) -> Option<&mut N> {
         self.nodes.get_mut(&node_id)
     }
 
@@ -49,25 +42,22 @@ impl NodeArena {
     }
 
     /// Registered an unregistered node into the arena
-    pub fn register_node(&mut self, mut node: Node) -> NodeId {
-        assert!(!node.is_registered, "Node is already attached to an arena");
-
+    pub fn register_node(&mut self, mut node: N) -> NodeId {
         let id = self.next_id;
         self.next_id = id.next();
 
-        node.is_registered = true;
-        node.id = id;
+        node.set_id(id);
 
         self.nodes.insert(id, node);
         id
     }
 
-    pub fn nodes(&self) -> &HashMap<NodeId, Node> {
+    pub fn nodes(&self) -> &HashMap<NodeId, N> {
         &self.nodes
     }
 }
 
-impl Default for NodeArena {
+impl<N: Node> Default for NodeArena<N> {
     fn default() -> Self {
         Self::new()
     }

@@ -58,7 +58,7 @@ impl Css3<'_> {
             }
             TokenType::Number(value) => Node::new(NodeType::Number { value }, loc.clone()),
             _ => {
-                return Err(Error::new(
+                return Err(Error::Parse(
                     format!("Unexpected token {:?}", self.tokenizer.lookahead(0)),
                     self.tokenizer.current_location(),
                 ));
@@ -98,7 +98,7 @@ impl Css3<'_> {
             "slotted" => self.parse_pseudo_function_selector(),
             "host" => self.parse_pseudo_function_selector(),
             "host-context" => self.parse_pseudo_function_selector(),
-            _ => Err(Error::new(
+            _ => Err(Error::Parse(
                 format!("Unexpected pseudo function {:?}", name),
                 self.tokenizer.current_location(),
             )),

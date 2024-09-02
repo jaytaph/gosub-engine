@@ -1,6 +1,11 @@
-use gosub_shared::byte_stream::Location;
+use crate::byte_stream::Location;
+
+pub mod node;
+pub mod document;
+
 
 /// Context defines how the data needs to be parsed
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Context {
     Stylesheet,
     Rule,
@@ -10,7 +15,7 @@ pub enum Context {
 
 /// ParserConfig holds the configuration for the CSS3 parser
 pub struct ParserConfig {
-    /// Context defines how the data needs to be parsed
+    /// Context defines what kind of data we are providing: a stylesheet, a rule, an at-rule or a declaration
     pub context: Context,
     /// Location holds the start position of the given element in the data source
     pub location: Location,
@@ -19,6 +24,9 @@ pub struct ParserConfig {
     /// Ignore errors and continue parsing. Any errors will not be returned in the final AST
     /// (this means if a selector is invalid, all rules will be ignored, even when they are valid)
     pub ignore_errors: bool,
+    /// When true, the values in the declaration will be matched against the property syntax. If it doesn't
+    /// match it will trigger an error
+    pub match_values: bool,
 }
 
 impl Default for ParserConfig {
@@ -28,6 +36,7 @@ impl Default for ParserConfig {
             location: Location::default(),
             source: None,
             ignore_errors: false,
+            match_values: true,
         }
     }
 }

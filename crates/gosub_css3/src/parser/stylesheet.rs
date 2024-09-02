@@ -3,7 +3,7 @@ use crate::tokenizer::TokenType;
 use crate::{Css3, Error};
 
 impl Css3<'_> {
-    pub fn parse_stylesheet(&mut self) -> Result<Option<Node>, Error> {
+    pub fn parse_stylesheet_internal(&mut self) -> Result<Option<Node>, Error> {
         log::trace!("parse_stylesheet");
 
         let loc = self.tokenizer.current_location();

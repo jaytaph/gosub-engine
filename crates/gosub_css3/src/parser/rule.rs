@@ -49,6 +49,7 @@ impl Css3<'_> {
 #[cfg(test)]
 mod tests {
     use crate::walker::Walker;
+    use crate::{ParserConfig, CssOrigin};
     use gosub_shared::byte_stream::{ByteStream, Encoding};
 
     macro_rules! test {
@@ -57,7 +58,7 @@ mod tests {
             stream.read_from_str($input, Some(Encoding::UTF8));
             stream.close();
 
-            let mut parser = crate::Css3::new(&mut stream);
+            let mut parser = crate::Css3::new(&mut stream, ParserConfig::default(), CssOrigin::User, "");
             let result = parser.$func().unwrap().unwrap();
 
             let w = Walker::new(&result);

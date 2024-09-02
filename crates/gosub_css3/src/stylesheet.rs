@@ -1,6 +1,79 @@
 use core::fmt::Debug;
 use std::cmp::Ordering;
 use std::fmt::Display;
+use gosub_shared::byte_stream::Location;
+
+/// Severity of a CSS error
+#[derive(Debug, PartialEq)]
+pub enum Severity {
+    /// A critical error that will prevent the stylesheet from being applied
+    Error,
+    /// A warning that will be displayed but will not prevent the stylesheet from being applied
+    Warning,
+    /// An information message that can be displayed to the user
+    Info,
+}
+
+impl Display for Severity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Severity::Error => write!(f, "Error"),
+            Severity::Warning => write!(f, "Warning"),
+            Severity::Info => write!(f, "Info"),
+        }
+    }
+}
+
+/// Defines a CSS log during
+#[derive(PartialEq)]
+pub struct CssLog {
+    /// Severity of the error
+    pub severity: Severity,
+    /// Error message
+    pub message: String,
+    /// Location of the error
+    pub location: Location,
+}
+
+impl CssLog {
+    pub fn log(severity: Severity, message: &str, location: Location) -> Self {
+        Self {
+            severity,
+            message: message.to_string(),
+            location,
+        }
+    }
+
+    pub fn error(message: &str, location: Location) -> Self {
+        Self {
+            severity: Severity::Error,
+            message: message.to_string(),
+            location,
+        }
+    }
+
+    pub fn warn(message: &str, location: Location) -> Self {
+        Self {
+            severity: Severity::Warning,
+            message: message.to_string(),
+            location,
+        }
+    }
+
+    pub fn info(message: &str, location: Location) -> Self {
+        Self {
+            severity: Severity::Info,
+            message: message.to_string(),
+            location,
+        }
+    }
+}
+
+impl Debug for CssLog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] ({}:{}): {}", self.severity, self.location.line, self.location.column, self.message)
+    }
+}
 
 use anyhow::anyhow;
 
@@ -9,7 +82,7 @@ use gosub_shared::types::Result;
 use crate::colors::RgbColor;
 
 /// Defines a complete stylesheet with all its rules and the location where it was found
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub struct CssStylesheet {
     /// List of rules found in this stylesheet
     pub rules: Vec<CssRule>,
@@ -17,6 +90,8 @@ pub struct CssStylesheet {
     pub origin: CssOrigin,
     /// Url or file path where the stylesheet was found
     pub location: String,
+    /// Any issues during parsing of the stylesheet
+    pub parse_log: Vec<CssLog>
 }
 
 /// Defines the origin of the stylesheet (or declaration)
@@ -54,7 +129,7 @@ impl CssRule {
 pub struct CssDeclaration {
     // Css property color
     pub property: String,
-    // Raw values of the declaration. It is not calculated or converted in any way (ie: "red", "50px" etc)
+    // Raw values of the declaration. It is not calculated or converted in any way (ie: "red", "50px" etc.)
     // There can be multiple values  (ie:   "1px solid black" are split into 3 values)
     pub value: Vec<CssValue>,
     // ie: !important

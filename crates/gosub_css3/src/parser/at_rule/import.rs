@@ -23,10 +23,7 @@ impl Css3<'_> {
                 children.push(self.parse_url()?);
             }
             _ => {
-                return Err(Error::new(
-                    "Expected string or url()".to_string(),
-                    t.location.clone(),
-                ));
+                return Err(Error::Parse(format!("Expected string or url()").to_string(), t.location.clone()));
             }
         }
 
