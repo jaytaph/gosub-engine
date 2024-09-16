@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use url::Url;
 use crate::byte_stream::Location;
 use crate::document::DocumentHandle;
 use crate::node::NodeId;
 use crate::traits::css3::CssSystem;
 use crate::traits::node::{Node, QuirksMode};
+use std::collections::HashMap;
+use url::Url;
 
 /// Type of the given document
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -19,7 +19,9 @@ pub trait DocumentBuilder<C: CssSystem> {
     type Document: Document<C>;
 
     fn new_document(url: Option<Url>) -> DocumentHandle<Self::Document, C>;
-    fn new_document_fragment(context_node: &<Self::Document as Document<C>>::Node) -> DocumentHandle<Self::Document, C>;
+    fn new_document_fragment(
+        context_node: &<Self::Document as Document<C>>::Node,
+    ) -> DocumentHandle<Self::Document, C>;
 }
 
 pub trait DocumentFragment<S: CssSystem>: Sized {
@@ -37,7 +39,7 @@ pub trait Document<C: CssSystem>: Sized {
     type Builder: DocumentBuilder<C, Document = Self>;
 
     // Creates a new doc with an optional document root node
-    fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<&Self::Node>) -> Self;
+    fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<Self::Node>) -> Self;
 
     // /// Creates a new document with an optional document root node
     // fn new_with_handle(document_type: DocumentType, url: Option<Url>, location: &Location, root_node: Option<&Self::Node>) -> DocumentHandle<Self>;
@@ -59,12 +61,12 @@ pub trait Document<C: CssSystem>: Sized {
 
     fn add_stylesheet(&mut self, stylesheet: C::Stylesheet);
 
-
     /// Return the root node of the document
     fn get_root(&self) -> &Self::Node;
     fn get_root_mut(&mut self) -> &mut Self::Node;
 
     fn attach_node(&mut self, node_id: NodeId, parent_id: NodeId, position: Option<usize>);
+
     fn detach_node(&mut self, node_id: NodeId);
     fn relocate_node(&mut self, node_id: NodeId, parent_id: NodeId);
 
@@ -81,14 +83,46 @@ pub trait Document<C: CssSystem>: Sized {
     // fn peek_next_id(&self) -> NodeId;
 
     /// Register a new node
-    fn register_node(&mut self, node: &Self::Node) -> NodeId;
+    fn register_node(&mut self, node: Self::Node) -> NodeId;
     /// Register a new node at a specific position
-    fn register_node_at(&mut self, node: &Self::Node, parent_id: NodeId, position: Option<usize>) -> NodeId;
+    fn register_node_at(
+        &mut self,
+        node: Self::Node,
+        parent_id: NodeId,
+        position: Option<usize>,
+    ) -> NodeId;
 
     /// Node creation methods. The root node is needed in order to fetch the document handle (it can't be created from the document itself)
-    fn new_document_node(handle: DocumentHandle<Self, C>, quirks_mode: QuirksMode, location: Location) -> Self::Node;
-    fn new_doctype_node(handle: DocumentHandle<Self, C>, name: &str, public_id: Option<&str>, system_id: Option<&str>, location: Location) -> Self::Node;
-    fn new_comment_node(handle: DocumentHandle<Self, C>, comment: &str, location: Location) -> Self::Node;
-    fn new_text_node(handle: DocumentHandle<Self, C>, value: &str, location: Location) -> Self::Node;
-    fn new_element_node(handle: DocumentHandle<Self, C>, name: &str, namespace: Option<&str>, attributes: HashMap<String, String>, location: Location) -> Self::Node;
+    fn new_document_node(
+        handle: DocumentHandle<Self, C>,
+        quirks_mode: QuirksMode,
+        location: Location,
+    ) -> Self::Node;
+    fn new_doctype_node(
+        handle: DocumentHandle<Self, C>,
+        name: &str,
+        public_id: Option<&str>,
+        system_id: Option<&str>,
+        location: Location,
+    ) -> Self::Node;
+    fn new_comment_node(
+        handle: DocumentHandle<Self, C>,
+        comment: &str,
+        location: Location,
+    ) -> Self::Node;
+    fn new_text_node(
+        handle: DocumentHandle<Self, C>,
+        value: &str,
+        location: Location,
+    ) -> Self::Node;
+    fn new_element_node(
+        handle: DocumentHandle<Self, C>,
+        name: &str,
+        namespace: Option<&str>,
+        attributes: HashMap<String, String>,
+        location: Location,
+    ) -> Self::Node;
+
+    fn write(&self) -> String;
+    fn write_from_node(&self, node_id: NodeId) -> String;
 }

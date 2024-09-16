@@ -1,14 +1,20 @@
-use gosub_css3::stylesheet::CssValue;
-use gosub_html5::node::Node;
+use crate::stylesheet::CssValue;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::node::{ElementDataType, Node};
 
-pub fn resolve_attr(values: &[CssValue], node: &Node) -> Vec<CssValue> {
+// Probably this shouldn't quite be in gosub_css3
+pub fn resolve_attr<N: Node<C>, C: CssSystem>(values: &[CssValue], node: &N) -> Vec<CssValue> {
     let Some(attr_name) = values.first().map(|v| v.to_string()) else {
         return vec![];
     };
 
     let ty = values.get(1).cloned();
 
-    let Some(attr_value) = node.get_attribute(&attr_name) else {
+    let Some(data) = node.get_element_data() else {
+        return vec![];
+    };
+
+    let Some(attr_value) = data.attribute(&attr_name) else {
         let _default_value = values.get(2).cloned();
 
         if let Some(ty) = ty {

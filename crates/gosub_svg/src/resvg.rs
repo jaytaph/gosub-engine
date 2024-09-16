@@ -1,11 +1,13 @@
 use anyhow::anyhow;
 use tiny_skia::Pixmap;
 
-use gosub_html5::node::NodeId;
-use gosub_html5::parser::document::DocumentHandle;
 use gosub_render_backend::geo::FP;
 use gosub_render_backend::svg::SvgRenderer;
 use gosub_render_backend::{Image, ImageBuffer, RenderBackend};
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::document::Document;
 use gosub_shared::types::{Result, Size};
 
 use crate::SVGDocument;
@@ -23,7 +25,10 @@ impl<B: RenderBackend> SvgRenderer<B> for Resvg {
         SVGDocument::from_str(&data)
     }
 
-    fn parse_internal(tree: DocumentHandle, id: NodeId) -> Result<Self::SvgDocument> {
+    fn parse_internal<D: Document<C>, C: CssSystem>(
+        tree: DocumentHandle<D, C>,
+        id: NodeId,
+    ) -> Result<Self::SvgDocument> {
         SVGDocument::from_html_doc(id, tree)
     }
 

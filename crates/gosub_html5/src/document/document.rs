@@ -1,14 +1,9 @@
-use gosub_shared::traits::document::{Document as OtherDocument, Document, DocumentType};
 use crate::DocumentHandle;
 use core::fmt::Debug;
+use gosub_shared::traits::document::{Document as OtherDocument, Document, DocumentType};
 use std::collections::HashMap;
 use url::Url;
 
-use gosub_shared::byte_stream::Location;
-use gosub_shared::node::NodeId;
-use gosub_shared::traits::css3::CssSystem;
-use gosub_shared::traits::node::Node;
-use gosub_shared::traits::node::QuirksMode;
 use crate::document::builder::DocumentBuilder;
 use crate::document::fragment::DocumentFragmentImpl;
 use crate::node::arena::NodeArena;
@@ -19,7 +14,12 @@ use crate::node::data::element::{ElementClass, ElementData};
 use crate::node::data::text::TextData;
 use crate::node::node::{NodeDataTypeInternal, NodeImpl};
 use crate::node::visitor::Visitor;
-
+use crate::writer::DocumentWriter;
+use gosub_shared::byte_stream::Location;
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::node::Node;
+use gosub_shared::traits::node::QuirksMode;
 // /// according to HTML spec:
 // /// https://html.spec.whatwg.org/#global-attributes
 // pub(crate) fn is_valid_id_attribute_value(value: &str) -> bool {
@@ -30,7 +30,6 @@ use crate::node::visitor::Visitor;
 #[derive(Debug)]
 pub struct DocumentImpl<C: CssSystem> {
     // pub handle: Weak<DocumentHandle<Self>>,
-
     /// URL of the given document (if any)
     pub url: Option<Url>,
     /// Holds and owns all nodes in the document
@@ -84,7 +83,7 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
 
     /// Creates a new document without a doc handle
     #[must_use]
-    fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<&Self::Node>) -> Self {
+    fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<Self::Node>) -> Self {
         let mut doc = Self {
             url,
             arena: NodeArena::new(),
@@ -106,11 +105,6 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         // self.handle.upgrade().expect("failure").get().unwrap()
     }
 
-    fn add_stylesheet(&mut self, stylesheet: C::Stylesheet) {
-        self.stylesheets.push(stylesheet);
-    }
-
-
     /// Returns the URL of the document, or "" when no location is set
     fn url(&self) -> Option<Url> {
         match self.url {
@@ -119,15 +113,15 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         }
     }
 
+    fn set_quirks_mode(&mut self, quirks_mode: QuirksMode) {
+        self.quirks_mode = quirks_mode;
+    }
+
     // // Returns a shared reference-counted handle for the document
     // fn new_with_dochandle(document_type: DocumentType, location: Option<Url>) -> DocumentHandle<DocumentImpl> {
     //     let doc = Self::new(document_type, location);
     //     DocumentHandle::<DocumentImpl>(Rc::new(RefCell::new(doc)))
     // }
-
-    fn set_quirks_mode(&mut self, quirks_mode: QuirksMode) {
-        self.quirks_mode = quirks_mode;
-    }
 
     fn quirks_mode(&self) -> QuirksMode {
         self.quirks_mode
@@ -151,6 +145,10 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.arena.node_mut(node_id)
     }
 
+    fn add_stylesheet(&mut self, stylesheet: C::Stylesheet) {
+        self.stylesheets.push(stylesheet);
+    }
+
     /// returns the root node
     fn get_root(&self) -> &Self::Node {
         self.arena
@@ -168,7 +166,7 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     fn attach_node(&mut self, node_id: NodeId, parent_id: NodeId, position: Option<usize>) {
         //check if any children of node have parent as child
         if parent_id == node_id || self.has_node_id_recursive(node_id, parent_id) {
-            return
+            return;
         }
 
         if let Some(parent_node) = self.node_by_id_mut(parent_id) {
@@ -189,7 +187,10 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     }
 
     fn detach_node(&mut self, node_id: NodeId) {
-        let parent = self.node_by_id(node_id).expect("node not found").parent_id();
+        let parent = self
+            .node_by_id(node_id)
+            .expect("node not found")
+            .parent_id();
 
         if let Some(parent_id) = parent {
             let parent_node = self
@@ -260,13 +261,18 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     }
 
     /// Register a node
-    fn register_node(&mut self, _node: &Self::Node) -> NodeId {
+    fn register_node(&mut self, _node: Self::Node) -> NodeId {
         todo!("register_node() not implemented");
     }
 
     /// Inserts a node to the parent node at the given position in the children (or none
     /// to add at the end). Will automatically register the node if not done so already
-    fn register_node_at(&mut self, node: &Self::Node, parent_id: NodeId, position: Option<usize>) -> NodeId {
+    fn register_node_at(
+        &mut self,
+        node: Self::Node,
+        parent_id: NodeId,
+        position: Option<usize>,
+    ) -> NodeId {
         let node_id = self.register_node(node);
         self.attach_node(node_id, parent_id, position);
 
@@ -274,60 +280,106 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     }
 
     /// Creates a new document node
-    fn new_document_node(handle: DocumentHandle<Self, C>, quirks_mode: QuirksMode, location: Location) -> Self::Node {
+    fn new_document_node(
+        handle: DocumentHandle<Self, C>,
+        quirks_mode: QuirksMode,
+        location: Location,
+    ) -> Self::Node {
         NodeImpl::new(
             handle.clone(),
             location,
-            &NodeDataTypeInternal::Document(DocumentData::new(quirks_mode))
+            &NodeDataTypeInternal::Document(DocumentData::new(quirks_mode)),
         )
     }
 
-    fn new_doctype_node(handle: DocumentHandle<Self, C>, name: &str, public_id: Option<&str>, system_id: Option<&str>, location: Location) -> Self::Node {
+    fn new_doctype_node(
+        handle: DocumentHandle<Self, C>,
+        name: &str,
+        public_id: Option<&str>,
+        system_id: Option<&str>,
+        location: Location,
+    ) -> Self::Node {
         NodeImpl::new(
             handle.clone(),
             location,
-            &NodeDataTypeInternal::DocType(DocTypeData::new(name, public_id.unwrap_or(""), system_id.unwrap_or("")))
+            &NodeDataTypeInternal::DocType(DocTypeData::new(
+                name,
+                public_id.unwrap_or(""),
+                system_id.unwrap_or(""),
+            )),
         )
     }
 
     /// Creates a new comment node
-    fn new_comment_node(handle: DocumentHandle<Self, C>, comment: &str, location: Location) -> Self::Node {
+    fn new_comment_node(
+        handle: DocumentHandle<Self, C>,
+        comment: &str,
+        location: Location,
+    ) -> Self::Node {
         NodeImpl::new(
             handle.clone(),
             location,
-            &NodeDataTypeInternal::Comment(CommentData::with_value(comment))
+            &NodeDataTypeInternal::Comment(CommentData::with_value(comment)),
         )
     }
 
     /// Creates a new text node
-    fn new_text_node(handle: DocumentHandle<Self, C>, value: &str, location: Location) -> Self::Node {
+    fn new_text_node(
+        handle: DocumentHandle<Self, C>,
+        value: &str,
+        location: Location,
+    ) -> Self::Node {
         NodeImpl::new(
             handle.clone(),
             location,
-            &NodeDataTypeInternal::Text(TextData::with_value(value))
+            &NodeDataTypeInternal::Text(TextData::with_value(value)),
         )
     }
 
     /// Creates a new element node
-    fn new_element_node(handle: DocumentHandle<Self, C>, name: &str, namespace: Option<&str>, attributes: HashMap<String, String>, location: Location) -> Self::Node {
+    fn new_element_node(
+        handle: DocumentHandle<Self, C>,
+        name: &str,
+        namespace: Option<&str>,
+        attributes: HashMap<String, String>,
+        location: Location,
+    ) -> Self::Node {
         NodeImpl::new(
             handle.clone(),
             location,
-            &NodeDataTypeInternal::Element(ElementData::new(name, namespace, attributes, ElementClass::default()))
+            &NodeDataTypeInternal::Element(ElementData::new(
+                name,
+                namespace,
+                attributes,
+                ElementClass::default(),
+            )),
         )
+    }
+
+    fn write(&self) -> String {
+        self.write_from_node(NodeId::root())
+    }
+
+    fn write_from_node(&self, node_id: NodeId) -> String {
+        todo!(); //This should definitely be implemented
     }
 }
 
 impl<C: CssSystem> DocumentImpl<C> {
-
     /// Fetches a node by named id (string) or returns None when no node with this ID is found
-    pub fn get_node_by_named_id(&self, named_id: &str) -> Option<&<DocumentImpl<C> as Document<C>>::Node> {
+    pub fn get_node_by_named_id(
+        &self,
+        named_id: &str,
+    ) -> Option<&<DocumentImpl<C> as Document<C>>::Node> {
         let node_id = self.named_id_elements.get(named_id)?;
         self.arena.node(*node_id)
     }
 
     /// Fetches a mutable node by named id (string) or returns None when no node with this ID is found
-    pub fn get_node_by_named_id_mut<D>(&mut self, named_id: &str) -> Option<&mut <DocumentImpl<C> as Document<C>>::Node> {
+    pub fn get_node_by_named_id_mut<D>(
+        &mut self,
+        named_id: &str,
+    ) -> Option<&mut <DocumentImpl<C> as Document<C>>::Node> {
         let node_id = self.named_id_elements.get(named_id)?;
         self.arena.node_mut(*node_id)
     }
@@ -374,20 +426,26 @@ impl<C: CssSystem> DocumentImpl<C> {
         false
     }
 
-    pub fn nodes(&self) -> &HashMap<NodeId, <DocumentImpl<C> as Document<C>>::Node>
-    {
+    pub fn nodes(&self) -> &HashMap<NodeId, <DocumentImpl<C> as Document<C>>::Node> {
         self.arena.nodes()
     }
 }
 
 // Walk the document tree with the given visitor
-pub fn walk_document_tree<C: CssSystem>(handle: DocumentHandle<DocumentImpl<C>, C>, visitor: &mut Box<dyn Visitor<<DocumentImpl<C> as Document<C>>::Node, C>>) {
+pub fn walk_document_tree<C: CssSystem>(
+    handle: DocumentHandle<DocumentImpl<C>, C>,
+    visitor: &mut Box<dyn Visitor<<DocumentImpl<C> as Document<C>>::Node, C>>,
+) {
     let binding = handle.get();
     let root = binding.get_root();
     internal_visit(handle.clone(), root, visitor);
 }
 
-fn internal_visit<C: CssSystem>(handle: DocumentHandle<DocumentImpl<C>, C>, node: &<DocumentImpl<C> as Document<C>>::Node, visitor: &mut Box<dyn Visitor<<DocumentImpl<C> as Document<C>>::Node, C>>) {
+fn internal_visit<C: CssSystem>(
+    handle: DocumentHandle<DocumentImpl<C>, C>,
+    node: &<DocumentImpl<C> as Document<C>>::Node,
+    visitor: &mut Box<dyn Visitor<<DocumentImpl<C> as Document<C>>::Node, C>>,
+) {
     visitor.document_enter(&node);
 
     let binding = handle.get();
@@ -447,11 +505,11 @@ impl<D: Document<S> + Clone, S: CssSystem> Iterator for TreeIterator<D, S> {
 
 #[cfg(test)]
 mod tests {
-    use crate::node::{NodeTrait, NodeType, HTML_NAMESPACE};
-    use crate::parser::document::{DocumentBuilder, DocumentTaskQueue, TreeIterator};
-    use crate::parser::query::Query;
-    use crate::parser::tree_builder::TreeBuilder;
-    use crate::parser::{Node, NodeData, NodeId};
+    use crate::node::HTML_NAMESPACE;
+    // use crate::parser::{DocumentBuilder, DocumentTaskQueue, TreeIterator};
+    // use crate::parser::query::Query;
+    // use crate::parser::tree_builder::TreeBuilder;
+    // use crate::parser::{Node, NodeData, NodeId};
     use gosub_shared::byte_stream::Location;
     use std::collections::HashMap;
 

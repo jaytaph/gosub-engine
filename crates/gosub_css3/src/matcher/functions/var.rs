@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use gosub_css3::stylesheet::CssValue;
-use gosub_html5::node::Node;
-use gosub_html5::parser::document::Document;
+use crate::stylesheet::CssValue;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::document::Document;
 
 #[derive(Clone, Debug, Default)]
 pub struct VariableEnvironment {
@@ -10,7 +10,12 @@ pub struct VariableEnvironment {
 }
 
 impl VariableEnvironment {
-    pub fn get(&self, name: &str, _doc: &Document, _node: &Node) -> Option<CssValue> {
+    pub fn get<D: Document<C>, C: CssSystem>(
+        &self,
+        name: &str,
+        _doc: &D,
+        _node: &D::Node,
+    ) -> Option<CssValue> {
         let mut current = Some(self);
 
         while let Some(env) = current {
@@ -29,7 +34,11 @@ impl VariableEnvironment {
     }
 }
 
-pub fn resolve_var(values: &[CssValue], doc: &Document, node: &Node) -> Vec<CssValue> {
+pub fn resolve_var<D: Document<C>, C: CssSystem>(
+    values: &[CssValue],
+    doc: &D,
+    node: &D::Node,
+) -> Vec<CssValue> {
     let Some(name) = values.first().map(|v| {
         let mut str = v.to_string();
 

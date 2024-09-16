@@ -1,12 +1,12 @@
-use gosub_shared::document::DocumentHandle;
 use crate::node::HTML_NAMESPACE;
 use crate::parser::{ActiveElement, Html5Parser, Scope};
 use crate::tokenizer::token::Token;
+use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::Document;
-use gosub_shared::traits::node::{ElementDataType, Node, TextDataType};
 use gosub_shared::traits::document::DocumentFragment;
+use gosub_shared::traits::node::{ElementDataType, Node, TextDataType};
 
 const ADOPTION_AGENCY_OUTER_LOOP_DEPTH: usize = 8;
 const ADOPTION_AGENCY_INNER_LOOP_DEPTH: usize = 3;
@@ -33,10 +33,10 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
 where
     D: Document<C>,
     C: CssSystem,
-    <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document=D>,
-    <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C, >>::DocumentFragment: DocumentFragment<C, Document=D>,
+    <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document = D>,
+    <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C>>::DocumentFragment:
+        DocumentFragment<C, Document = D>,
 {
-
     fn find_position_in_active_format(&self, node_id: NodeId) -> Option<usize> {
         self.active_formatting_elements
             .iter()
@@ -81,7 +81,11 @@ where
             })
     }
 
-    pub fn insert_element_helper(&mut self, node_id: NodeId, position: InsertionPositionMode<D, C, NodeId>) {
+    pub fn insert_element_helper(
+        &mut self,
+        node_id: NodeId,
+        position: InsertionPositionMode<D, C, NodeId>,
+    ) {
         match position {
             InsertionPositionMode::Sibling {
                 handle,
@@ -92,17 +96,23 @@ where
                 let parent_node = get_node_by_id!(handle, parent);
                 let position = parent_node.children().iter().position(|&x| x == before);
                 let mut_handle = &mut handle.clone();
-                mut_handle.get_mut().register_node_at(&node, parent, position);
+                mut_handle
+                    .get_mut()
+                    .register_node_at(node, parent, position);
             }
             InsertionPositionMode::LastChild { handle, parent } => {
                 let node = get_node_by_id!(handle, node_id);
                 let mut_handle = &mut handle.clone();
-                mut_handle.get_mut().register_node_at(&node, parent, None);
+                mut_handle.get_mut().register_node_at(node, parent, None);
             }
         }
     }
 
-    pub fn insert_text_helper(&mut self, position: InsertionPositionMode<D, C, NodeId>, token: &Token) {
+    pub fn insert_text_helper(
+        &mut self,
+        position: InsertionPositionMode<D, C, NodeId>,
+        token: &Token,
+    ) {
         match position {
             InsertionPositionMode::Sibling {
                 handle,
@@ -115,7 +125,9 @@ where
                     None | Some(0) => {
                         let node = self.create_node(token, HTML_NAMESPACE);
                         let mut_handle = &mut handle.clone();
-                        mut_handle.get_mut().register_node_at(&node, parent, position);
+                        mut_handle
+                            .get_mut()
+                            .register_node_at(node, parent, position);
                     }
                     Some(index) => {
                         let last_node_id = parent_node.children()[index - 1];
@@ -130,7 +142,9 @@ where
 
                         let node = self.create_node(token, HTML_NAMESPACE);
                         let mut_handle = &mut handle.clone();
-                        mut_handle.get_mut().register_node_at(&node, parent, Some(index));
+                        mut_handle
+                            .get_mut()
+                            .register_node_at(node, parent, Some(index));
                     }
                 }
             }
@@ -148,13 +162,13 @@ where
 
                     let node = self.create_node(token, HTML_NAMESPACE);
                     let mut_handle = &mut handle.clone();
-                    mut_handle.get_mut().register_node_at(&node, parent, None);
+                    mut_handle.get_mut().register_node_at(node, parent, None);
                     return;
                 }
 
                 let node = self.create_node(token, HTML_NAMESPACE);
                 let mut_handle = &mut handle.clone();
-                mut_handle.get_mut().register_node_at(&node, parent, None);
+                mut_handle.get_mut().register_node_at(node, parent, None);
             }
         }
     }
@@ -186,14 +200,13 @@ where
 
             let mut data = get_element_data_mut!(&mut node);
             if let Some(class_string) = data.attributes().get("class") {
-
                 let class_string = class_string.clone();
 
                 data.add_class(&class_string.clone());
             }
         }
 
-        self.insert_element(&node, override_node)
+        self.insert_element(node, override_node)
     }
 
     pub fn insert_element_from_node(
@@ -214,10 +227,10 @@ where
                 data.add_class(&class_string);
             }
         }
-        self.insert_element(&new_node, override_node)
+        self.insert_element(new_node, override_node)
     }
 
-    pub fn insert_element(&mut self, node: &D::Node, override_node: Option<NodeId>) -> NodeId {
+    pub fn insert_element(&mut self, node: D::Node, override_node: Option<NodeId>) -> NodeId {
         let node_id = self.document.get_mut().register_node(node);
 
         let insert_position = self.appropriate_place_insert(override_node);
@@ -232,12 +245,17 @@ where
 
     pub fn insert_doctype_element(&mut self, token: &Token) {
         let node = self.create_node(token, HTML_NAMESPACE);
-        self.document.get_mut().register_node_at(&node, NodeId::root(), None);
+        self.document
+            .get_mut()
+            .register_node_at(node, NodeId::root(), None);
     }
 
     pub fn insert_document_element(&mut self, token: &Token) {
         let node = self.create_node(token, HTML_NAMESPACE);
-        let node_id = self.document.get_mut().register_node_at(&node, NodeId::root(), None);
+        let node_id = self
+            .document
+            .get_mut()
+            .register_node_at(node, NodeId::root(), None);
 
         self.open_elements.push(node_id);
     }
@@ -245,11 +263,13 @@ where
     pub fn insert_comment_element(&mut self, token: &Token, insert_position: Option<NodeId>) {
         let node = self.create_node(token, HTML_NAMESPACE);
         if let Some(position) = insert_position {
-            self.document.get_mut().register_node_at(&node, position, None);
+            self.document
+                .get_mut()
+                .register_node_at(node, position, None);
             return;
         }
 
-        let node_id = self.document.get_mut().register_node(&node);
+        let node_id = self.document.get_mut().register_node(node);
         let insert_position = self.appropriate_place_insert(None);
         self.insert_element_helper(node_id, insert_position);
     }
@@ -279,7 +299,8 @@ where
         if !(self.foster_parenting
             && ["table", "tbody", "thead", "tfoot", "tr"].contains(&element_data.name()))
         {
-            if element_data.name() == "template" && element_data.is_namespace(HTML_NAMESPACE.into()) {
+            if element_data.name() == "template" && element_data.is_namespace(HTML_NAMESPACE.into())
+            {
                 if let Some(template_fragment) = element_data.template_contents() {
                     return InsertionPositionMode::LastChild {
                         handle: template_fragment.handle(),
@@ -461,7 +482,7 @@ where
                     element_data.attributes().clone(),
                     element_node.location().clone(),
                 );
-                let replace_node_id = self.document.get_mut().register_node(&replacement_node);
+                let replace_node_id = self.document.get_mut().register_node(replacement_node);
 
                 self.active_formatting_elements[node_active_position] =
                     ActiveElement::Node(replace_node_id);
@@ -477,7 +498,9 @@ where
 
                 // step 4.13.8
                 self.document.get_mut().detach_node(last_node_id);
-                self.document.get_mut().attach_node(last_node_id, replace_node_id, None);
+                self.document
+                    .get_mut()
+                    .attach_node(last_node_id, replace_node_id, None);
 
                 // step 4.13.9
                 last_node_id = node_id;
@@ -498,10 +521,7 @@ where
             );
 
             // step 4.16
-            let new_node_id = self
-                .document
-                .get_mut()
-                .register_node(&new_format_node);
+            let new_node_id = self.document.get_mut().register_node(new_format_node);
 
             let further_block_node = get_node_by_id!(self.document, further_block_node_id);
             for child in further_block_node.children() {

@@ -8,16 +8,6 @@ use std::rc::Rc;
 use log::warn;
 use url::Url;
 
-use gosub_shared::node::NodeId;
-use gosub_shared::byte_stream::{ByteStream, Location};
-use gosub_shared::types::{ParseError, Result};
-use gosub_shared::{timing_start, timing_stop};
-use gosub_shared::document::DocumentHandle;
-use gosub_shared::traits::node::TextDataType;
-use gosub_shared::traits::document::{Document, DocumentFragment, DocumentBuilder, DocumentType};
-use gosub_shared::traits::node::{ElementDataType, Node, QuirksMode};
-use gosub_shared::traits::{Context, ParserConfig};
-use gosub_shared::traits::css3::{CssOrigin, CssSystem};
 use crate::node::{HTML_NAMESPACE, MATHML_NAMESPACE, SVG_NAMESPACE};
 use crate::parser::attr_replacements::{
     MATHML_ADJUSTMENTS, SVG_ADJUSTMENTS_ATTRIBUTES, SVG_ADJUSTMENTS_TAGS, XML_ADJUSTMENTS,
@@ -26,12 +16,23 @@ use crate::parser::errors::{ErrorLogger, ParserError};
 use crate::tokenizer::state::State;
 use crate::tokenizer::token::Token;
 use crate::tokenizer::{ParserData, Tokenizer, CHAR_REPLACEMENT};
+use gosub_shared::byte_stream::{ByteStream, Location};
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::{CssOrigin, CssSystem};
+use gosub_shared::traits::document::{Document, DocumentBuilder, DocumentFragment, DocumentType};
+use gosub_shared::traits::html5::ParserOptions;
+use gosub_shared::traits::node::TextDataType;
+use gosub_shared::traits::node::{ElementDataType, Node, QuirksMode};
+use gosub_shared::traits::{Context, ParserConfig};
+use gosub_shared::types::{ParseError, Result};
+use gosub_shared::{timing_start, timing_stop};
 
 mod attr_replacements;
+pub mod errors;
 pub mod query;
 mod quirks;
 pub mod tree_builder;
-pub mod errors;
 
 // ------------------------------------------------------------
 
@@ -69,7 +70,7 @@ macro_rules! get_node_by_id {
             .get()
             .node_by_id($id)
             .expect("Node not found")
-        // @todo: clone or not?
+            // @todo: clone or not?
             .clone()
     };
 }
@@ -85,13 +86,17 @@ macro_rules! get_node_by_id {
 
 macro_rules! get_element_data {
     ($node:expr) => {
-        $node.get_element_data().expect("Node is not an element node")
+        $node
+            .get_element_data()
+            .expect("Node is not an element node")
     };
 }
 
 macro_rules! get_element_data_mut {
     ($node:expr) => {
-        $node.get_element_data_mut().expect("Node is not an element node")
+        $node
+            .get_element_data_mut()
+            .expect("Node is not an element node")
     };
 }
 
@@ -109,7 +114,7 @@ macro_rules! current_node {
             .get()
             .node_by_id(*current_node_idx)
             .expect("Current node not found")
-        // @todo: clone or not?
+            // @todo: clone or not?
             .clone()
     }};
 }
@@ -121,7 +126,7 @@ macro_rules! open_elements_get {
             .get()
             .node_by_id($self.open_elements[$idx])
             .expect("node in open_elements not found")
-        // @todo: clone or not?
+            // @todo: clone or not?
             .clone()
     }};
 }
@@ -147,6 +152,14 @@ impl ActiveElement {
 
 pub struct Html5ParserOptions {
     pub scripting_enabled: bool,
+}
+
+impl ParserOptions for Html5ParserOptions {
+    fn new(scripting: bool) -> Self {
+        Self {
+            scripting_enabled: scripting,
+        }
+    }
 }
 
 impl Default for Html5ParserOptions {
@@ -234,11 +247,11 @@ enum DispatcherMode {
 }
 
 impl<'chars, D, C> Html5Parser<'chars, D, C>
-    where
-        D: Document<C>,
-        C: CssSystem,
-        // <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document=D>,
-        // <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C>>::DocumentFragment: DocumentFragment<C, Document=D>,
+where
+    D: Document<C>,
+    C: CssSystem,
+    // <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document=D>,
+    // <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C>>::DocumentFragment: DocumentFragment<C, Document=D>,
 {
     // Initializes the parser for whole document parsing
     fn init(
@@ -333,7 +346,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
     ) -> Result<Vec<ParseError>> {
         // https://html.spec.whatwg.org/multipage/parsing.html#parsing-html-fragments
 
-        let context_node_element_data = context_node.get_element_data().expect("context node is not an element");
+        let context_node_element_data = context_node
+            .get_element_data()
+            .expect("context node is not an element");
 
         // 1.
         document.get_mut().set_doctype(DocumentType::HTML);
@@ -345,8 +360,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
         let error_logger = Rc::new(RefCell::new(ErrorLogger::new()));
 
         let tokenizer = Tokenizer::new(stream, None, error_logger.clone(), start_location.clone());
-        let mut parser =
-            Html5Parser::init(tokenizer, document.clone(), error_logger, options);
+        let mut parser = Html5Parser::init(tokenizer, document.clone(), error_logger, options);
 
         // 4. / 12.
         parser.initialize_fragment_case(context_node);
@@ -571,10 +585,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 }
 
                 self.adjust_foreign_attributes(&mut current_token);
-                self.insert_foreign_element(
-                    &current_token,
-                    acn_element_data.namespace(),
-                );
+                self.insert_foreign_element(&current_token, acn_element_data.namespace());
 
                 if *is_self_closing {
                     if name == "script"
@@ -1051,7 +1062,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                             .clone();
 
                         // Load stylesheet from text node
-                        if let Some(stylesheet) = self.load_inline_stylesheet(CssOrigin::Author, &style_text_node) {
+                        if let Some(stylesheet) =
+                            self.load_inline_stylesheet(CssOrigin::Author, &style_text_node)
+                        {
                             self.document.get_mut().add_stylesheet(stylesheet);
                         }
 
@@ -1638,7 +1651,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
 
                         self.open_elements.pop();
 
-                        if !self.is_fragment_case && get_element_data!(current_node!(self)).name() != "frameset" {
+                        if !self.is_fragment_case
+                            && get_element_data!(current_node!(self)).name() != "frameset"
+                        {
                             // fragment case
                             self.insertion_mode = InsertionMode::AfterFrameset;
                         }
@@ -1937,20 +1952,12 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 comment: value,
                 location,
                 ..
-            } => D::new_comment_node(
-                self.document.clone(),
-                value,
-                location.clone()
-            ),
+            } => D::new_comment_node(self.document.clone(), value, location.clone()),
             Token::Text {
                 text: value,
                 location,
                 ..
-            } => D::new_text_node(
-                self.document.clone(),
-                value.as_str(),
-                location.clone()
-            ),
+            } => D::new_text_node(self.document.clone(), value.as_str(), location.clone()),
             Token::Eof { .. } => {
                 panic!("EOF token not allowed");
             }
@@ -1984,12 +1991,18 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 if !([
                     "tbody", "td", "tfoot", "th", "thead", "tr", "dd", "dt", "li", "option",
                     "optgroup", "p", "rb", "rp", "rt", "rtc",
-                ].contains(&tag) && is_html) {
+                ]
+                .contains(&tag)
+                    && is_html)
+                {
                     return;
                 }
             } else if !([
                 "dd", "dt", "li", "option", "optgroup", "p", "rb", "rp", "rt", "rtc",
-            ].contains(&tag) && is_html) {
+            ]
+            .contains(&tag)
+                && is_html)
+            {
                 return;
             }
 
@@ -2112,7 +2125,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
     /// Pop all elements back to a table context
     fn clear_stack_back_to_table_context(&mut self) {
         while !self.open_elements.is_empty() {
-            if ["table", "template", "html"].contains(&get_element_data!(current_node!(self)).name()) {
+            if ["table", "template", "html"]
+                .contains(&get_element_data!(current_node!(self)).name())
+            {
                 return;
             }
             self.open_elements.pop();
@@ -2271,9 +2286,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 // Add attributes to html element
                 let first_node_id = *self.open_elements.first().unwrap();
                 let mut doc = self.document.get_mut();
-                let first_node = doc
-                    .node_by_id_mut(first_node_id)
-                    .expect("node not found");
+                let first_node = doc.node_by_id_mut(first_node_id).expect("node not found");
 
                 if first_node.is_element_node() {
                     let mut element_data = get_element_data_mut!(first_node);
@@ -2323,19 +2336,20 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                     let node = get_node_by_id!(self.document, *node_id);
                     let node_element_data = get_element_data!(node);
 
-                    node_element_data.name() == "body" && node_element_data.is_namespace(HTML_NAMESPACE.into())
+                    node_element_data.name() == "body"
+                        && node_element_data.is_namespace(HTML_NAMESPACE.into())
                 });
 
                 if let Some(body_node_id) = body_node_id {
                     let mut doc = self.document.get_mut();
-                    let body_node = doc
-                        .node_by_id_mut(*body_node_id)
-                        .expect("node not found");
+                    let body_node = doc.node_by_id_mut(*body_node_id).expect("node not found");
 
                     let mut element_data = get_element_data_mut!(body_node);
                     for (key, value) in attributes {
                         if !element_data.attributes_mut().contains_key(key) {
-                            element_data.attributes_mut().insert(key.to_owned(), value.to_owned());
+                            element_data
+                                .attributes_mut()
+                                .insert(key.to_owned(), value.to_owned());
                         }
                     }
                 }
@@ -2343,7 +2357,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
             Token::StartTag { name, .. } if name == "frameset" => {
                 self.parse_error("frameset tag not allowed in in body insertion mode");
 
-                if self.open_elements.len() == 1 || get_element_data!(open_elements_get!(self, 1)).name() != "body" {
+                if self.open_elements.len() == 1
+                    || get_element_data!(open_elements_get!(self, 1)).name() != "body"
+                {
                     // ignore token
                     return;
                 }
@@ -2357,9 +2373,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                     let second_node_id = self.open_elements[1];
                     let second_node = get_node_by_id!(self.document, second_node_id);
                     if second_node.parent_id().is_some() {
-                        self.document
-                            .get_mut()
-                            .detach_node(second_node_id)
+                        self.document.get_mut().detach_node(second_node_id)
                     }
                 }
 
@@ -2447,7 +2461,8 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                     self.close_p_element();
                 }
 
-                if ["h1", "h2", "h3", "h4", "h5", "h6"].contains(&get_element_data!(current_node!(self)).name())
+                if ["h1", "h2", "h3", "h4", "h5", "h6"]
+                    .contains(&get_element_data!(current_node!(self)).name())
                 {
                     self.parse_error("h1-h6 not allowed in in body insertion mode");
                     self.open_elements.pop();
@@ -3001,7 +3016,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                     self.generate_implied_end_tags(Some("rtc"), false);
                 }
 
-                if get_element_data!(current_node!(self)).name() != "rtc" && get_element_data!(current_node!(self)).name() != "ruby" {
+                if get_element_data!(current_node!(self)).name() != "rtc"
+                    && get_element_data!(current_node!(self)).name() != "ruby"
+                {
                     self.parse_error("rp or rt not in scope");
                 }
 
@@ -3155,7 +3172,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
             Token::StartTag { name, .. } if name == "script" => {
                 let insert_position = self.appropriate_place_insert(None);
                 let node = self.create_node(&self.current_token.clone(), HTML_NAMESPACE);
-                let node_id = self.document.get_mut().register_node(&node);
+                let node_id = self.document.get_mut().register_node(node);
                 self.insert_element_helper(node_id, insert_position);
 
                 // TODO Set the element's parser document to the Document, and set the element's force async to false.
@@ -3208,7 +3225,10 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                     let node = binding.node_by_id_mut(node_id).expect("node not found");
                     if node.is_element_node() {
                         let mut element_data = get_element_data_mut!(node);
-                        element_data.set_template_contents(D::Fragment::new(clone_document, current_node_id));
+                        element_data.set_template_contents(D::Fragment::new(
+                            clone_document,
+                            current_node_id,
+                        ));
                     }
                 }
             }
@@ -3562,7 +3582,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
             Token::EndTag { name, .. } if name == "optgroup" => {
                 if get_element_data!(current_node!(self)).name() == "option"
                     && self.open_elements.len() > 1
-                    && get_element_data!(open_elements_get!(self, self.open_elements.len() - 2)).name() == "optgroup"
+                    && get_element_data!(open_elements_get!(self, self.open_elements.len() - 2))
+                        .name()
+                        == "optgroup"
                 {
                     self.open_elements.pop();
                 }
@@ -3701,7 +3723,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 ActiveElement::Marker => break,
                 &ActiveElement::Node(id) => {
                     let current_node = get_node_by_id!(self.document, id);
-                    if get_element_data!(current_node).matches_tag_and_attrs_without_order(&node_element_data) {
+                    if get_element_data!(current_node)
+                        .matches_tag_and_attrs_without_order(&node_element_data)
+                    {
                         if matched >= 2 {
                             first_matched = Some(id);
                             break;
@@ -4259,23 +4283,37 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
             // Fetch the html from the url
             let response = ureq::get(url.as_ref()).call();
             if response.is_err() {
-                warn!("Could not load external stylesheet from {}. Error: {}", url, response.unwrap_err());
+                warn!(
+                    "Could not load external stylesheet from {}. Error: {}",
+                    url,
+                    response.unwrap_err()
+                );
                 return None;
             }
             let response = response.expect("result");
 
             if response.status() != 200 {
-                warn!("Could not load external stylesheet from {}. Status code {} ", url, response.status());
+                warn!(
+                    "Could not load external stylesheet from {}. Status code {} ",
+                    url,
+                    response.status()
+                );
                 return None;
             }
             if response.content_type() != "text/css" {
-                warn!("External stylesheet has no text/css content type: {} ", response.content_type());
+                warn!(
+                    "External stylesheet has no text/css content type: {} ",
+                    response.content_type()
+                );
             }
 
             match response.into_string() {
                 Ok(css) => css,
                 Err(err) => {
-                    warn!("Could not load external stylesheet from {}. Error: {}", url, err);
+                    warn!(
+                        "Could not load external stylesheet from {}. Error: {}",
+                        url, err
+                    );
                     return None;
                 }
             }
@@ -4285,12 +4323,18 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
             match std::fs::read_to_string(path) {
                 Ok(css) => css,
                 Err(err) => {
-                    warn!("Could not load external stylesheet from {}. Error: {}", url, err);
+                    warn!(
+                        "Could not load external stylesheet from {}. Error: {}",
+                        url, err
+                    );
                     return None;
                 }
             }
         } else {
-            warn!("Unsupported URL scheme for external stylesheet: {}", url.scheme());
+            warn!(
+                "Unsupported URL scheme for external stylesheet: {}",
+                url.scheme()
+            );
             return None;
         };
 

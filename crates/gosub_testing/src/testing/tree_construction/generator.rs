@@ -1,9 +1,11 @@
-use gosub_shared::traits::node::{CommentDataType, ElementDataType, Node, NodeType, TextDataType};
 use gosub_html5::node::HTML_NAMESPACE;
 use gosub_html5::node::{MATHML_NAMESPACE, SVG_NAMESPACE, XLINK_NAMESPACE, XMLNS_NAMESPACE};
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::Document;
+use gosub_shared::traits::node::{
+    CommentDataType, DocTypeDataType, ElementDataType, Node, NodeType, TextDataType,
+};
 
 /// Generates a tree output that can be used for matching with the expected output
 pub struct TreeOutputGenerator<D: Document<C>, C: CssSystem> {
@@ -39,7 +41,7 @@ impl<D: Document<C>, C: CssSystem> TreeOutputGenerator<D, C> {
             if node.type_of() == NodeType::ElementNode {
                 if let Some(element) = &node.get_element_data() {
                     let mut sorted_attrs = vec![];
-                    for attr in &element.attributes {
+                    for attr in element.attributes() {
                         sorted_attrs.push(attr);
                     }
                     sorted_attrs.sort_by(|a, b| a.0.cmp(b.0));
@@ -52,19 +54,19 @@ impl<D: Document<C>, C: CssSystem> TreeOutputGenerator<D, C> {
                             attr.1
                         ));
                     }
-                }
-            }
 
-            // Template tags have an extra "content" node in the test tree ouput
-            if node.name == "template" && node.is_namespace(HTML_NAMESPACE) {
-                output.push(format!("| {}content", "  ".repeat(indent_level)));
-                indent_level += 1;
+                    // Template tags have an extra "content" node in the test tree ouput
+                    if element.name() == "template" && element.is_namespace(HTML_NAMESPACE) {
+                        output.push(format!("| {}content", "  ".repeat(indent_level)));
+                        indent_level += 1;
+                    }
+                }
             }
         }
 
-        for child_id in &node.children {
+        for child_id in node.children() {
             let doc = self.document.get();
-            let child_node = doc.get_node_by_id(*child_id).expect("node not found");
+            let child_node = doc.node_by_id(*child_id).expect("node not found");
 
             output.append(&mut self.output_treeline(child_node, indent_level + 1));
         }
@@ -96,15 +98,14 @@ impl<D: Document<C>, C: CssSystem> TreeOutputGenerator<D, C> {
                 };
 
                 format!(r#""{}""#, data.value())
-            },
+            }
             NodeType::CommentNode => {
-
                 let Some(data) = node.get_comment_data() else {
                     return "unknown".to_owned();
                 };
 
                 format!("<!-- {} -->", data.value())
-            },
+            }
             NodeType::DocTypeNode => {
                 let Some(data) = node.get_doctype_data() else {
                     return "<unknown>".to_owned();
@@ -116,14 +117,16 @@ impl<D: Document<C>, C: CssSystem> TreeOutputGenerator<D, C> {
                         data.name()
                     } else {
                         // <!DOCTYPE html "pubid" "sysid">
-                        format!(
+                        &*format!(
                             r#"{0} "{1}" "{2}""#,
-                            data.name(), data.pub_identifier(), data.sys_identifier()
+                            data.name(),
+                            data.pub_identifier(),
+                            data.sys_identifier()
                         )
                     };
 
                 format!("<!DOCTYPE {}>", doctype_text.trim())
-            },
+            }
             NodeType::DocumentNode => String::new(),
         }
     }

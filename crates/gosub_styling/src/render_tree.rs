@@ -9,6 +9,10 @@ use gosub_html5::node::{NodeData, NodeId};
 use gosub_html5::parser::document::{Document, DocumentHandle, TreeIterator};
 use gosub_render_backend::geo::Size;
 use gosub_render_backend::layout::{HasTextLayout, Layout, LayoutTree, Layouter, Node, TextLayout};
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::document::Document;
 use gosub_shared::types::Result;
 
 use crate::functions::{resolve_attr, resolve_calc, resolve_var};
@@ -243,7 +247,7 @@ impl<L: Layouter> RenderTree<L> {
         render_tree
     }
 
-    fn generate_from(&mut self, mut document: DocumentHandle) {
+    fn generate_from<D: Document<C>, C: CssSystem>(&mut self, mut document: DocumentHandle<D, C>) {
         // Iterate the complete document tree
         let tree_iterator = TreeIterator::new(&document);
 

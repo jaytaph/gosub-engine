@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use gosub_shared::traits::document::Document;
 use crate::DocumentHandle;
+use gosub_shared::traits::document::Document;
+use std::collections::HashMap;
 
 use gosub_shared::byte_stream::Location;
 use gosub_shared::node::NodeId;
@@ -91,7 +91,9 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                         HashMap::new(),
                         location.clone(),
                     );
-                    self.document.get_mut().register_node_at(&node, *parent_id, *position);
+                    self.document
+                        .get_mut()
+                        .register_node_at(node, *parent_id, *position);
                 }
                 DocumentTask::CreateText {
                     content,
@@ -99,15 +101,20 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     location,
                 } => {
                     let node = D::new_text_node(self.document.clone(), content, location.clone());
-                    self.document.get_mut().register_node_at(&node, *parent_id, None);
+                    self.document
+                        .get_mut()
+                        .register_node_at(node, *parent_id, None);
                 }
                 DocumentTask::CreateComment {
                     content,
                     parent_id,
                     location,
                 } => {
-                    let node = D::new_comment_node(self.document.clone(), content, location.clone());
-                    self.document.get_mut().register_node_at(&node, *parent_id, None);
+                    let node =
+                        D::new_comment_node(self.document.clone(), content, location.clone());
+                    self.document
+                        .get_mut()
+                        .register_node_at(node, *parent_id, None);
                 }
                 DocumentTask::InsertAttribute {
                     key,
@@ -130,4 +137,3 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
         errors
     }
 }
-

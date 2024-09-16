@@ -6,7 +6,6 @@ use url::Url;
 
 use gosub_css3::colors::RgbColor;
 use gosub_css3::stylesheet::CssValue;
-use gosub_html5::node::NodeId;
 use gosub_net::http::fetcher::Fetcher;
 use gosub_render_backend::geo::{Size, SizeU32, FP};
 use gosub_render_backend::layout::{Layout, LayoutTree, Layouter, TextLayout};
@@ -16,6 +15,7 @@ use gosub_render_backend::{
     RenderBorder, RenderRect, RenderText, Scene as TScene, Text, Transform,
 };
 use gosub_rendering::position::PositionTree;
+use gosub_shared::node::NodeId;
 use gosub_shared::types::Result;
 use gosub_styling::render_tree::{RenderNodeData, RenderTree, RenderTreeNode};
 

@@ -1,6 +1,7 @@
+pub mod functions;
+mod property_definitions;
+mod shorthands;
+mod styling;
 mod syntax;
 mod syntax_matcher;
-mod shorthands;
-mod property_definitions;
 mod walker;
-mod styling;
