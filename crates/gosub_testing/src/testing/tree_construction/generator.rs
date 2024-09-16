@@ -1,16 +1,19 @@
-use gosub_html5::node::{Node, NodeData, NodeTrait, NodeType, HTML_NAMESPACE};
+use gosub_shared::traits::node::{CommentDataType, ElementDataType, Node, NodeType, TextDataType};
+use gosub_html5::node::HTML_NAMESPACE;
 use gosub_html5::node::{MATHML_NAMESPACE, SVG_NAMESPACE, XLINK_NAMESPACE, XMLNS_NAMESPACE};
-use gosub_html5::parser::document::DocumentHandle;
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::document::Document;
 
 /// Generates a tree output that can be used for matching with the expected output
-pub struct TreeOutputGenerator {
-    document: DocumentHandle,
+pub struct TreeOutputGenerator<D: Document<C>, C: CssSystem> {
+    document: DocumentHandle<D, C>,
 }
 
-impl TreeOutputGenerator {
+impl<D: Document<C>, C: CssSystem> TreeOutputGenerator<D, C> {
     /// Initializes a new tree output generator
     #[must_use]
-    pub fn new(document: DocumentHandle) -> Self {
+    pub fn new(document: DocumentHandle<D, C>) -> Self {
         Self { document }
     }
 
@@ -20,7 +23,7 @@ impl TreeOutputGenerator {
     }
 
     /// Generates an array of indented tree line and its children. Note that text lines can have newlines in them
-    fn output_treeline(&self, node: &Node, indent_level: usize) -> Vec<String> {
+    fn output_treeline(&self, node: &D::Node, indent_level: usize) -> Vec<String> {
         let mut indent_level = indent_level;
         let mut output = Vec::new();
 
@@ -33,8 +36,8 @@ impl TreeOutputGenerator {
                 self.output_node(node)
             ));
 
-            if node.type_of() == NodeType::Element {
-                if let NodeData::Element(element) = &node.data {
+            if node.type_of() == NodeType::ElementNode {
+                if let Some(element) = &node.get_element_data() {
                     let mut sorted_attrs = vec![];
                     for attr in &element.attributes {
                         sorted_attrs.push(attr);
@@ -70,41 +73,58 @@ impl TreeOutputGenerator {
     }
 
     /// Generate the output for a single node
-    fn output_node(&self, node: &Node) -> String {
-        match node.data.clone() {
-            NodeData::Element(element) => {
-                if let Some(ns) = node.namespace.clone() {
-                    let ns_prefix = match ns.as_str() {
-                        MATHML_NAMESPACE => "math ",
-                        SVG_NAMESPACE => "svg ",
-                        XMLNS_NAMESPACE => "xml ",
-                        XLINK_NAMESPACE => "xlink ",
-                        _ => "",
-                    };
-                    format!("<{}{}>", ns_prefix, element.name())
-                } else {
-                    // format!("<{}{}>", ns_prefix, element.name())
-                    format!("<{}>", element.name())
-                }
+    fn output_node(&self, node: &D::Node) -> String {
+        match node.type_of() {
+            NodeType::ElementNode => {
+                let Some(data) = node.get_element_data() else {
+                    return "<unknown>".to_owned();
+                };
+
+                let ns_prefix = match data.namespace() {
+                    MATHML_NAMESPACE => "math ",
+                    SVG_NAMESPACE => "svg ",
+                    XMLNS_NAMESPACE => "xml ",
+                    XLINK_NAMESPACE => "xlink ",
+                    _ => "",
+                };
+
+                format!("<{}{}>", ns_prefix, data.name())
             }
-            NodeData::Text(text) => format!(r#""{}""#, text.value()),
-            NodeData::Comment(comment) => format!("<!-- {} -->", comment.value()),
-            NodeData::DocType(doctype) => {
+            NodeType::TextNode => {
+                let Some(data) = node.get_text_data() else {
+                    return "<unknown>".to_owned();
+                };
+
+                format!(r#""{}""#, data.value())
+            },
+            NodeType::CommentNode => {
+
+                let Some(data) = node.get_comment_data() else {
+                    return "unknown".to_owned();
+                };
+
+                format!("<!-- {} -->", data.value())
+            },
+            NodeType::DocTypeNode => {
+                let Some(data) = node.get_doctype_data() else {
+                    return "<unknown>".to_owned();
+                };
+
                 let doctype_text =
-                    if doctype.pub_identifier.is_empty() && doctype.sys_identifier.is_empty() {
+                    if data.pub_identifier().is_empty() && data.sys_identifier().is_empty() {
                         // <!DOCTYPE html>
-                        doctype.name
+                        data.name()
                     } else {
                         // <!DOCTYPE html "pubid" "sysid">
                         format!(
                             r#"{0} "{1}" "{2}""#,
-                            doctype.name, doctype.pub_identifier, doctype.sys_identifier
+                            data.name(), data.pub_identifier(), data.sys_identifier()
                         )
                     };
 
                 format!("<!DOCTYPE {}>", doctype_text.trim())
-            }
-            NodeData::Document(_) => String::new(),
+            },
+            NodeType::DocumentNode => String::new(),
         }
     }
 }

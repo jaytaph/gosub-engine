@@ -273,6 +273,9 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
             && FORMATTING_HTML_ELEMENTS.contains(&self.name.as_str())
     }
 
+    fn set_template_contents(&mut self, template_contents: Self::DocumentFragment) {
+        self.template_contents = Some(template_contents);
+    }
 }
 
 impl<C: CssSystem> ElementData<C> {

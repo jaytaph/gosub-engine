@@ -55,6 +55,7 @@ pub struct DocumentTaskQueue<D: Document<C>, C: CssSystem> {
     /// WARNING: if nodes are registered in the arena while tasks are being queued
     /// this could lead to conflicts in NodeIds. NodeArena should NOT be used directly
     /// if using a DocumentTaskQueue.
+    #[allow(dead_code)]
     next_node_id: NodeId,
     /// Reference to the document to commit changes to
     pub(crate) document: DocumentHandle<D, C>,

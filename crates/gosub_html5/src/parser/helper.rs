@@ -186,7 +186,10 @@ where
 
             let mut data = get_element_data_mut!(&mut node);
             if let Some(class_string) = data.attributes().get("class") {
-                data.add_class(class_string.clone().as_str());
+
+                let class_string = class_string.clone();
+
+                data.add_class(&class_string.clone());
             }
         }
 
@@ -207,7 +210,8 @@ where
 
             let mut data = get_element_data_mut!(&mut new_node);
             if let Some(class_string) = data.attributes().get("class") {
-                data.add_class(class_string.clone().as_str());
+                let class_string = class_string.clone();
+                data.add_class(&class_string);
             }
         }
         self.insert_element(&new_node, override_node)

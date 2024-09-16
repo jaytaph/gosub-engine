@@ -3,15 +3,15 @@ mod generator;
 pub(crate) mod parser;
 pub mod result;
 
+use gosub_shared::traits::document::{Document, DocumentBuilder};
 use generator::TreeOutputGenerator;
-use gosub_html5::document::builder::DocumentBuilder;
-use gosub_html5::node::NodeId;
 use gosub_html5::node::{HTML_NAMESPACE, MATHML_NAMESPACE, SVG_NAMESPACE};
-use gosub_html5::parser::document::DocumentBuilder;
-use gosub_html5::parser::document::{Document, DocumentHandle};
-use gosub_html5::parser::tree_builder::TreeBuilder;
-use gosub_html5::parser::{Html5Parser, Html5ParserOptions};
+use gosub_html5::parser::Html5ParserOptions;
 use gosub_shared::byte_stream::{ByteStream, Config, Encoding, Location};
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::html5::Html5Parser;
 use gosub_shared::types::{ParseError, Result};
 use parser::{ScriptMode, TestSpec};
 use result::TestResult;
@@ -86,7 +86,7 @@ impl Harness {
     }
 
     /// Run the html5 parser and return the document tree and errors
-    fn do_parse(&mut self, scripting_enabled: bool) -> Result<(DocumentHandle, Vec<ParseError>)> {
+    fn do_parse<P: Html5Parser<C>, C: CssSystem>(&mut self, scripting_enabled: bool) -> Result<(DocumentHandle<P::Document, C>, Vec<ParseError>)> {
         let options = Html5ParserOptions { scripting_enabled };
         let mut stream = ByteStream::new(
             Encoding::UTF8,
@@ -103,8 +103,8 @@ impl Harness {
             if let Some(fragment) = self.test.spec.document_fragment.clone() {
                 self.parse_fragment(fragment, stream, options, Location::default())?
             } else {
-                let document = DocumentBuilder::new_document(None);
-                let parser_errors = Html5Parser::parse_document(
+                let document = <P::Document as Document<C>>::Builder::new_document(None);
+                let parser_errors = P::parse(
                     &mut stream,
                     Document::clone(&document),
                     Some(options),
@@ -115,15 +115,15 @@ impl Harness {
         Ok((document, parse_errors))
     }
 
-    fn parse_fragment(
+    fn parse_fragment<P: Html5Parser<C>, C: CssSystem>(
         &mut self,
         fragment: String,
         mut stream: ByteStream,
         options: Html5ParserOptions,
         start_location: Location,
-    ) -> Result<(DocumentHandle, Vec<ParseError>)> {
+    ) -> Result<(DocumentHandle<P::Document, C>, Vec<ParseError>)> {
         // First, create a (fake) main document that contains only the fragment as node
-        let main_document = DocumentBuilder::new_document(None);
+        let main_document = <P::Document as Document<C>>::Builder::new_document(None);
         let mut main_document = Document::clone(&main_document);
         let (element, namespace) = if fragment.starts_with("svg ") {
             (
@@ -211,7 +211,7 @@ impl Harness {
 
     fn generate_test_result(
         &mut self,
-        document: DocumentHandle,
+        document: DocumentHandle<D, C>,
         _parse_errors: &[ParseError],
     ) -> TestResult {
         let mut result = TestResult::default();

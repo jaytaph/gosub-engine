@@ -6,6 +6,7 @@ use crate::parser::Html5Parser;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::document::DocumentBuilder as _;
 use crate::document::builder::DocumentBuilder;
 use crate::document::document::DocumentImpl;
 
@@ -15,6 +16,7 @@ pub mod errors;
 pub mod node;
 pub mod parser;
 pub mod tokenizer;
+#[allow(dead_code)]
 pub mod writer;
 
 /// Parses the given HTML string and returns a handle to the resulting DOM tree.

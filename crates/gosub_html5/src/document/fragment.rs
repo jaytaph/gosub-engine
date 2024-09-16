@@ -56,4 +56,8 @@ impl<C: CssSystem> DocumentFragment<C> for DocumentFragmentImpl<C> {
     fn handle(&self) -> DocumentHandle<Self::Document, C> {
         self.handle.clone()
     }
+
+    fn new(handle: DocumentHandle<Self::Document, C>, node_id: NodeId) -> Self {
+        Self::new(handle, node_id)
+    }
 }

@@ -3,7 +3,7 @@ use crate::byte_stream::Location;
 pub mod node;
 pub mod document;
 pub mod css3;
-
+pub mod html5;
 
 /// Context defines how the data needs to be parsed
 #[derive(Debug, Clone, Copy, PartialEq)]

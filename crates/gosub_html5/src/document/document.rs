@@ -9,6 +9,8 @@ use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::node::Node;
 use gosub_shared::traits::node::QuirksMode;
+use crate::document::builder::DocumentBuilder;
+use crate::document::fragment::DocumentFragmentImpl;
 use crate::node::arena::NodeArena;
 use crate::node::data::comment::CommentData;
 use crate::node::data::doctype::DocTypeData;
@@ -18,11 +20,11 @@ use crate::node::data::text::TextData;
 use crate::node::node::{NodeDataTypeInternal, NodeImpl};
 use crate::node::visitor::Visitor;
 
-/// according to HTML spec:
-/// https://html.spec.whatwg.org/#global-attributes
-pub(crate) fn is_valid_id_attribute_value(value: &str) -> bool {
-    !(value.is_empty() || value.contains(|ref c| char::is_ascii_whitespace(c)))
-}
+// /// according to HTML spec:
+// /// https://html.spec.whatwg.org/#global-attributes
+// pub(crate) fn is_valid_id_attribute_value(value: &str) -> bool {
+//     !(value.is_empty() || value.contains(|ref c| char::is_ascii_whitespace(c)))
+// }
 
 /// Defines a document
 #[derive(Debug)]
@@ -63,6 +65,8 @@ impl<C: CssSystem> Default for DocumentImpl<C> {
 
 impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     type Node = NodeImpl<C>;
+    type Fragment = DocumentFragmentImpl<C>;
+    type Builder = DocumentBuilder;
 
     // fn new_with_handle(document_type: DocumentType, url: Option<Url>, location: &Location, root_node: Option<&Self::Node>) -> DocumentHandle<Self> {
     //     let mut doc = Self::new(document_type, url);

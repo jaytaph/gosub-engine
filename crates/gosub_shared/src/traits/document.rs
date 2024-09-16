@@ -15,15 +15,26 @@ pub enum DocumentType {
     IframeSrcDoc,
 }
 
+pub trait DocumentBuilder<C: CssSystem> {
+    type Document: Document<C>;
+
+    fn new_document(url: Option<Url>) -> DocumentHandle<Self::Document, C>;
+    fn new_document_fragment(context_node: &<Self::Document as Document<C>>::Node) -> DocumentHandle<Self::Document, C>;
+}
+
 pub trait DocumentFragment<S: CssSystem>: Sized {
-    type Document: Document<S>;
+    type Document: Document<S, Fragment = Self>;
 
     /// Returns the document handle for this document
     fn handle(&self) -> DocumentHandle<Self::Document, S>;
+
+    fn new(handle: DocumentHandle<Self::Document, S>, node_id: NodeId) -> Self;
 }
 
 pub trait Document<C: CssSystem>: Sized {
-    type Node: Node<C>;
+    type Node: Node<C, Document = Self>;
+    type Fragment: DocumentFragment<C, Document = Self>;
+    type Builder: DocumentBuilder<C, Document = Self>;
 
     // Creates a new doc with an optional document root node
     fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<&Self::Node>) -> Self;
@@ -47,6 +58,7 @@ pub trait Document<C: CssSystem>: Sized {
     fn node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node>;
 
     fn add_stylesheet(&mut self, stylesheet: C::Stylesheet);
+
 
     /// Return the root node of the document
     fn get_root(&self) -> &Self::Node;

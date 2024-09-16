@@ -14,13 +14,10 @@ use gosub_shared::types::{ParseError, Result};
 use gosub_shared::{timing_start, timing_stop};
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::traits::node::TextDataType;
-use gosub_shared::traits::document::{Document, DocumentFragment, DocumentType};
+use gosub_shared::traits::document::{Document, DocumentFragment, DocumentBuilder, DocumentType};
 use gosub_shared::traits::node::{ElementDataType, Node, QuirksMode};
 use gosub_shared::traits::{Context, ParserConfig};
 use gosub_shared::traits::css3::{CssOrigin, CssSystem};
-use crate::document::builder::DocumentBuilder;
-use crate::document::document::DocumentImpl;
-use crate::document::fragment::DocumentFragmentImpl;
 use crate::node::{HTML_NAMESPACE, MATHML_NAMESPACE, SVG_NAMESPACE};
 use crate::parser::attr_replacements::{
     MATHML_ADJUSTMENTS, SVG_ADJUSTMENTS_ATTRIBUTES, SVG_ADJUSTMENTS_TAGS, XML_ADJUSTMENTS,
@@ -240,8 +237,8 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
     where
         D: Document<C>,
         C: CssSystem,
-        <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document=D>,
-        <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C>>::DocumentFragment: DocumentFragment<C, Document=D>,
+        // <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document=D>,
+        // <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C>>::DocumentFragment: DocumentFragment<C, Document=D>,
 {
     // Initializes the parser for whole document parsing
     fn init(
@@ -287,7 +284,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
     /// Creates a new parser with a dummy document and dummy tokenizer. This is ONLY used for testing purposes.
     /// Regular users should use the parse_document() and parse_fragment() functions instead.
     pub fn new_parser(stream: &'chars mut ByteStream, start_location: Location) -> Self {
-        let doc = DocumentBuilder::new_document(None);
+        let doc = D::Builder::new_document(None);
         let error_logger = Rc::new(RefCell::new(ErrorLogger::new()));
         let tokenizer = Tokenizer::new(stream, None, error_logger.clone(), start_location);
 
@@ -329,7 +326,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
     /// This is used for parsing innerHTML and document fragments.
     pub fn parse_fragment(
         stream: &mut ByteStream,
-        document: DocumentHandle<D, C>,
+        mut document: DocumentHandle<D, C>,
         context_node: &D::Node,
         options: Option<Html5ParserOptions>,
         start_location: Location,
@@ -1836,8 +1833,8 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
             }
 
             let element_node = get_node_by_id!(self.document, node_id.unwrap());
-            let tag = get_element_data!(element_node).name();
-            if arr.contains(&tag) {
+            let data = get_element_data!(element_node);
+            if arr.contains(&&data.name()) {
                 break;
             }
         }
@@ -1877,7 +1874,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
     fn open_elements_has(&self, name: &str) -> bool {
         self.open_elements.iter().rev().any(|node_id| {
             let node = get_node_by_id!(self.document, *node_id);
-            get_element_data!(node).name() == name
+            let data = get_element_data!(node);
+
+            data.name() == name
         })
     }
 
@@ -1902,7 +1901,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 pub_identifier,
                 sys_identifier,
                 location,
-            } => DocumentImpl::new_doctype_node(
+            } => D::new_doctype_node(
                 self.document.clone(),
                 &name.clone().unwrap_or_default(),
                 match pub_identifier {
@@ -1920,14 +1919,14 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 attributes,
                 location,
                 ..
-            } => DocumentImpl::new_element_node(
+            } => D::new_element_node(
                 self.document.clone(),
                 name,
                 namespace.into(),
                 attributes.clone(),
                 location.clone(),
             ),
-            Token::EndTag { name, location, .. } => DocumentImpl::new_element_node(
+            Token::EndTag { name, location, .. } => D::new_element_node(
                 self.document.clone(),
                 name,
                 namespace.into(),
@@ -1938,7 +1937,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 comment: value,
                 location,
                 ..
-            } => DocumentImpl::new_comment_node(
+            } => D::new_comment_node(
                 self.document.clone(),
                 value,
                 location.clone()
@@ -1947,7 +1946,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 text: value,
                 location,
                 ..
-            } => DocumentImpl::new_text_node(
+            } => D::new_text_node(
                 self.document.clone(),
                 value.as_str(),
                 location.clone()
@@ -1972,7 +1971,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
             }
 
             let node = current_node!(self);
-            let tag = get_element_data!(node).name().clone();
+            let data = get_element_data!(node);
+            let tag = data.name();
+
             let is_html = get_element_data!(node).is_namespace(HTML_NAMESPACE.into());
             if let Some(except) = except {
                 if except == tag && is_html {
@@ -2031,7 +2032,8 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
 
                         ancestor_idx -= 1;
                         let ancestor = open_elements_get!(self, ancestor_idx);
-                        match get_element_data!(ancestor).name() {
+                        let data = get_element_data!(ancestor);
+                        match data.name() {
                             "template" => {
                                 self.insertion_mode = InsertionMode::InSelect;
                                 return;
@@ -2133,8 +2135,8 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
     fn clear_stack_back_to_table_row_context(&mut self) {
         while !self.open_elements.is_empty() {
             let node = current_node!(self);
-            let val = get_element_data!(node).name();
-            if ["tr", "template", "html"].contains(&val) {
+            let data = get_element_data!(node);
+            if ["tr", "template", "html"].contains(&data.name()) {
                 return;
             }
             self.open_elements.pop();
@@ -2215,7 +2217,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
         self.generate_implied_end_tags(None, false);
 
         let node = current_node!(self);
-        let tag = get_element_data!(node).name();
+        let data = get_element_data!(node);
+        let tag = data.name();
+
         if tag != "td" && tag != "th" {
             self.parse_error("current node should be td or th");
         }
@@ -2272,10 +2276,12 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                     .expect("node not found");
 
                 if first_node.is_element_node() {
-                    let element_data = get_element_data_mut!(first_node);
+                    let mut element_data = get_element_data_mut!(first_node);
+
                     for (key, value) in attributes {
-                        if !element_data.attributes().contains_key(key) {
-                            element_data.attributes().insert(key.to_owned(), value.to_owned());
+                        let attrs = element_data.attributes_mut();
+                        if !attrs.contains_key(key) {
+                            attrs.insert(key.to_owned(), value.to_owned());
                         }
                     }
                 }
@@ -3196,11 +3202,13 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 {
                     let current_node_id = current_node!(self).id();
 
+                    let clone_document = self.document.clone();
+
                     let mut binding = self.document.get_mut();
                     let node = binding.node_by_id_mut(node_id).expect("node not found");
                     if node.is_element_node() {
                         let mut element_data = get_element_data_mut!(node);
-                        element_data.set_template_contents(Some(DocumentFragmentImpl::new(self.document.clone(), current_node_id)));
+                        element_data.set_template_contents(D::Fragment::new(clone_document, current_node_id));
                     }
                 }
             }
@@ -3949,8 +3957,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
         }
 
         let node = self.get_adjusted_current_node();
+        let data = get_element_data!(node);
         ParserData {
-            adjusted_node_namespace: get_element_data!(node).namespace().to_string(),
+            adjusted_node_namespace: data.namespace().to_string(),
         }
     }
 
@@ -4065,6 +4074,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
             if self.open_elements.is_empty() {
                 return;
             }
+
+            // Drop the data, otherwise it's still pointing to the old tmp_node and we cannot change tmp_node below.
+            drop(current_node_element_data);
 
             tmp_node = current_node!(self);
             current_node_element_data = get_element_data!(tmp_node);
@@ -4348,7 +4360,9 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                         // Relative URL
                         if self.document.get().url().is_some() {
                             let binding = self.document.get();
-                            let base_url = binding.url().as_ref().unwrap();
+                            let url = binding.url();
+
+                            let base_url = url.as_ref().unwrap();
                             base_url.join(href).unwrap()
                         } else {
                             self.parse_error("link element without base url not supported yet");
@@ -4359,10 +4373,8 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
                 if let Some(stylesheet) = self.load_external_stylesheet(CssOrigin::Author, css_url)
                 {
                     println!("success: loaded external stylesheet");
-                    let s = self.document.get().get_stylesheets();
-                    s.push(stylesheet);
                     let mut mut_handle = self.document.clone();
-                    mut_handle.get_mut().set_stylesheets(s);
+                    mut_handle.get_mut().add_stylesheet(stylesheet);
                 } else {
                     println!("failed loading stylesheet")
                 }

@@ -87,15 +87,17 @@ pub trait ElementDataType<S: CssSystem> {
     fn template_contents(&self) -> Option<&Self::DocumentFragment>;
     /// Returns true if the given node is a "formatting" node
     fn is_formatting(&self) -> bool;
+
+    fn set_template_contents(&mut self, template_contents: Self::DocumentFragment);
 }
 
-pub trait Node<S: CssSystem>: Clone + PartialEq {
-    type Document: Document<S>;
+pub trait Node<C: CssSystem>: Clone + PartialEq {
+    type Document: Document<C>;
     type DocumentData: DocumentDataType;
     type DocTypeData: DocTypeDataType;
     type TextData: TextDataType;
     type CommentData: CommentDataType;
-    type ElementData: ElementDataType<S>;
+    type ElementData: ElementDataType<C, Document = Self::Document, DocumentFragment = <Self::Document as Document<C>>::Fragment>;
 
     /// Return the ID of the node
     fn id(&self) -> NodeId;
@@ -128,7 +130,7 @@ pub trait Node<S: CssSystem>: Clone + PartialEq {
     fn get_doctype_data(&self) -> Option<Ref<Self::DocTypeData>>;
     
     /// Returns the document handle of the node
-    fn handle(&self) -> DocumentHandle<Self::Document, S>;
+    fn handle(&self) -> DocumentHandle<Self::Document, C>;
     /// Removes a child node from the node
     fn remove(&mut self, node_id: NodeId);
     /// Inserts a child node to the node at a specific index
