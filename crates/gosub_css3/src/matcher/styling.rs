@@ -8,13 +8,14 @@ use gosub_shared::node::NodeId;
 use gosub_shared::traits::document::Document;
 use gosub_shared::traits::node::Node;
 use gosub_shared::document::DocumentHandle;
+use gosub_shared::traits::css3::CssSystem;
 
 use crate::matcher::property_definitions::get_css_definitions;
 use crate::stylesheet::{Combinator, CssOrigin, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity};
 
 // Matches a complete selector (all parts) against the given node(id)
-pub(crate) fn match_selector<D: Document>(
-    document: DocumentHandle<D>,
+pub(crate) fn match_selector<D: Document<S>, S: CssSystem>(
+    document: DocumentHandle<D, S>,
     node_id: NodeId,
     selector: &CssSelector,
 ) -> (bool, Specificity) {
@@ -38,8 +39,8 @@ fn consume<'a, T>(this: &mut &'a [T]) -> Option<&'a T> {
 }
 
 /// Returns true when the given node matches the part(s)
-fn match_selector_parts<D: Document>(
-    handle: DocumentHandle<D>,
+fn match_selector_parts<D: Document<S>, S: CssSystem>(
+    handle: DocumentHandle<D, S>,
     node_id: NodeId,
     mut parts: &[CssSelectorPart],
 ) -> bool {
@@ -77,7 +78,7 @@ fn match_selector_parts<D: Document>(
     true
 }
 
-fn match_selector_part<'a, D: Document>(
+fn match_selector_part<'a, D: Document<S>, S: CssSystem>(
     part: &CssSelectorPart,
     current_node: &D::Node,
     doc: &'a D,
@@ -235,7 +236,7 @@ fn match_selector_part<'a, D: Document>(
                 }
                 Combinator::NextSibling => {
                     let parent_node = doc.node_by_id(current_node.parent_id().unwrap());
-                    let Some(children) = parent_node.map(|p| p.children().clone()) else {
+                    let Some(children) = parent_node.map(|p| p.children()) else {
                         return false;
                     };
 

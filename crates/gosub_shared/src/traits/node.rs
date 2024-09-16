@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use crate::byte_stream::Location;
 use crate::document::DocumentHandle;
 use crate::node::NodeId;
+use crate::traits::css3::CssSystem;
 use crate::traits::document::Document;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -25,7 +26,7 @@ pub enum NodeType {
 
 /// Different types of nodes
 #[derive(Debug, PartialEq)]
-pub enum NodeData<'a, N: Node> {
+pub enum NodeData<'a, S: CssSystem, N: Node<S>> {
     Document(&'a N::DocumentData),
     DocType(&'a N::DocTypeData),
     Text(&'a N::TextData),
@@ -53,9 +54,9 @@ pub trait CommentDataType {
     fn value(&self) -> &str;
 }
 
-pub trait ElementDataType {
-    type Document: Document;
-    type DocumentFragment: DocumentFragment;
+pub trait ElementDataType<S: CssSystem> {
+    type Document: Document<S>;
+    type DocumentFragment: DocumentFragment<S>;
 
     /// Returns the name of the element
     fn name(&self) -> &str;
@@ -88,13 +89,13 @@ pub trait ElementDataType {
     fn is_formatting(&self) -> bool;
 }
 
-pub trait Node: Clone {
-    type Document: Document;
+pub trait Node<S: CssSystem>: Clone + PartialEq {
+    type Document: Document<S>;
     type DocumentData: DocumentDataType;
     type DocTypeData: DocTypeDataType;
     type TextData: TextDataType;
     type CommentData: CommentDataType;
-    type ElementData: ElementDataType;
+    type ElementData: ElementDataType<S>;
 
     /// Return the ID of the node
     fn id(&self) -> NodeId;
@@ -127,7 +128,7 @@ pub trait Node: Clone {
     fn get_doctype_data(&self) -> Option<Ref<Self::DocTypeData>>;
     
     /// Returns the document handle of the node
-    fn handle(&self) -> DocumentHandle<Self::Document>;
+    fn handle(&self) -> DocumentHandle<Self::Document, S>;
     /// Removes a child node from the node
     fn remove(&mut self, node_id: NodeId);
     /// Inserts a child node to the node at a specific index

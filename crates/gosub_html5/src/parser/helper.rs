@@ -3,6 +3,7 @@ use crate::node::HTML_NAMESPACE;
 use crate::parser::{ActiveElement, Html5Parser, Scope};
 use crate::tokenizer::token::Token;
 use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::Document;
 use gosub_shared::traits::node::{ElementDataType, Node, TextDataType};
 use gosub_shared::traits::document::DocumentFragment;
@@ -11,13 +12,13 @@ const ADOPTION_AGENCY_OUTER_LOOP_DEPTH: usize = 8;
 const ADOPTION_AGENCY_INNER_LOOP_DEPTH: usize = 3;
 
 #[derive(Debug)]
-pub enum InsertionPositionMode<D: Document, NodeId> {
+pub enum InsertionPositionMode<D: Document<C>, C: CssSystem, NodeId> {
     LastChild {
-        handle: DocumentHandle<D>,
+        handle: DocumentHandle<D, C>,
         parent: NodeId,
     },
     Sibling {
-        handle: DocumentHandle<D>,
+        handle: DocumentHandle<D, C>,
         parent: NodeId,
         before: NodeId,
     },
@@ -28,11 +29,12 @@ pub enum BookMark<NodeId> {
     InsertAfter(NodeId),
 }
 
-impl<'chars, D: Document> Html5Parser<'chars, D>
+impl<'chars, D, C> Html5Parser<'chars, D, C>
 where
-    D: Document,
-    <<D as Document>::Node as Node>::ElementData: ElementDataType<Document=D>,
-    <<<D as Document>::Node as Node>::ElementData as ElementDataType>::DocumentFragment: DocumentFragment<Document=D>,
+    D: Document<C>,
+    C: CssSystem,
+    <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document=D>,
+    <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C, >>::DocumentFragment: DocumentFragment<C, Document=D>,
 {
 
     fn find_position_in_active_format(&self, node_id: NodeId) -> Option<usize> {
@@ -79,7 +81,7 @@ where
             })
     }
 
-    pub fn insert_element_helper(&mut self, node_id: NodeId, position: InsertionPositionMode<D, NodeId>) {
+    pub fn insert_element_helper(&mut self, node_id: NodeId, position: InsertionPositionMode<D, C, NodeId>) {
         match position {
             InsertionPositionMode::Sibling {
                 handle,
@@ -100,7 +102,7 @@ where
         }
     }
 
-    pub fn insert_text_helper(&mut self, position: InsertionPositionMode<D, NodeId>, token: &Token) {
+    pub fn insert_text_helper(&mut self, position: InsertionPositionMode<D, C, NodeId>, token: &Token) {
         match position {
             InsertionPositionMode::Sibling {
                 handle,
@@ -265,7 +267,7 @@ where
     pub fn appropriate_place_insert(
         &self,
         override_node: Option<NodeId>,
-    ) -> InsertionPositionMode<D, NodeId> {
+    ) -> InsertionPositionMode<D, C, NodeId> {
         let current_node = current_node!(self);
         let element_data = get_element_data!(current_node);
         let target_id = override_node.unwrap_or(current_node.id());

@@ -8,12 +8,13 @@ use std::cell::{Ref, RefCell, RefMut};
 use gosub_shared::byte_stream::Location;
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
 use crate::document::document::DocumentImpl;
 use crate::node::data::element::ElementData;
 
 /// Implementation of the NodeDataType trait
 #[derive(Debug, Clone, PartialEq)]
-pub enum NodeDataTypeInternal {
+pub enum NodeDataTypeInternal<C: CssSystem> {
     /// Represents a document
     Document(DocumentData),
     // Represents a doctype
@@ -23,11 +24,11 @@ pub enum NodeDataTypeInternal {
     /// Represents a comment
     Comment(CommentData),
     /// Represents an element
-    Element(ElementData),
+    Element(ElementData<C>),
 }
 
 /// Node structure that resembles a DOM node
-pub struct NodeImpl {
+pub struct NodeImpl<C: CssSystem> {
     /// ID of the node, 0 is always the root / document node
     pub id: NodeId,
     /// parent of the node, if any
@@ -35,22 +36,22 @@ pub struct NodeImpl {
     /// any children of the node
     pub children: Vec<NodeId>,
     /// actual data of the node
-    pub data: RefCell<NodeDataTypeInternal>,
+    pub data: RefCell<NodeDataTypeInternal<C>>,
     /// Handle to the document in which this node resides
-    pub document: DocumentHandle<DocumentImpl>,
+    pub document: DocumentHandle<DocumentImpl<C>, C>,
     // Returns true when the given node is registered into the document arena
     pub is_registered: bool,
     // Location of the node in the source code
     pub location: Location,
 }
 
-impl Node for NodeImpl {
-    type Document = DocumentImpl;
+impl<C: CssSystem> Node<C> for NodeImpl<C> {
+    type Document = DocumentImpl<C>;
     type DocumentData = DocumentData;
     type DocTypeData = DocTypeData;
     type TextData = TextData;
     type CommentData = CommentData;
-    type ElementData = ElementData;
+    type ElementData = ElementData<C>;
 
     fn id(&self) -> NodeId {
         self.id
@@ -109,7 +110,7 @@ impl Node for NodeImpl {
         None
     }
 
-    fn get_element_data_mut(&self) -> Option<RefMut<ElementData>> {
+    fn get_element_data_mut(&self) -> Option<RefMut<ElementData<C>>> {
         let borrowed_data = self.data.borrow_mut();
 
         if let NodeDataTypeInternal::Element(_) = *borrowed_data {
@@ -191,7 +192,7 @@ impl Node for NodeImpl {
         None
     }
 
-    fn handle(&self) -> DocumentHandle<Self::Document> {
+    fn handle(&self) -> DocumentHandle<Self::Document, C> {
         self.document.clone()
     }
 
@@ -208,13 +209,13 @@ impl Node for NodeImpl {
     }
 }
 
-impl PartialEq for NodeImpl {
+impl<C: CssSystem> PartialEq for NodeImpl<C> {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id()
     }
 }
 
-impl Debug for NodeImpl {
+impl<C: CssSystem> Debug for NodeImpl<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_struct("Node");
         debug.field("id", &self.id);
@@ -225,7 +226,7 @@ impl Debug for NodeImpl {
     }
 }
 
-impl Clone for NodeImpl {
+impl<C: CssSystem> Clone for NodeImpl<C> {
     fn clone(&self) -> Self {
         NodeImpl {
             id: self.id,
@@ -239,10 +240,10 @@ impl Clone for NodeImpl {
     }
 }
 
-impl NodeImpl {
+impl<C: CssSystem> NodeImpl<C> {
     /// create a new `Node`
     #[must_use]
-    pub fn new(document: DocumentHandle<DocumentImpl>, location: Location, data: &NodeDataTypeInternal) -> Self {
+    pub fn new(document: DocumentHandle<DocumentImpl<C>, C>, location: Location, data: &NodeDataTypeInternal<C>) -> Self {
         let (id, parent, children, is_registered) = <_>::default();
         Self {
             id,

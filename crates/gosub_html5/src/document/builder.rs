@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use url::Url;
+use gosub_shared::traits::css3::CssSystem;
 
 use gosub_shared::traits::document::{Document, DocumentType};
 use gosub_shared::traits::node::{Node, QuirksMode};
@@ -12,16 +13,17 @@ pub struct DocumentBuilder {}
 
 impl DocumentBuilder {
     /// Creates a new document with a document root node
-    pub fn new_document<D: Document>(url: Option<Url>) -> DocumentHandle<D> {
+    pub fn new_document<D: Document<C>, C: CssSystem>(url: Option<Url>) -> DocumentHandle<D, C> {
         let doc = D::new(DocumentType::HTML, url, None);
         DocumentHandle::create(doc)
     }
 
     /// Creates a new document fragment with the context as the root node
-    pub fn new_document_fragment<D>(context_node: &D::Node) -> DocumentHandle<D>
+    pub fn new_document_fragment<D, C>(context_node: &D::Node) -> DocumentHandle<D, C>
     where
-        D: Document,
-        D::Node: Node<Document=D>
+        C: CssSystem,
+        D: Document<C>,
+        D::Node: Node<C, Document=D>
     {
         let handle = context_node.handle();
 

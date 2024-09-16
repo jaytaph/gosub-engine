@@ -33,6 +33,7 @@ pub struct Group {
     pub components: Vec<SyntaxComponent>,
 }
 
+#[allow(dead_code)]
 #[derive(PartialEq, Debug, Clone)]
 pub enum GroupCombinators {
     /// All elements must be matched in order (space delimited)

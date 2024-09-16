@@ -20,6 +20,7 @@ use gosub_shared::traits::node::TextDataType;
 use gosub_shared::traits::document::{Document, DocumentFragment, DocumentType};
 use gosub_shared::traits::node::{ElementDataType, Node, QuirksMode};
 use gosub_shared::traits::{Context, ParserConfig};
+use gosub_shared::traits::css3::CssSystem;
 use crate::document::builder::DocumentBuilder;
 use crate::document::document::DocumentImpl;
 use crate::document::fragment::DocumentFragmentImpl;
@@ -163,7 +164,7 @@ impl Default for Html5ParserOptions {
 }
 
 /// The main parser object
-pub struct Html5Parser<'chars, D: Document> {
+pub struct Html5Parser<'chars, D: Document<C>, C: CssSystem> {
     /// tokenizer object
     tokenizer: Tokenizer<'chars>,
     /// current insertion mode
@@ -201,7 +202,7 @@ pub struct Html5Parser<'chars, D: Document> {
     /// Is the current parsing a fragment case. If so, the context_node_id and context_doc should be set as well.
     is_fragment_case: bool,
     /// A reference to the document we are parsing
-    document: DocumentHandle<D>,
+    document: DocumentHandle<D, C>,
     /// Error logger, which is shared with the tokenizer
     error_logger: Rc<RefCell<ErrorLogger>>,
     /// Levels of scripting we currently are in
@@ -219,7 +220,7 @@ pub struct Html5Parser<'chars, D: Document> {
     /// Context node id for fragment parsing
     context_node_id: Option<NodeId>,
     /// Context node document for fragment parsing (we don't want to keep Option<Node> as this clones a whole node
-    context_doc: Option<DocumentHandle<D>>,
+    context_doc: Option<DocumentHandle<D, C>>,
 }
 
 /// Defines the scopes for in_scope()
@@ -238,16 +239,17 @@ enum DispatcherMode {
     Html,
 }
 
-impl<'chars, D: Document> Html5Parser<'chars, D>
+impl<'chars, D, C> Html5Parser<'chars, D, C>
     where
-        D: Document,
-        <<D as Document>::Node as Node>::ElementData: ElementDataType<Document=D>,
-        <<<D as Document>::Node as Node>::ElementData as ElementDataType>::DocumentFragment: DocumentFragment<Document=D>,
+        D: Document<C>,
+        C: CssSystem,
+        <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document=D>,
+        <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C>>::DocumentFragment: DocumentFragment<C, Document=D>,
 {
     // Initializes the parser for whole document parsing
     fn init(
         tokenizer: Tokenizer<'chars>,
-        document: DocumentHandle<D>,
+        document: DocumentHandle<D, C>,
         error_logger: Rc<RefCell<ErrorLogger>>,
         options: Option<Html5ParserOptions>,
     ) -> Self {
@@ -330,7 +332,7 @@ impl<'chars, D: Document> Html5Parser<'chars, D>
     /// This is used for parsing innerHTML and document fragments.
     pub fn parse_fragment(
         stream: &mut ByteStream,
-        document: DocumentHandle<D>,
+        document: DocumentHandle<D, C>,
         context_node: &D::Node,
         options: Option<Html5ParserOptions>,
         start_location: Location,
@@ -406,7 +408,7 @@ impl<'chars, D: Document> Html5Parser<'chars, D>
     /// node where this document fragment needs to be inserted into.
     pub fn parse_document(
         stream: &mut ByteStream,
-        document: DocumentHandle<D>,
+        document: DocumentHandle<D, C>,
         options: Option<Html5ParserOptions>,
     ) -> Result<Vec<ParseError>> {
         // Create a new error logger that will be used in both the tokenizer and the parser
@@ -4206,7 +4208,7 @@ impl<'chars, D: Document> Html5Parser<'chars, D>
     }
 
     /// Load an inline stylesheet from the <style>-node
-    fn load_inline_stylesheet(&self, origin: CssOrigin, node: &D::Node) -> Option<CssStylesheet> {
+    fn load_inline_stylesheet(&self, origin: CssOrigin, node: &D::Node) -> Option<C::Stylesheet> {
         if !node.is_text_node() {
             return None;
         }
@@ -4225,7 +4227,7 @@ impl<'chars, D: Document> Html5Parser<'chars, D>
         };
 
         if let Some(data) = node.get_text_data() {
-            match Css3::parse_str(data.value(), config, origin, &source_url.clone()) {
+            match C::parse_str(data.value(), config, origin, &source_url.clone()) {
                 Ok(stylesheet) => return Some(stylesheet),
                 Err(err) => {
                     warn!("Error while parsing CSS stylesheet: {} ", err.to_string());

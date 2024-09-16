@@ -1,5 +1,6 @@
+use gosub_shared::traits::css3::CssSystem;
 
-pub trait Visitor<Node: gosub_shared::traits::node::Node> {
+pub trait Visitor<Node: gosub_shared::traits::node::Node<C>, C: CssSystem> {
     fn document_enter(&mut self, node: &Node);
     fn document_leave(&mut self, node: &Node);
 

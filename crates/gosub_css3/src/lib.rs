@@ -21,6 +21,7 @@ pub mod stylesheet;
 pub mod tokenizer;
 mod unicode;
 pub mod walker;
+#[allow(dead_code)]
 pub mod matcher;
 mod errors;
 

@@ -1,6 +1,7 @@
 use core::fmt::{Debug, Formatter};
 use std::collections::HashMap;
 use std::fmt;
+use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::node::ElementDataType;
 use crate::node::elements::{FORMATTING_HTML_ELEMENTS, SPECIAL_HTML_ELEMENTS, SPECIAL_MATHML_ELEMENTS, SPECIAL_SVG_ELEMENTS};
 use crate::node::{HTML_NAMESPACE, MATHML_NAMESPACE, SVG_NAMESPACE};
@@ -108,7 +109,7 @@ impl From<&str> for ElementClass {
 
 /// Data structure for element nodes
 #[derive(PartialEq, Clone)]
-pub struct ElementData {
+pub struct ElementData<C: CssSystem> {
     // /// Numerical ID of the node this data is attached to
     // pub node_id: NodeId,
     /// Name of the element (e.g., div)
@@ -125,11 +126,11 @@ pub struct ElementData {
     // Only used for <script> elements
     pub force_async: bool,
     // Template contents (when it's a template element)
-    pub template_contents: Option<DocumentFragmentImpl>,
+    pub template_contents: Option<DocumentFragmentImpl<C>>,
 
 }
 
-impl Debug for ElementData {
+impl<C: CssSystem> Debug for ElementData<C> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ElementData");
         debug.field("name", &self.name);
@@ -139,9 +140,9 @@ impl Debug for ElementData {
     }
 }
 
-impl ElementDataType for ElementData {
-    type Document = DocumentImpl;
-    type DocumentFragment = DocumentFragmentImpl;
+impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
+    type Document = DocumentImpl<C>;
+    type DocumentFragment = DocumentFragmentImpl<C>;
 
     fn name(&self) -> &str {
         self.name.as_str()
@@ -178,60 +179,10 @@ impl ElementDataType for ElementData {
         &mut self.attributes
     }
 
-    /// Returns true if the given node is "special" node based on the namespace and name
-    fn is_special(&self) -> bool {
-        if self.namespace == Some(HTML_NAMESPACE.into())
-            && SPECIAL_HTML_ELEMENTS.contains(&self.name())
-        {
-            return true;
-        }
-        if self.namespace == Some(MATHML_NAMESPACE.into())
-            && SPECIAL_MATHML_ELEMENTS.contains(&self.name())
-        {
-            return true;
-        }
-        if self.namespace == Some(SVG_NAMESPACE.into())
-            && SPECIAL_SVG_ELEMENTS.contains(&self.name())
-        {
-            return true;
-        }
-
-        false
-    }
-
-    fn add_class(&mut self, class_name: &str) {
-        self.classes.add(class_name);
-    }
-
-    // fn set_attributes(&mut self, attributes: &HashMap<String, String>) {
-    //     self.attributes = attributes.to_owned();
-    // }
-
-    fn template_contents(&self) -> Option<&Self::DocumentFragment> {
-        match &self.template_contents {
-            Some(fragment) => Some(fragment),
-            None => None,
-        }
-    }
-
-    /// Returns true if the given node is a mathml integration point
-    /// See: https://html.spec.whatwg.org/multipage/parsing.html#mathml-text-integration-point
-    fn is_mathml_integration_point(&self) -> bool {
-        let namespace = self.namespace.clone().unwrap_or_default();
-
-        namespace == MATHML_NAMESPACE
-            && ["mi", "mo", "mn", "ms", "mtext"].contains(&self.name.as_str())
-    }
-    /// Returns true if the given node is a "formatting" node
-    fn is_formatting(&self) -> bool {
-        self.namespace == Some(HTML_NAMESPACE.into())
-            && FORMATTING_HTML_ELEMENTS.contains(&self.name.as_str())
-    }
-
     /// This will only compare against the tag, namespace and data same except element data.
     /// for element data compare against the tag, namespace and attributes without order.
     /// Both nodes could still have other parents and children.
-    fn matches_tag_and_attrs_without_order(&self, other_data: &ElementData) -> bool {
+    fn matches_tag_and_attrs_without_order(&self, other_data: &ElementData<C>) -> bool {
         if self.name != other_data.name || self.namespace != other_data.namespace {
             return false;
         }
@@ -246,6 +197,19 @@ impl ElementDataType for ElementData {
 
         return self.attributes.eq(&other_data.attributes);
     }
+
+    /// Returns true if the given node is a mathml integration point
+    /// See: https://html.spec.whatwg.org/multipage/parsing.html#mathml-text-integration-point
+    fn is_mathml_integration_point(&self) -> bool {
+        let namespace = self.namespace.clone().unwrap_or_default();
+
+        namespace == MATHML_NAMESPACE
+            && ["mi", "mo", "mn", "ms", "mtext"].contains(&self.name.as_str())
+    }
+
+    // fn set_attributes(&mut self, attributes: &HashMap<String, String>) {
+    //     self.attributes = attributes.to_owned();
+    // }
 
     /// Returns true if the given node is a html integration point
     /// See: https://html.spec.whatwg.org/multipage/parsing.html#html-integration-point
@@ -272,9 +236,46 @@ impl ElementDataType for ElementData {
         }
     }
 
+    /// Returns true if the given node is "special" node based on the namespace and name
+    fn is_special(&self) -> bool {
+        if self.namespace == Some(HTML_NAMESPACE.into())
+            && SPECIAL_HTML_ELEMENTS.contains(&self.name())
+        {
+            return true;
+        }
+        if self.namespace == Some(MATHML_NAMESPACE.into())
+            && SPECIAL_MATHML_ELEMENTS.contains(&self.name())
+        {
+            return true;
+        }
+        if self.namespace == Some(SVG_NAMESPACE.into())
+            && SPECIAL_SVG_ELEMENTS.contains(&self.name())
+        {
+            return true;
+        }
+
+        false
+    }
+    fn add_class(&mut self, class_name: &str) {
+        self.classes.add(class_name);
+    }
+
+    fn template_contents(&self) -> Option<&Self::DocumentFragment> {
+        match &self.template_contents {
+            Some(fragment) => Some(fragment),
+            None => None,
+        }
+    }
+
+    /// Returns true if the given node is a "formatting" node
+    fn is_formatting(&self) -> bool {
+        self.namespace == Some(HTML_NAMESPACE.into())
+            && FORMATTING_HTML_ELEMENTS.contains(&self.name.as_str())
+    }
+
 }
 
-impl ElementData {
+impl<C: CssSystem> ElementData<C> {
     pub(crate) fn new(
         name: &str,
         namespace: Option<&str>,

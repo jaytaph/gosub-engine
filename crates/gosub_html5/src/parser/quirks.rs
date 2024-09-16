@@ -1,14 +1,16 @@
+use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::{Document, DocumentFragment};
 use gosub_shared::traits::node::{ElementDataType, Node, QuirksMode};
 use crate::parser::Html5Parser;
 
 
 
-impl<'chars, D: Document> Html5Parser<'chars, D>
+impl<'chars, D, C> Html5Parser<'chars, D, C>
     where
-        D: Document,
-        <<D as Document>::Node as Node>::ElementData: ElementDataType<Document=D>,
-        <<<D as Document>::Node as Node>::ElementData as ElementDataType>::DocumentFragment: DocumentFragment<Document=D>,
+        C: CssSystem,
+        D: Document<C>,
+        <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document=D>,
+        <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C>>::DocumentFragment: DocumentFragment<C, Document=D>,
 {
     // returns the correct quirk mode for the given doctype
     pub(crate) fn identify_quirks_mode(

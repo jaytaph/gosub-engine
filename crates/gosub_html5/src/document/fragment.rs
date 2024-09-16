@@ -3,6 +3,7 @@ use core::fmt;
 use core::fmt::Debug;
 
 use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::DocumentFragment;
 use crate::document::document::DocumentImpl;
 use crate::node::arena::NodeArena;
@@ -10,16 +11,16 @@ use crate::node::node::NodeImpl;
 
 /// Defines a document fragment which can be attached to for instance a <template> element
 #[derive(PartialEq)]
-pub struct DocumentFragmentImpl {
+pub struct DocumentFragmentImpl<C: CssSystem> {
     /// Node elements inside this fragment
-    arena: NodeArena<NodeImpl>,
+    arena: NodeArena<NodeImpl<C>, C>,
     /// Document handle of the parent
-    pub handle: DocumentHandle<DocumentImpl>,
+    pub handle: DocumentHandle<DocumentImpl<C>, C>,
     /// Host node on which this fragment is attached
     host: NodeId,
 }
 
-impl Clone for DocumentFragmentImpl {
+impl<C: CssSystem> Clone for DocumentFragmentImpl<C> {
     /// Clones the document fragment
     fn clone(&self) -> Self {
         Self {
@@ -30,16 +31,16 @@ impl Clone for DocumentFragmentImpl {
     }
 }
 
-impl Debug for DocumentFragmentImpl {
+impl<C: CssSystem> Debug for DocumentFragmentImpl<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DocumentFragment")
     }
 }
 
-impl DocumentFragmentImpl {
+impl<C: CssSystem> DocumentFragmentImpl<C> {
     /// Creates a new document fragment and attaches it to "host" node inside "handle"
     #[must_use]
-    pub(crate) fn new(handle: DocumentHandle<DocumentImpl>, host: NodeId) -> Self {
+    pub(crate) fn new(handle: DocumentHandle<DocumentImpl<C>, C>, host: NodeId) -> Self {
         Self {
             arena: NodeArena::new(),
             handle,
@@ -48,11 +49,11 @@ impl DocumentFragmentImpl {
     }
 }
 
-impl DocumentFragment for DocumentFragmentImpl {
-    type Document = DocumentImpl;
+impl<C: CssSystem> DocumentFragment<C> for DocumentFragmentImpl<C> {
+    type Document = DocumentImpl<C>;
 
     /// Returns the document handle for this document
-    fn handle(&self) -> DocumentHandle<Self::Document> {
+    fn handle(&self) -> DocumentHandle<Self::Document, C> {
         self.handle.clone()
     }
 }

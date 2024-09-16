@@ -4,6 +4,7 @@ use crate::DocumentHandle;
 
 use gosub_shared::byte_stream::Location;
 use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::node::{ElementDataType, Node};
 
 /// Enum of tasks that can be performed to add or
@@ -48,7 +49,7 @@ pub enum DocumentTask {
 /// create_element() will generate and return a new NodeId for the parser to keep
 /// track of the current context node and optionally store this in a list of open elements.
 /// When encountering a closing tag, the parser must pop this ID off of its list.
-pub struct DocumentTaskQueue<D: Document> {
+pub struct DocumentTaskQueue<D: Document<C>, C: CssSystem> {
     /// Internal counter of the next ID to generate from the NodeArena
     /// without actually registering the node.
     /// WARNING: if nodes are registered in the arena while tasks are being queued
@@ -56,7 +57,7 @@ pub struct DocumentTaskQueue<D: Document> {
     /// if using a DocumentTaskQueue.
     next_node_id: NodeId,
     /// Reference to the document to commit changes to
-    pub(crate) document: DocumentHandle<D>,
+    pub(crate) document: DocumentHandle<D, C>,
     /// List of tasks to commit upon flush() which is cleared after execution finishes.
     // IMPLEMENTATION NOTE: using a vec here since I'm assuming we are
     // executing all tasks at once. If we need to support stopping task
@@ -65,7 +66,7 @@ pub struct DocumentTaskQueue<D: Document> {
     pub(crate) tasks: Vec<DocumentTask>,
 }
 
-impl<D: Document> DocumentTaskQueue<D> {
+impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
     pub fn is_empty(&self) -> bool {
         self.tasks.is_empty()
     }

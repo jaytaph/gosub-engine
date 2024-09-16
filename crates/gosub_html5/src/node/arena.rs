@@ -1,23 +1,38 @@
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::node::Node;
 
 /// The node arena is the single source for nodes in a document (or fragment).
-#[derive(Debug, Clone, PartialEq)]
-pub struct NodeArena<N: Node> {
+#[derive(Debug, Clone)]
+pub struct NodeArena<N: Node<C>, C: CssSystem> {
     /// Current nodes stored as <id, node>
     nodes: HashMap<NodeId, N>,
     /// Next node ID to use
     next_id: NodeId,
+
+    _marker: PhantomData<C>
 }
 
-impl<N: Node> NodeArena<N> {
+impl<C: CssSystem, N: Node<C>> PartialEq for NodeArena<N, C> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.next_id != other.next_id {
+            return false
+        }
+
+        self.nodes == other.nodes
+    }
+}
+
+impl<N: Node<C>, C: CssSystem> NodeArena<N, C> {
     /// Creates a new NodeArena
     #[must_use]
     pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),
             next_id: NodeId::default(),
+            _marker: PhantomData,
         }
     }
 
@@ -57,7 +72,7 @@ impl<N: Node> NodeArena<N> {
     }
 }
 
-impl<N: Node> Default for NodeArena<N> {
+impl<N: Node<C>, C: CssSystem> Default for NodeArena<N, C> {
     fn default() -> Self {
         Self::new()
     }

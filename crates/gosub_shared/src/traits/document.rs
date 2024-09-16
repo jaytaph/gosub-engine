@@ -3,6 +3,7 @@ use url::Url;
 use crate::byte_stream::Location;
 use crate::document::DocumentHandle;
 use crate::node::NodeId;
+use crate::traits::css3::CssSystem;
 use crate::traits::node::{Node, QuirksMode};
 
 /// Type of the given document
@@ -14,15 +15,15 @@ pub enum DocumentType {
     IframeSrcDoc,
 }
 
-pub trait DocumentFragment: Sized {
-    type Document: Document;
+pub trait DocumentFragment<S: CssSystem>: Sized {
+    type Document: Document<S>;
 
     /// Returns the document handle for this document
-    fn handle(&self) -> DocumentHandle<Self::Document>;
+    fn handle(&self) -> DocumentHandle<Self::Document, S>;
 }
 
-pub trait Document: Sized {
-    type Node: Node;
+pub trait Document<C: CssSystem>: Sized {
+    type Node: Node<C>;
 
     // Creates a new doc with an optional document root node
     fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<&Self::Node>) -> Self;
@@ -31,7 +32,7 @@ pub trait Document: Sized {
     // fn new_with_handle(document_type: DocumentType, url: Option<Url>, location: &Location, root_node: Option<&Self::Node>) -> DocumentHandle<Self>;
 
     /// Returns the document handle for this document
-    fn handle(&self) -> DocumentHandle<Self>;
+    fn handle(&self) -> DocumentHandle<Self, C>;
 
     /// Location of the document (URL, file path, etc.)
     fn url(&self) -> Option<Url>;
@@ -44,6 +45,8 @@ pub trait Document: Sized {
     /// Return a node by its Node ID
     fn node_by_id(&self, node_id: NodeId) -> Option<&Self::Node>;
     fn node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node>;
+
+    fn add_stylesheet(&mut self, stylesheet: C::Stylesheet);
 
     /// Return the root node of the document
     fn get_root(&self) -> &Self::Node;
@@ -71,9 +74,9 @@ pub trait Document: Sized {
     fn register_node_at(&mut self, node: &Self::Node, parent_id: NodeId, position: Option<usize>) -> NodeId;
 
     /// Node creation methods. The root node is needed in order to fetch the document handle (it can't be created from the document itself)
-    fn new_document_node(handle: DocumentHandle<Self>, quirks_mode: QuirksMode, location: Location) -> Self::Node;
-    fn new_doctype_node(handle: DocumentHandle<Self>, name: &str, public_id: Option<&str>, system_id: Option<&str>, location: Location) -> Self::Node;
-    fn new_comment_node(handle: DocumentHandle<Self>, comment: &str, location: Location) -> Self::Node;
-    fn new_text_node(handle: DocumentHandle<Self>, value: &str, location: Location) -> Self::Node;
-    fn new_element_node(handle: DocumentHandle<Self>, name: &str, namespace: Option<&str>, attributes: HashMap<String, String>, location: Location) -> Self::Node;
+    fn new_document_node(handle: DocumentHandle<Self, C>, quirks_mode: QuirksMode, location: Location) -> Self::Node;
+    fn new_doctype_node(handle: DocumentHandle<Self, C>, name: &str, public_id: Option<&str>, system_id: Option<&str>, location: Location) -> Self::Node;
+    fn new_comment_node(handle: DocumentHandle<Self, C>, comment: &str, location: Location) -> Self::Node;
+    fn new_text_node(handle: DocumentHandle<Self, C>, value: &str, location: Location) -> Self::Node;
+    fn new_element_node(handle: DocumentHandle<Self, C>, name: &str, namespace: Option<&str>, attributes: HashMap<String, String>, location: Location) -> Self::Node;
 }

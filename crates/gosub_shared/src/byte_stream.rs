@@ -541,7 +541,7 @@ impl ByteStream {
 }
 
 /// Location holds the start position of the given element in the data source
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Copy)]
 pub struct Location {
     /// Line number, starting with 1
     pub line: usize,
