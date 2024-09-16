@@ -2269,7 +2269,7 @@ impl<'chars, D: Document> Html5Parser<'chars, D>
                 let first_node_id = *self.open_elements.first().unwrap();
                 let mut doc = self.document.get_mut();
                 let first_node = doc
-                    .get_node_by_id_mut(first_node_id)
+                    .node_by_id_mut(first_node_id)
                     .expect("node not found");
 
                 if first_node.is_element_node() {
@@ -2324,7 +2324,7 @@ impl<'chars, D: Document> Html5Parser<'chars, D>
                 if let Some(body_node_id) = body_node_id {
                     let mut doc = self.document.get_mut();
                     let body_node = doc
-                        .get_node_by_id_mut(*body_node_id)
+                        .node_by_id_mut(*body_node_id)
                         .expect("node not found");
 
                     let mut element_data = get_element_data_mut!(body_node);
@@ -3198,7 +3198,7 @@ impl<'chars, D: Document> Html5Parser<'chars, D>
                     let current_node_id = current_node!(self).id();
 
                     let mut binding = self.document.get_mut();
-                    let node = binding.get_node_by_id_mut(node_id).expect("node not found");
+                    let node = binding.node_by_id_mut(node_id).expect("node not found");
                     if node.is_element_node() {
                         let mut element_data = get_element_data_mut!(node);
                         element_data.set_template_contents(Some(DocumentFragmentImpl::new(self.document.clone(), current_node_id)));

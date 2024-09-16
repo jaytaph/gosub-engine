@@ -139,7 +139,7 @@ impl Document for DocumentImpl {
     }
 
     /// Fetches a mutable node by id or returns None when no node with this ID is found
-    fn get_node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node> {
+    fn node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node> {
         self.arena.node_mut(node_id)
     }
 
@@ -163,7 +163,7 @@ impl Document for DocumentImpl {
             return
         }
 
-        if let Some(parent_node) = self.get_node_by_id_mut(parent_id) {
+        if let Some(parent_node) = self.node_by_id_mut(parent_id) {
             // Make sure position can never be larger than the number of children in the parent
             if let Some(mut position) = position {
                 if position > parent_node.children().len() {
@@ -185,11 +185,11 @@ impl Document for DocumentImpl {
 
         if let Some(parent_id) = parent {
             let parent_node = self
-                .get_node_by_id_mut(parent_id)
+                .node_by_id_mut(parent_id)
                 .expect("parent node not found");
             parent_node.remove(node_id);
 
-            let node = self.get_node_by_id_mut(node_id).expect("node not found");
+            let node = self.node_by_id_mut(node_id).expect("node not found");
             node.set_parent(None);
         }
     }
@@ -224,7 +224,7 @@ impl Document for DocumentImpl {
 
         match parent_id {
             Some(parent_id) => {
-                let parent = self.get_node_by_id_mut(parent_id).unwrap();
+                let parent = self.node_by_id_mut(parent_id).unwrap();
                 parent.remove(node_id);
             }
             None => {}

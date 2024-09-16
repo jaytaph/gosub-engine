@@ -232,8 +232,8 @@ impl Css3<'_> {
 mod test {
     use super::*;
     use gosub_shared::byte_stream::{ByteStream, Encoding};
-    use crate::parser_config::ParserConfig;
     use crate::stylesheet::CssOrigin;
+    use gosub_shared::traits::ParserConfig;
 
     macro_rules! test {
         ($func:ident, $input:expr, $expected:expr) => {

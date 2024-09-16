@@ -112,7 +112,7 @@ impl<D: Document> DocumentTaskQueue<D> {
                     value,
                     element_id,
                 } => {
-                    if let Some(node) = self.document.get_mut().get_node_by_id_mut(*element_id) {
+                    if let Some(node) = self.document.get_mut().node_by_id_mut(*element_id) {
                         if let Some(mut data) = node.get_element_data_mut() {
                             data.attributes_mut().insert(key.clone(), value.clone());
                             // let mut attributes = node.get_element_data().unwrap().attributes().clone();

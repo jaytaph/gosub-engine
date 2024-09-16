@@ -1,22 +1,16 @@
-use crate::property_definitions::{get_css_definitions, CSS_DEFINITIONS};
-use gosub_shared::traits::node::ElementDataType;
 use core::fmt::Debug;
-use gosub_css3::stylesheet::{
-    Combinator, CssOrigin, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity,
-};
-use gosub_html5::node::{Node, NodeId};
-use gosub_html5::parser::document::{Document, DocumentHandle};
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use gosub_shared::document::DocumentHandle;
-use crate::matcher::property_definitions::get_css_definitions;
-use crate::stylesheet::{
-    CssOrigin, CssSelector, CssSelectorPart, CssSelectorType, CssValue, MatcherType, Specificity,
-};
+
+use gosub_shared::traits::node::ElementDataType;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::document::Document;
 use gosub_shared::traits::node::Node;
+use gosub_shared::document::DocumentHandle;
+
+use crate::matcher::property_definitions::get_css_definitions;
+use crate::stylesheet::{Combinator, CssOrigin, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity};
 
 // Matches a complete selector (all parts) against the given node(id)
 pub(crate) fn match_selector<D: Document>(
@@ -45,12 +39,12 @@ fn consume<'a, T>(this: &mut &'a [T]) -> Option<&'a T> {
 
 /// Returns true when the given node matches the part(s)
 fn match_selector_parts<D: Document>(
-    document: DocumentHandle<D>,
+    handle: DocumentHandle<D>,
     node_id: NodeId,
     mut parts: &[CssSelectorPart],
 ) -> bool {
-    let binding = document.get();
-    let mut next_current_node = binding.get_node_by_id(node_id);
+    let binding = handle.get();
+    let mut next_current_node = binding.node_by_id(node_id);
     if next_current_node.is_none() {
         return false;
     }
@@ -67,7 +61,7 @@ fn match_selector_parts<D: Document>(
         if !match_selector_part(
             part,
             current_node,
-            &binding,
+            &*binding,
             &mut next_current_node,
             &mut parts,
         ) {
@@ -83,11 +77,11 @@ fn match_selector_parts<D: Document>(
     true
 }
 
-fn match_selector_part<'a>(
+fn match_selector_part<'a, D: Document>(
     part: &CssSelectorPart,
-    current_node: &Node,
-    doc: &'a Document,
-    next_node: &mut Option<&'a Node>,
+    current_node: &D::Node,
+    doc: &'a D,
+    next_node: &mut Option<&'a D::Node>,
     parts: &mut &[CssSelectorPart],
 ) -> bool {
     match part {
@@ -96,24 +90,24 @@ fn match_selector_part<'a>(
             true
         }
         CssSelectorPart::Type(name) => {
-            if !current_node.is_element() {
+            if !current_node.is_element_node() {
                 return false;
             }
-            *name == current_node.as_element().name
+            *name == current_node.get_element_data().unwrap().name()
         }
         CssSelectorPart::Class(name) => {
-            if !current_node.is_element() {
+            if !current_node.is_element_node() {
                 return false;
             }
-            current_node.as_element().classes.contains(name)
+            current_node.get_element_data().unwrap().classes().contains(name)
         }
         CssSelectorPart::Id(name) => {
-            if !current_node.is_element() {
+            if !current_node.is_element_node() {
                 return false;
             }
             current_node
-                .as_element()
-                .attributes
+                .get_element_data().unwrap()
+                .attributes()
                 .get("id")
                 .unwrap_or(&"".to_string())
                 == name
@@ -121,15 +115,17 @@ fn match_selector_part<'a>(
         CssSelectorPart::Attribute(attr) => {
             let wanted_attr_name = &attr.name;
 
-            if !current_node.has_attribute(wanted_attr_name) {
+            if current_node.get_element_data().is_none() {
+                return false;
+            }
+
+            let element_data = current_node.get_element_data().unwrap();
+            if !element_data.attributes().contains_key(wanted_attr_name) {
                 return false;
             }
 
             let mut wanted_attr_value = &attr.value;
-            let mut got_attr_value = current_node
-                .get_attribute(wanted_attr_name)
-                .map(|v| v.as_str())
-                .unwrap_or("");
+            let mut got_attr_value = element_data.attributes().get(wanted_attr_name).unwrap();
 
             let mut _wanted_buf = String::new(); //Two buffers, so we don't need to clone the value if we match case-sensitive
             let mut _got_buf = String::new();
@@ -188,18 +184,19 @@ fn match_selector_part<'a>(
             // We don't have the descendant combinator (space), as this is the default behaviour
             match combinator {
                 Combinator::Descendant => {
-                    let Some(mut parent_id) = current_node.parent else {
+                    // let handle_clone = handle.clone();
+
+                    let Some(mut parent_id) = current_node.parent_id() else {
                         return false;
                     };
 
                     let last = consume(parts);
-
                     let Some(last) = last else {
                         return false;
                     };
 
                     loop {
-                        let Some(parent) = doc.get_node_by_id(parent_id) else {
+                        let Some(parent) = doc.node_by_id(parent_id) else {
                             return false;
                         };
 
@@ -209,7 +206,7 @@ fn match_selector_part<'a>(
                             return true;
                         }
 
-                        let Some(p) = parent.parent else {
+                        let Some(p) = parent.parent_id() else {
                             return false;
                         };
 
@@ -218,7 +215,7 @@ fn match_selector_part<'a>(
                 }
                 Combinator::Child => {
                     // Child combinator. Only matches the direct child
-                    let Some(parent) = current_node.parent else {
+                    let Some(parent) = current_node.parent_id() else {
                         return false;
                     };
 
@@ -228,7 +225,7 @@ fn match_selector_part<'a>(
                         return false;
                     };
 
-                    let Some(parent) = doc.get_node_by_id(parent) else {
+                    let Some(parent) = doc.node_by_id(parent) else {
                         return false;
                     };
 
@@ -237,13 +234,14 @@ fn match_selector_part<'a>(
                     match_selector_part(last, parent, doc, next_node, parts)
                 }
                 Combinator::NextSibling => {
-                    let Some(children) = doc.parent_node(current_node).map(|p| &p.children) else {
+                    let parent_node = doc.node_by_id(current_node.parent_id().unwrap());
+                    let Some(children) = parent_node.map(|p| p.children().clone()) else {
                         return false;
                     };
 
                     let Some(my_index) = children
                         .iter()
-                        .find_position(|c| **c == current_node.id)
+                        .find_position(|c| **c == current_node.id())
                         .map(|(i, _)| i)
                     else {
                         return false;
@@ -261,7 +259,7 @@ fn match_selector_part<'a>(
                         return false;
                     };
 
-                    let Some(prev) = doc.get_node_by_id(prev_id) else {
+                    let Some(prev) = doc.node_by_id(prev_id) else {
                         return false;
                     };
 
@@ -270,7 +268,9 @@ fn match_selector_part<'a>(
                     match_selector_part(last, prev, doc, next_node, parts)
                 }
                 Combinator::SubsequentSibling => {
-                    let Some(children) = doc.parent_node(current_node).map(|p| &p.children) else {
+
+                    let parent_node = doc.node_by_id(current_node.parent_id().unwrap());
+                    let Some(children) = parent_node.map(|p| p.children()) else {
                         return false;
                     };
 
@@ -279,11 +279,11 @@ fn match_selector_part<'a>(
                     };
 
                     for child in children {
-                        if *child == current_node.id {
+                        if *child == current_node.id() {
                             break;
                         }
 
-                        let Some(child) = doc.get_node_by_id(*child) else {
+                        let Some(child) = doc.node_by_id(*child) else {
                             continue;
                         };
 
@@ -298,10 +298,6 @@ fn match_selector_part<'a>(
                     let namespace = consume(parts);
 
                     let Some(namespace) = namespace else {
-                        if current_node.namespace.is_none() {
-                            return true;
-                        }
-
                         return false;
                     };
 
@@ -313,7 +309,7 @@ fn match_selector_part<'a>(
                         return false;
                     };
 
-                    current_node.is_namespace(namespace)
+                    current_node.get_element_data().unwrap().is_namespace(namespace)
                 }
                 Combinator::Column => {
                     //TODO
@@ -501,7 +497,7 @@ impl CssProperty {
         }
     }
 
-    // /// Returns true if the given property is a shorthand property (ie: border, margin etc)
+    // /// Returns true if the given property is a shorthand property (ie: border, margin etc.)
     pub fn is_shorthand(&self) -> bool {
         let defs = get_css_definitions();
         match defs.find_property(&self.name) {
@@ -560,7 +556,7 @@ impl CssProperties {
 }
 
 pub fn prop_is_inherit(name: &str) -> bool {
-    CSS_DEFINITIONS
+    get_css_definitions()
         .find_property(name)
         .map(|def| def.inherited)
         .unwrap_or(false)

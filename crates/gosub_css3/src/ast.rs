@@ -224,8 +224,8 @@ pub fn convert_ast_to_stylesheet(
 
 #[cfg(test)]
 mod tests {
+    use gosub_shared::traits::ParserConfig;
     use super::*;
-    use crate::parser_config::ParserConfig;
     use crate::Css3;
 
     #[test]
