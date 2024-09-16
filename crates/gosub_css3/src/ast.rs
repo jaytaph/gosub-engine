@@ -1,12 +1,12 @@
 use crate::node::{Node as CssNode, NodeType};
 use crate::stylesheet::{
-    AttributeSelector, Combinator, CssDeclaration, CssOrigin, CssRule, CssSelector,
+    AttributeSelector, Combinator, CssDeclaration, CssRule, CssSelector,
     CssSelectorPart, CssStylesheet, CssValue, MatcherType,
 };
 use anyhow::anyhow;
 use gosub_shared::types::Result;
 use log::warn;
-
+use gosub_shared::traits::css3::CssOrigin;
 /*
 
 Given the following css:

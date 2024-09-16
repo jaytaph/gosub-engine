@@ -8,10 +8,10 @@ use gosub_shared::node::NodeId;
 use gosub_shared::traits::document::Document;
 use gosub_shared::traits::node::Node;
 use gosub_shared::document::DocumentHandle;
-use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::css3::{CssOrigin, CssSystem};
 
 use crate::matcher::property_definitions::get_css_definitions;
-use crate::stylesheet::{Combinator, CssOrigin, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity};
+use crate::stylesheet::{Combinator, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity};
 
 // Matches a complete selector (all parts) against the given node(id)
 pub(crate) fn match_selector<D: Document<S>, S: CssSystem>(

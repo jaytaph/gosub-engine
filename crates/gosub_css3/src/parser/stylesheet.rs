@@ -1,9 +1,10 @@
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
-use crate::{Css3, Error};
+use crate::Css3;
+use gosub_shared::types::Result;
 
 impl Css3<'_> {
-    pub fn parse_stylesheet_internal(&mut self) -> Result<Option<Node>, Error> {
+    pub fn parse_stylesheet_internal(&mut self) -> Result<Option<Node>> {
         log::trace!("parse_stylesheet");
 
         let loc = self.tokenizer.current_location();

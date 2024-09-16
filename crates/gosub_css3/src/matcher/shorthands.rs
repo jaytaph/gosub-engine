@@ -1,6 +1,6 @@
 use std::collections::hash_map::Entry;
-
-use crate::stylesheet::{CssOrigin, CssValue, Specificity};
+use gosub_shared::traits::css3::CssOrigin;
+use crate::stylesheet::{CssValue, Specificity};
 
 use crate::matcher::property_definitions::CssDefinitions;
 use crate::matcher::styling::{CssProperties, CssProperty, DeclarationProperty};

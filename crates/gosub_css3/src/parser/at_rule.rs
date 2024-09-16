@@ -13,6 +13,7 @@ use crate::node::{Node, NodeType};
 use crate::parser::block::BlockParseMode;
 use crate::tokenizer::TokenType;
 use crate::{Css3, Error};
+use gosub_shared::types::Result;
 
 impl Css3<'_> {
     fn declaration_block_at_rule(&mut self) -> BlockParseMode {
@@ -41,7 +42,7 @@ impl Css3<'_> {
         }
     }
 
-    fn read_sequence_at_rule_prelude(&mut self) -> Result<Node, Error> {
+    fn read_sequence_at_rule_prelude(&mut self) -> Result<Node> {
         log::trace!("read_sequence_at_rule_prelude");
 
         let loc = self.tokenizer.lookahead(0).location.clone();
@@ -54,7 +55,7 @@ impl Css3<'_> {
         ))
     }
 
-    fn parse_at_rule_prelude(&mut self, name: String) -> Result<Option<Node>, Error> {
+    fn parse_at_rule_prelude(&mut self, name: String) -> Result<Option<Node>> {
         log::trace!("parse_at_rule_prelude");
 
         self.consume_whitespace_comments();
@@ -82,7 +83,7 @@ impl Css3<'_> {
             return Err(Error::Parse(
                 "Expected semicolon or left curly brace".to_string(),
                 t.location.clone(),
-            ));
+            ).into());
         }
 
         Ok(node)
@@ -92,7 +93,7 @@ impl Css3<'_> {
         &mut self,
         name: String,
         is_declaration: bool,
-    ) -> Result<Option<Node>, Error> {
+    ) -> Result<Option<Node>> {
         log::trace!("parse_at_rule_block");
 
         let t = self.tokenizer.consume();
@@ -136,7 +137,7 @@ impl Css3<'_> {
     // Either the at_rule parsing succeeds as a whole, or not. When not a valid at_rule is found, we
     // return None if the config.ignore_errors is set to true, otherwise this will return an Err
     // and is handled by the caller
-    pub fn parse_at_rule(&mut self, is_declaration: bool) -> Result<Option<Node>, Error> {
+    pub fn parse_at_rule(&mut self, is_declaration: bool) -> Result<Option<Node>> {
         log::trace!("parse_at_rule");
 
         let result = self.parse_at_rule_internal(is_declaration);
@@ -153,14 +154,14 @@ impl Css3<'_> {
         Ok(None)
     }
 
-    fn parse_at_rule_internal(&mut self, is_declaration: bool) -> Result<Node, Error> {
+    fn parse_at_rule_internal(&mut self, is_declaration: bool) -> Result<Node> {
         let name;
 
         let t = self.consume_any()?;
         if let TokenType::AtKeyword(keyword) = t.token_type {
             name = keyword;
         } else {
-            return Err(Error::Parse("Expected at keyword".to_string(), t.location));
+            return Err(Error::Parse("Expected at keyword".to_string(), t.location).into());
         }
         self.consume_whitespace_comments();
 

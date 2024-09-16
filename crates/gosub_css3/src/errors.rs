@@ -17,6 +17,7 @@ pub enum Error {
     #[error("parse error: {0} at {1}")]
     Parse(String, Location),
 
+    #[allow(dead_code)]
     #[error("incorrect value: {0} at {1}")]
     IncorrectValue(String, Location),
 

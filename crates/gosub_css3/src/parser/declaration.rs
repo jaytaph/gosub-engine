@@ -1,9 +1,11 @@
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
-use crate::{Css3, Error};
+use crate::Css3;
+use gosub_shared::types::Result;
+use crate::errors::Error;
 
 impl Css3<'_> {
-    pub fn parse_property_name(&mut self) -> Result<String, Error> {
+    pub fn parse_property_name(&mut self) -> Result<String> {
         log::trace!("parse_property_name");
         let t = self.consume_any()?;
         match t.token_type {
@@ -30,11 +32,11 @@ impl Css3<'_> {
             _ => Err(Error::Parse(
                 format!("Unexpected token {:?}", t),
                 self.tokenizer.current_location(),
-            )),
+            ).into()),
         }
     }
 
-    pub fn parse_declaration(&mut self) -> Result<Option<Node>, Error> {
+    pub fn parse_declaration(&mut self) -> Result<Option<Node>> {
         log::trace!("parse_declaration");
 
         let result = self.parse_declaration_internal();
@@ -50,7 +52,7 @@ impl Css3<'_> {
         Ok(None)
     }
 
-    fn parse_declaration_internal(&mut self) -> Result<Node, Error> {
+    fn parse_declaration_internal(&mut self) -> Result<Node> {
         let loc = self.tokenizer.current_location();
 
         let mut important = false;
@@ -72,7 +74,7 @@ impl Css3<'_> {
             return Err(Error::Parse(
                 "Expected value in declaration".to_string(),
                 self.tokenizer.current_location(),
-            ));
+            ).into());
         }
 
         let t = self.consume_any()?;

@@ -1,4 +1,5 @@
 use crate::traits::ParserConfig;
+use crate::types::Result;
 
 /// Defines the origin of the stylesheet (or declaration)
 #[derive(Debug, PartialEq, Clone)]
@@ -11,13 +12,14 @@ pub enum CssOrigin {
     User,
 }
 
+
+/// The CssSystem trait is a trait that defines all things CSS3 that are used by other non-css3 crates. This is the main trait that
+/// is used to parse CSS3 files. It contains sub elements like the Stylesheet trait that is used in for instance the Document trait.
 pub trait CssSystem: Clone {
     type Stylesheet: CssStylesheet;
 
-    fn parse_str(str: &str, config: ParserConfig, origin: (), source: String);
+    /// Parses a string into a CSS3 stylesheet
+    fn parse_str(str: &str, config: ParserConfig, origin: CssOrigin, source_url: &str) -> Result<Self::Stylesheet>;
 }
 
-
-pub trait CssStylesheet: PartialEq {
-
-}
+pub trait CssStylesheet: PartialEq {}

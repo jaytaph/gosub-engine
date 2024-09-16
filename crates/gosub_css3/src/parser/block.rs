@@ -1,6 +1,8 @@
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
-use crate::{Css3, Error};
+use crate::Css3;
+use gosub_shared::types::Result;
+use crate::errors::Error;
 
 #[derive(Debug, PartialEq)]
 pub enum BlockParseMode {
@@ -9,12 +11,12 @@ pub enum BlockParseMode {
 }
 
 impl Css3<'_> {
-    fn parse_consume_rule(&mut self) -> Result<Option<Node>, Error> {
+    fn parse_consume_rule(&mut self) -> Result<Option<Node>> {
         log::trace!("parse_consume_rule");
         self.parse_rule()
     }
 
-    fn parse_consume_declaration(&mut self) -> Result<Option<Node>, Error> {
+    fn parse_consume_declaration(&mut self) -> Result<Option<Node>> {
         log::trace!("parse_consume_declaration");
 
         match self.parse_declaration()? {
@@ -48,7 +50,7 @@ impl Css3<'_> {
         }
     }
 
-    pub fn parse_block(&mut self, mode: BlockParseMode) -> Result<Node, Error> {
+    pub fn parse_block(&mut self, mode: BlockParseMode) -> Result<Node> {
         log::trace!("parse_block with parse mode: {:?}", mode);
 
         let loc = self.tokenizer.current_location();
@@ -88,7 +90,7 @@ impl Css3<'_> {
                             return Err(Error::Parse(
                                 format!("Expected a ; got {:?}", t),
                                 self.tokenizer.current_location(),
-                            ));
+                            ).into());
                         }
 
                         self.tokenizer.reconsume();

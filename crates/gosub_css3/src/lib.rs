@@ -1,13 +1,14 @@
-use crate::tokenizer::Tokenizer;
 use crate::ast::convert_ast_to_stylesheet;
 use crate::errors::Error;
-use crate::stylesheet::{CssOrigin, CssStylesheet};
-use gosub_shared::traits::Context;
+use crate::stylesheet::CssStylesheet;
+use crate::tokenizer::Tokenizer;
 
-use gosub_shared::types::Result;
-use gosub_shared::byte_stream::{ByteStream, Encoding, Location};
 use gosub_shared::{timing_start, timing_stop};
+use gosub_shared::byte_stream::{ByteStream, Encoding, Location};
+use gosub_shared::traits::Context;
+use gosub_shared::traits::css3::CssOrigin;
 use gosub_shared::traits::ParserConfig;
+use gosub_shared::types::Result;
 
 /// This CSS3 parser is heavily based on the MIT licensed CssTree parser written by
 /// Roman Dvornov (https://github.com/lahmatiy).
@@ -32,9 +33,9 @@ pub struct Css3<'stream> {
     allow_values_in_argument_list: Vec<bool>,
     /// The parser configuration as given
     config: ParserConfig,
-    /// Origin of the stream (useragent, inline etc)
+    /// Origin of the stream (useragent, inline etc.)
     origin: CssOrigin,
-    /// Source of the stream (filename, url, etc)
+    /// Source of the stream (filename, url, etc.)
     source: String,
 }
 
@@ -51,17 +52,17 @@ impl<'stream> Css3<'stream> {
     }
 
     /// Parses a direct string to a CssStyleSheet
-    pub fn parse_str(data: &str, config: ParserConfig, origin: CssOrigin, source: &str) -> Result<CssStylesheet> {
+    pub fn parse_str(data: &str, config: ParserConfig, origin: CssOrigin, source_url: &str) -> Result<CssStylesheet> {
         let mut stream = ByteStream::new(Encoding::UTF8, None);
         stream.read_from_str(data, Some(Encoding::UTF8));
         stream.close();
 
-        Css3::parse_stream(&mut stream, config, origin, source)
+        Css3::parse_stream(&mut stream, config, origin, source_url)
     }
 
     /// Parses a direct stream to a CssStyleSheet
-    pub fn parse_stream(stream: &mut ByteStream, config: ParserConfig, origin: CssOrigin, source: &str) -> Result<CssStylesheet> {
-        Css3::new(stream, config, origin, source).parse()
+    pub fn parse_stream(stream: &mut ByteStream, config: ParserConfig, origin: CssOrigin, source_url: &str) -> Result<CssStylesheet> {
+        Css3::new(stream, config, origin, source_url).parse()
     }
 
     fn parse(&mut self) -> Result<CssStylesheet> {

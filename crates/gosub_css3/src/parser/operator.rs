@@ -1,9 +1,11 @@
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
-use crate::{Css3, Error};
+use crate::Css3;
+use gosub_shared::types::Result;
+use crate::errors::Error;
 
 impl Css3<'_> {
-    pub fn parse_operator(&mut self) -> Result<Node, Error> {
+    pub fn parse_operator(&mut self) -> Result<Node> {
         log::trace!("parse_operator");
 
         let loc = self.tokenizer.current_location();
@@ -21,6 +23,6 @@ impl Css3<'_> {
         Err(Error::Parse(
             format!("Expected operator, got {:?}", operator),
             self.tokenizer.current_location(),
-        ))
+        ).into())
     }
 }

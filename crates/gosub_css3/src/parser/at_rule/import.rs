@@ -1,9 +1,10 @@
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::{Css3, Error};
+use gosub_shared::types::Result;
 
 impl Css3<'_> {
-    pub fn parse_at_rule_import_prelude(&mut self) -> Result<Node, Error> {
+    pub fn parse_at_rule_import_prelude(&mut self) -> Result<Node> {
         log::trace!("parse_at_rule_import");
 
         let mut children = Vec::new();
@@ -23,7 +24,7 @@ impl Css3<'_> {
                 children.push(self.parse_url()?);
             }
             _ => {
-                return Err(Error::Parse(format!("Expected string or url()").to_string(), t.location.clone()));
+                return Err(Error::Parse(format!("Expected string or url()").to_string(), t.location.clone()).into());
             }
         }
 

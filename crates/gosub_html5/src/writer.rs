@@ -15,7 +15,7 @@ struct DocumentWriter {
 }
 
 impl DocumentWriter {
-    pub fn write_from_node<D: Document<S>, S: CssSystem>(node: NodeId, handle: DocumentHandle<D, S>) -> String {
+    pub fn write_from_node<D: Document<C>, C: CssSystem>(node: NodeId, handle: DocumentHandle<D, C>) -> String {
         let mut w = Self {
             comments: false,
             buffer: String::new(),
@@ -25,7 +25,7 @@ impl DocumentWriter {
         w.buffer
     }
 
-    pub fn visit_node<D: Document<S>, S: CssSystem>(&mut self, id: NodeId, handle: DocumentHandle<D, S>) {
+    pub fn visit_node<D: Document<C>, C: CssSystem>(&mut self, id: NodeId, handle: DocumentHandle<D, C>) {
         let binding = handle.get();
         let node = match binding.node_by_id(id) {
             Some(node) => node,
@@ -61,7 +61,7 @@ impl DocumentWriter {
         }
     }
 
-    pub fn visit_children<D: Document<S>, S: CssSystem>(&mut self, children: &[NodeId], handle: DocumentHandle<D, S>) {
+    pub fn visit_children<D: Document<C>, C: CssSystem>(&mut self, children: &[NodeId], handle: DocumentHandle<D, C>) {
         for child in children {
             self.visit_node(*child, handle.clone());
         }

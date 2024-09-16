@@ -1,13 +1,14 @@
 use crate::node::{Node, NodeType};
 use crate::parser::block::BlockParseMode;
 use crate::tokenizer::TokenType;
-use crate::{Css3, Error};
+use crate::Css3;
+use gosub_shared::types::Result;
 
 impl Css3<'_> {
     // Either the rule parsing succeeds as a whole, or not. When not a valid rule is found, we
     // return None if the config.ignore_errors is set to true, otherwise this will return an Err
     // and is handled by the caller
-    pub fn parse_rule(&mut self) -> Result<Option<Node>, Error> {
+    pub fn parse_rule(&mut self) -> Result<Option<Node>> {
         log::trace!("parse_rule");
 
         let result = self.parse_rule_internal();
@@ -24,7 +25,7 @@ impl Css3<'_> {
         Ok(None)
     }
 
-    fn parse_rule_internal(&mut self) -> Result<Node, Error> {
+    fn parse_rule_internal(&mut self) -> Result<Node> {
         let loc = self.tokenizer.current_location();
 
         let prelude = self.parse_selector_list()?;

@@ -1,9 +1,11 @@
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::{Css3, Error};
+use gosub_shared::types::Result;
+
 
 impl Css3<'_> {
-    pub fn parse_value_sequence(&mut self) -> Result<Vec<Node>, Error> {
+    pub fn parse_value_sequence(&mut self) -> Result<Vec<Node>> {
         log::trace!("parse_value_sequence");
 
         let mut children = Vec::new();
@@ -38,7 +40,7 @@ impl Css3<'_> {
     //    none: no value is found (but this is not an error)
     // err:
     //    parsing went wrong
-    fn parse_value(&mut self) -> Result<Option<Node>, Error> {
+    fn parse_value(&mut self) -> Result<Option<Node>> {
         log::trace!("parse_value");
 
         let t = self.consume_any()?;
@@ -54,7 +56,7 @@ impl Css3<'_> {
             TokenType::LBracket => Err(Error::Parse(
                 "Unexpected token [".to_string(),
                 self.tokenizer.current_location(),
-            )),
+            ).into()),
             TokenType::QuotedString(value) => {
                 let node = Node::new(NodeType::String { value }, t.location);
                 Ok(Some(node))
@@ -135,7 +137,7 @@ impl Css3<'_> {
                             return Err(Error::Parse(
                                 format!("Expected number or ident, got {:?}", t),
                                 self.tokenizer.current_location(),
-                            ))
+                            ).into())
                         }
                     };
 
@@ -159,7 +161,7 @@ impl Css3<'_> {
                 '#' => Err(Error::Parse(
                     format!("Unexpected token {:?}", t),
                     self.tokenizer.current_location(),
-                )),
+                ).into()),
                 _ => {
                     self.tokenizer.reconsume();
                     Ok(None)

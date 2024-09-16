@@ -1,9 +1,11 @@
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::{Css3, Error};
+use gosub_shared::types::Result;
+
 
 impl Css3<'_> {
-    pub fn parse_url(&mut self) -> Result<Node, Error> {
+    pub fn parse_url(&mut self) -> Result<Node> {
         log::trace!("parse_url");
 
         let loc = self.tokenizer.current_location();
@@ -13,7 +15,7 @@ impl Css3<'_> {
             return Err(Error::Parse(
                 format!("Expected url, got {:?}", name),
                 self.tokenizer.current_location(),
-            ));
+            ).into());
         }
 
         let t = self.consume_any()?;
@@ -23,7 +25,7 @@ impl Css3<'_> {
                 return Err(Error::Parse(
                     format!("Expected url, got {:?}", t),
                     self.tokenizer.current_location(),
-                ))
+                ).into())
             }
         };
 

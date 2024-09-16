@@ -1,6 +1,3 @@
-use gosub_css3::Css3;
-use gosub_css3::stylesheet::CssStylesheet;
-use gosub_css3::stylesheet::CssOrigin;
 use core::cell::RefCell;
 use core::option::Option::Some;
 use std::collections::HashMap;
@@ -20,7 +17,7 @@ use gosub_shared::traits::node::TextDataType;
 use gosub_shared::traits::document::{Document, DocumentFragment, DocumentType};
 use gosub_shared::traits::node::{ElementDataType, Node, QuirksMode};
 use gosub_shared::traits::{Context, ParserConfig};
-use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::css3::{CssOrigin, CssSystem};
 use crate::document::builder::DocumentBuilder;
 use crate::document::document::DocumentImpl;
 use crate::document::fragment::DocumentFragmentImpl;
@@ -4245,7 +4242,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn load_external_stylesheet(&self, origin: CssOrigin, url: Url) -> Option<CssStylesheet> {
+    fn load_external_stylesheet(&self, origin: CssOrigin, url: Url) -> Option<C::Stylesheet> {
         let css = if url.scheme() == "http" || url.scheme() == "https" {
             // Fetch the html from the url
             let response = ureq::get(url.as_ref()).call();
@@ -4291,7 +4288,7 @@ impl<'chars, D, C> Html5Parser<'chars, D, C>
             ..Default::default()
         };
 
-        match Css3::parse_str(css.as_str(), config, origin, url.as_str()) {
+        match C::parse_str(css.as_str(), config, origin, url.as_str()) {
             Ok(stylesheet) => Some(stylesheet),
             Err(err) => {
                 warn!("Error while parsing CSS stylesheet: {} ", err.to_string());

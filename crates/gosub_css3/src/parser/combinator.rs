@@ -1,9 +1,11 @@
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
-use crate::{Css3, Error};
+use crate::Css3;
+use gosub_shared::types::Result;
+use crate::errors::Error;
 
 impl Css3<'_> {
-    pub fn parse_combinator(&mut self) -> Result<Node, Error> {
+    pub fn parse_combinator(&mut self) -> Result<Node> {
         log::trace!("parse_combinator");
         let t = self.consume_any()?;
 
@@ -23,14 +25,14 @@ impl Css3<'_> {
                     return Err(Error::Parse(
                         format!("Unexpected token {:?}", tn1),
                         self.tokenizer.current_location(),
-                    ));
+                    ).into());
                 }
             }
             _ => {
                 return Err(Error::Parse(
                     format!("Unexpected token {:?}", t),
                     self.tokenizer.current_location(),
-                ));
+                ).into());
             }
         };
 
