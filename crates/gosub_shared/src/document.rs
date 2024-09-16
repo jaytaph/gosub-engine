@@ -1,6 +1,6 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::Debug;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use crate::traits::document::Document;
 
 pub struct DocumentHandle<D: Document>(pub Rc<RefCell<D>>);
@@ -18,7 +18,7 @@ impl<D: Document> DocumentHandle<D> {
     }
 
     /// Returns a 
-    pub fn get_mut(&self) -> RefMut<D> {
+    pub fn get_mut(&mut self) -> RefMut<D> {
         self.0.borrow_mut()
     }
 }

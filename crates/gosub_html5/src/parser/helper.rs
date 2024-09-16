@@ -89,11 +89,13 @@ where
                 let node = get_node_by_id!(handle, node_id);
                 let parent_node = get_node_by_id!(handle, parent);
                 let position = parent_node.children().iter().position(|&x| x == before);
-                handle.get_mut().register_node_at(&node, parent, position);
+                let mut_handle = &mut handle.clone();
+                mut_handle.get_mut().register_node_at(&node, parent, position);
             }
             InsertionPositionMode::LastChild { handle, parent } => {
                 let node = get_node_by_id!(handle, node_id);
-                handle.get_mut().register_node_at(&node, parent, None);
+                let mut_handle = &mut handle.clone();
+                mut_handle.get_mut().register_node_at(&node, parent, None);
             }
         }
     }
@@ -110,7 +112,8 @@ where
                 match position {
                     None | Some(0) => {
                         let node = self.create_node(token, HTML_NAMESPACE);
-                        handle.get_mut().register_node_at(&node, parent, position);
+                        let mut_handle = &mut handle.clone();
+                        mut_handle.get_mut().register_node_at(&node, parent, position);
                     }
                     Some(index) => {
                         let last_node_id = parent_node.children()[index - 1];
@@ -124,7 +127,8 @@ where
                         }
 
                         let node = self.create_node(token, HTML_NAMESPACE);
-                        handle.get_mut().register_node_at(&node, parent, Some(index));
+                        let mut_handle = &mut handle.clone();
+                        mut_handle.get_mut().register_node_at(&node, parent, Some(index));
                     }
                 }
             }
@@ -141,12 +145,14 @@ where
                     };
 
                     let node = self.create_node(token, HTML_NAMESPACE);
-                    handle.get_mut().register_node_at(&node, parent, None);
+                    let mut_handle = &mut handle.clone();
+                    mut_handle.get_mut().register_node_at(&node, parent, None);
                     return;
                 }
 
                 let node = self.create_node(token, HTML_NAMESPACE);
-                handle.get_mut().register_node_at(&node, parent, None);
+                let mut_handle = &mut handle.clone();
+                mut_handle.get_mut().register_node_at(&node, parent, None);
             }
         }
     }

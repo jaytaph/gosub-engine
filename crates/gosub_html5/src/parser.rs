@@ -4360,7 +4360,10 @@ impl<'chars, D: Document> Html5Parser<'chars, D>
                 if let Some(stylesheet) = self.load_external_stylesheet(CssOrigin::Author, css_url)
                 {
                     println!("success: loaded external stylesheet");
-                    self.document.get_mut().stylesheets_mut().push(stylesheet);
+                    let s = self.document.get().get_stylesheets();
+                    s.push(stylesheet);
+                    let mut mut_handle = self.document.clone();
+                    mut_handle.get_mut().set_stylesheets(s);
                 } else {
                     println!("failed loading stylesheet")
                 }

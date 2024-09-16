@@ -34,7 +34,7 @@ impl DocumentBuilder {
             context_node.location().clone(),
         );
         let fragment_doc = D::new(DocumentType::HTML, None, Some(&fragment_root_node));
-        let fragment_handle = DocumentHandle::create(fragment_doc);
+        let mut fragment_handle = DocumentHandle::create(fragment_doc);
 
         let context_doc_handle = context_node.handle();
         match context_doc_handle.get().quirks_mode() {
