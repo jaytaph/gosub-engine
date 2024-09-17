@@ -14,7 +14,6 @@ use crate::node::data::element::{ElementClass, ElementData};
 use crate::node::data::text::TextData;
 use crate::node::node::{NodeDataTypeInternal, NodeImpl};
 use crate::node::visitor::Visitor;
-use crate::writer::DocumentWriter;
 use gosub_shared::byte_stream::Location;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
@@ -360,7 +359,7 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.write_from_node(NodeId::root())
     }
 
-    fn write_from_node(&self, node_id: NodeId) -> String {
+    fn write_from_node(&self, _node_id: NodeId) -> String {
         todo!(); //This should definitely be implemented
     }
 }

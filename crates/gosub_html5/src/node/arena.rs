@@ -82,7 +82,6 @@ impl<N: Node<C>, C: CssSystem> Default for NodeArena<N, C> {
 mod tests {
     use super::*;
     use crate::node::HTML_NAMESPACE;
-    use crate::parser::document::Document;
     use gosub_shared::byte_stream::Location;
 
     #[test]

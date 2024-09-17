@@ -4436,8 +4436,6 @@ where
 mod test {
     use gosub_shared::byte_stream::Encoding;
 
-    use crate::parser::document::DocumentBuilder;
-
     use super::*;
 
     macro_rules! node_create {

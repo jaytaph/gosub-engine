@@ -25,6 +25,7 @@ pub mod walker;
 #[allow(dead_code)]
 pub mod matcher;
 mod errors;
+mod functions;
 
 pub struct Css3<'stream> {
     /// The tokenizer is responsible for reading the input stream and

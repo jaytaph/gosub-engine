@@ -344,7 +344,6 @@ impl<C: CssSystem> NodeImpl<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::document::Document;
 
     #[test]
     fn new_document() {

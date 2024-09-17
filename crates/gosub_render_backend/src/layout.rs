@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use gosub_shared::traits::css3::CssSystem;
 
 use gosub_shared::types::Result;
 use gosub_typeface::font::{Font, Glyph};
@@ -30,6 +31,7 @@ pub trait LayoutTree<L: Layouter>: Sized {
 pub trait Layouter: Sized + Clone {
     type Cache: Default;
     type Layout: Layout;
+    type CssSystem: CssSystem;
 
     type TextLayout: TextLayout;
 

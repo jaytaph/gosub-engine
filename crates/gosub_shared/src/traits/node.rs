@@ -26,7 +26,7 @@ pub enum NodeType {
 
 /// Different types of nodes
 #[derive(Debug, PartialEq)]
-pub enum NodeData<'a, S: CssSystem, N: Node<S>> {
+pub enum NodeData<'a, C: CssSystem, N: Node<C>> {
     Document(&'a N::DocumentData),
     DocType(&'a N::DocTypeData),
     Text(&'a N::TextData),
@@ -54,9 +54,9 @@ pub trait CommentDataType {
     fn value(&self) -> &str;
 }
 
-pub trait ElementDataType<S: CssSystem> {
-    type Document: Document<S>;
-    type DocumentFragment: DocumentFragment<S>;
+pub trait ElementDataType<C: CssSystem> {
+    type Document: Document<C>;
+    type DocumentFragment: DocumentFragment<C>;
 
     /// Returns the name of the element
     fn name(&self) -> &str;

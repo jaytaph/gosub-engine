@@ -5,7 +5,6 @@ pub mod result;
 
 use generator::TreeOutputGenerator;
 use gosub_html5::node::{HTML_NAMESPACE, MATHML_NAMESPACE, SVG_NAMESPACE};
-use gosub_html5::parser::Html5ParserOptions;
 use gosub_shared::byte_stream::{ByteStream, Config, Encoding, Location};
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;

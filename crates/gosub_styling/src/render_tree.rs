@@ -3,24 +3,19 @@ use std::fmt::{Debug, Formatter};
 
 use log::warn;
 
+use gosub_css3::matcher::styling::{CssProperty, CssProperties, DeclarationProperty, prop_is_inherit};
 use gosub_css3::stylesheet::{CssDeclaration, CssStylesheet, CssValue, Specificity};
+use gosub_html5::document::document::TreeIterator;
 use gosub_html5::node::data::element::ElementData;
-use gosub_html5::node::{NodeData, NodeId};
-use gosub_html5::parser::document::{Document, DocumentHandle, TreeIterator};
 use gosub_render_backend::geo::Size;
 use gosub_render_backend::layout::{HasTextLayout, Layout, LayoutTree, Layouter, Node, TextLayout};
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::Document;
+use gosub_shared::traits::node::Node as DocumentNode;
+use gosub_shared::traits::node::NodeData;
 use gosub_shared::types::Result;
-
-use crate::functions::{resolve_attr, resolve_calc, resolve_var};
-use crate::property_definitions::get_css_definitions;
-use crate::shorthands::FixList;
-use crate::styling::{
-    match_selector, prop_is_inherit, CssProperties, CssProperty, DeclarationProperty,
-};
 
 mod desc;
 
@@ -42,7 +37,6 @@ pub struct RenderTree<L: Layouter> {
 #[allow(unused)]
 impl<L: Layouter> LayoutTree<L> for RenderTree<L> {
     type NodeId = NodeId;
-
     type Node = RenderTreeNode<L>;
 
     fn children(&self, id: Self::NodeId) -> Option<Vec<Self::NodeId>> {
@@ -239,7 +233,7 @@ impl<L: Layouter> RenderTree<L> {
     }
 
     /// Generate a render tree from the given document
-    pub fn from_document(document: DocumentHandle) -> Self {
+    pub fn from_document<D: Document<L::CssSystem>>(document: DocumentHandle<D, L::CssSystem>) -> Self {
         let mut render_tree = RenderTree::with_capacity(document.get().count_nodes());
 
         render_tree.generate_from(document);
@@ -247,16 +241,15 @@ impl<L: Layouter> RenderTree<L> {
         render_tree
     }
 
-    fn generate_from<D: Document<C>, C: CssSystem>(&mut self, mut document: DocumentHandle<D, C>) {
+    fn generate_from<D: Document<L::CssSystem>>(&mut self, handle: DocumentHandle<D, L::CssSystem>) {
         // Iterate the complete document tree
-        let tree_iterator = TreeIterator::new(&document);
+        let tree_iterator = TreeIterator::new(handle.clone());
 
         {
-            let doc = document.get();
+            let doc = handle.get();
+            println!("Stylesheets: {:?}", doc.get_stylesheets().len());
 
-            println!("Stylesheets: {:?}", doc.stylesheets.len());
-
-            for stylesheet in &doc.stylesheets {
+            for stylesheet in &doc.get_stylesheets() {
                 println!("   {:?}", stylesheet.location);
                 println!("   {:?}", stylesheet.origin);
             }
@@ -265,10 +258,10 @@ impl<L: Layouter> RenderTree<L> {
         for current_node_id in tree_iterator {
             let mut css_map_entry = CssProperties::new();
 
-            let doc = document.get();
+            let doc = handle.get();
             let node = doc.get_node_by_id(current_node_id).expect("node not found");
 
-            if node_is_undernderable(node) {
+            if node_is_unrenderable(node) {
                 if let Some(parent) = node.parent {
                     if let Some(parent) = self.get_node_mut(parent) {
                         parent.children.retain(|id| *id != current_node_id);
@@ -279,8 +272,7 @@ impl<L: Layouter> RenderTree<L> {
 
                 drop(doc);
 
-                let mut doc = document.get_mut();
-
+                let mut doc = doc.get_mut();
                 doc.detach_node_from_parent(current_node_id);
 
                 continue;
@@ -290,11 +282,11 @@ impl<L: Layouter> RenderTree<L> {
 
             let mut fix_list = FixList::new();
 
-            for sheet in document.get().stylesheets.iter() {
+            for sheet in handle.get().stylesheets().iter() {
                 for rule in sheet.rules.iter() {
                     for selector in rule.selectors().iter() {
                         let (matched, specificity) = match_selector(
-                            DocumentHandle::clone(&document),
+                            handle.clone(),
                             current_node_id,
                             selector,
                         );
@@ -348,7 +340,7 @@ impl<L: Layouter> RenderTree<L> {
 
             fix_list.apply(&mut css_map_entry);
 
-            let binding = document.get();
+            let binding = handle.get();
             let current_node = binding.get_node_by_id(current_node_id).unwrap();
 
             let data = || RenderNodeData::from_node_data(current_node.data.clone());
@@ -378,7 +370,7 @@ impl<L: Layouter> RenderTree<L> {
             self.nodes.insert(current_node_id, render_tree_node);
         }
 
-        self.next_id = document.get().peek_next_id();
+        self.next_id = handle.get().peek_next_id();
 
         self.remove_unrenderable_nodes();
 
@@ -398,7 +390,6 @@ impl<L: Layouter> RenderTree<L> {
 
         for prop in inherit_props {
             current_node
-                .properties
                 .properties
                 .entry(prop.0.clone())
                 .or_insert_with(|| {
@@ -612,7 +603,7 @@ pub fn add_property_to_map(
 
 pub enum RenderNodeData<L: Layouter> {
     Document,
-    Element(Box<ElementData>),
+    Element(Box<ElementData<L::CssSystem>>),
     Text(Box<TextData<L>>),
     AnonymousInline,
 }
@@ -651,7 +642,7 @@ pub enum ControlFlow<T> {
 }
 
 impl<L: Layouter> RenderNodeData<L> {
-    pub fn from_node_data(node: NodeData) -> ControlFlow<Self> {
+    pub fn from_node_data(node: NodeData<L::CssSystem, D::Node>) -> ControlFlow<Self> {
         ControlFlow::Ok(match node {
             NodeData::Element(data) => RenderNodeData::Element(data),
             NodeData::Text(data) => {
@@ -941,24 +932,24 @@ impl From<CssValue> for Value {
 }
 
 /// Generates a render tree for the given document based on its loaded stylesheets
-pub fn generate_render_tree<L: Layouter>(document: DocumentHandle) -> Result<RenderTree<L>> {
+pub fn generate_render_tree<L: Layouter, D: Document<C>, C: CssSystem>(document: DocumentHandle<D, C>) -> Result<RenderTree<L>> {
     let render_tree = RenderTree::from_document(document);
 
     Ok(render_tree)
 }
 
-pub fn node_is_undernderable(node: &gosub_html5::node::Node) -> bool {
+pub fn node_is_unrenderable<D: Document<C>, C: CssSystem>(node: &D::Node) -> bool {
     // There are more elements that are not renderable, but for now we only remove the most common ones
 
     const REMOVABLE_ELEMENTS: [&str; 6] = ["head", "script", "style", "svg", "noscript", "title"];
 
-    if let NodeData::Element(element) = &node.data {
+    if let NodeData::Element(element) = &node.get_element_data() {
         if REMOVABLE_ELEMENTS.contains(&element.name.as_str()) {
             return true;
         }
     }
 
-    if let NodeData::Text(text) = &node.data {
+    if let NodeData::Text(text) = &node.get_text_data() {
         if text.value.chars().all(|c| c.is_whitespace()) {
             return true;
         }
@@ -967,10 +958,10 @@ pub fn node_is_undernderable(node: &gosub_html5::node::Node) -> bool {
     false
 }
 
-pub fn resolve_functions(
+pub fn resolve_functions<D: Document<C>, C: CssSystem>(
     value: &[CssValue],
-    node: &gosub_html5::node::Node,
-    doc: &Document,
+    node: &impl DocumentNode<C>,
+    handle: DocumentHandle<D, C>,
 ) -> Vec<CssValue> {
     let mut result = Vec::with_capacity(value.len()); //TODO: we could give it a &mut Vec and reuse the allocation
 
@@ -980,7 +971,7 @@ pub fn resolve_functions(
                 let resolved = match func.as_str() {
                     "calc" => resolve_calc(values),
                     "attr" => resolve_attr(values, node),
-                    "var" => resolve_var(values, doc, node),
+                    "var" => resolve_var(values, handle.clone(), node),
                     _ => vec![val.clone()],
                 };
 

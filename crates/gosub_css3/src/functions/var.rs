@@ -4,11 +4,13 @@ use crate::stylesheet::CssValue;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::Document;
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Default)]
 pub struct VariableEnvironment {
     pub values: HashMap<String, CssValue>,
 }
 
+#[allow(dead_code)]
 impl VariableEnvironment {
     pub fn get<D: Document<C>, C: CssSystem>(
         &self,
@@ -34,6 +36,7 @@ impl VariableEnvironment {
     }
 }
 
+#[allow(dead_code)]
 pub fn resolve_var<D: Document<C>, C: CssSystem>(
     values: &[CssValue],
     doc: &D,

@@ -1,7 +1,8 @@
 use crate::render_tree::{RenderNodeData, RenderTree};
-use gosub_html5::node::NodeId;
 use gosub_render_backend::layout::{Layout, Layouter};
 use gosub_render_backend::{NodeDesc, Point, Size};
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::document::Document;
 
 impl<L: Layouter> RenderTree<L> {
     pub fn desc(&self) -> NodeDesc {
