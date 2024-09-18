@@ -29,7 +29,11 @@ impl Css3<'_> {
                     loc,
                 ))
             }
-            _ => Err(Error::Parse(format!("Expected identifier, number, dimension, or ratio"), loc).into())
+            _ => Err(Error::Parse(
+                "Expected identifier, number, dimension, or ratio".to_string(),
+                loc,
+            )
+            .into()),
         }
     }
 
@@ -128,7 +132,11 @@ impl Css3<'_> {
                     ))
                 }
                 _ => {
-                    return Err(Error::Parse("Expected identifier, number, dimension, or ratio".to_string(), t.location).into());
+                    return Err(Error::Parse(
+                        "Expected identifier, number, dimension, or ratio".to_string(),
+                        t.location,
+                    )
+                    .into());
                 }
             };
 
@@ -233,7 +241,11 @@ impl Css3<'_> {
                     // skip;
                 }
                 _ => {
-                    return Err(Error::Parse("Expected identifier or parenthesis".to_string(), t.location).into());
+                    return Err(Error::Parse(
+                        "Expected identifier or parenthesis".to_string(),
+                        t.location,
+                    )
+                    .into());
                 }
             }
         } else {
@@ -247,7 +259,11 @@ impl Css3<'_> {
                     // skip
                 }
                 _ => {
-                    return Err(Error::Parse("Expected identifier or parenthesis".to_string(), t.location).into());
+                    return Err(Error::Parse(
+                        "Expected identifier or parenthesis".to_string(),
+                        t.location,
+                    )
+                    .into());
                 }
             }
         }

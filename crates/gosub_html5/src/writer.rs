@@ -87,7 +87,7 @@ impl<N: Node<C>, C: CssSystem> Visitor<N, C> for DocumentWriter {
     fn doctype_enter(&mut self, node: &N) {
         if let Some(data) = node.get_doctype_data() {
             self.buffer.push_str("<!DOCTYPE ");
-            self.buffer.push_str(&data.name());
+            self.buffer.push_str(data.name());
             self.buffer.push('>');
         }
     }
@@ -96,7 +96,7 @@ impl<N: Node<C>, C: CssSystem> Visitor<N, C> for DocumentWriter {
 
     fn text_enter(&mut self, node: &N) {
         if let Some(data) = node.get_text_data() {
-            self.buffer.push_str(&data.value());
+            self.buffer.push_str(data.value());
         }
     }
 
@@ -105,7 +105,7 @@ impl<N: Node<C>, C: CssSystem> Visitor<N, C> for DocumentWriter {
     fn comment_enter(&mut self, node: &N) {
         if let Some(data) = node.get_comment_data() {
             self.buffer.push_str("<!--");
-            self.buffer.push_str(&data.value());
+            self.buffer.push_str(data.value());
             self.buffer.push_str("-->");
         }
     }
@@ -114,7 +114,7 @@ impl<N: Node<C>, C: CssSystem> Visitor<N, C> for DocumentWriter {
 
     fn element_enter(&mut self, node: &N) {
         if let Some(data) = node.get_element_data() {
-            self.buffer.push_str("<");
+            self.buffer.push('<');
             self.buffer.push_str(data.name());
 
             for (name, value) in data.attributes() {

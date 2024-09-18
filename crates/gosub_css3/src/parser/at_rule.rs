@@ -45,7 +45,7 @@ impl Css3<'_> {
     fn read_sequence_at_rule_prelude(&mut self) -> Result<Node> {
         log::trace!("read_sequence_at_rule_prelude");
 
-        let loc = self.tokenizer.lookahead(0).location.clone();
+        let loc = self.tokenizer.lookahead(0).location;
 
         Ok(Node::new(
             NodeType::Container {
@@ -82,18 +82,15 @@ impl Css3<'_> {
         {
             return Err(Error::Parse(
                 "Expected semicolon or left curly brace".to_string(),
-                t.location.clone(),
-            ).into());
+                t.location,
+            )
+            .into());
         }
 
         Ok(node)
     }
 
-    fn parse_at_rule_block(
-        &mut self,
-        name: String,
-        is_declaration: bool,
-    ) -> Result<Option<Node>> {
+    fn parse_at_rule_block(&mut self, name: String, is_declaration: bool) -> Result<Option<Node>> {
         log::trace!("parse_at_rule_block");
 
         let t = self.tokenizer.consume();
@@ -177,7 +174,7 @@ impl Css3<'_> {
                 prelude,
                 block,
             },
-            t.location.clone(),
+            t.location,
         ))
     }
 }

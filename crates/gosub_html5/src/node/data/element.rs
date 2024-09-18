@@ -1,12 +1,14 @@
-use core::fmt::{Debug, Formatter};
-use std::collections::HashMap;
-use std::fmt;
-use gosub_shared::traits::css3::CssSystem;
-use gosub_shared::traits::node::ElementDataType;
-use crate::node::elements::{FORMATTING_HTML_ELEMENTS, SPECIAL_HTML_ELEMENTS, SPECIAL_MATHML_ELEMENTS, SPECIAL_SVG_ELEMENTS};
-use crate::node::{HTML_NAMESPACE, MATHML_NAMESPACE, SVG_NAMESPACE};
 use crate::document::document::DocumentImpl;
 use crate::document::fragment::DocumentFragmentImpl;
+use crate::node::elements::{
+    FORMATTING_HTML_ELEMENTS, SPECIAL_HTML_ELEMENTS, SPECIAL_MATHML_ELEMENTS, SPECIAL_SVG_ELEMENTS,
+};
+use crate::node::{HTML_NAMESPACE, MATHML_NAMESPACE, SVG_NAMESPACE};
+use core::fmt::{Debug, Formatter};
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::node::ElementDataType;
+use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ElementClass {
@@ -106,7 +108,6 @@ impl From<&str> for ElementClass {
     }
 }
 
-
 /// Data structure for element nodes
 #[derive(PartialEq, Clone)]
 pub struct ElementData<C: CssSystem> {
@@ -127,7 +128,6 @@ pub struct ElementData<C: CssSystem> {
     pub force_async: bool,
     // Template contents (when it's a template element)
     pub template_contents: Option<DocumentFragmentImpl<C>>,
-
 }
 
 impl<C: CssSystem> Debug for ElementData<C> {
@@ -164,7 +164,11 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
     }
 
     fn active_classes(&self) -> Vec<String> {
-        self.classes.iter().filter(|(_, &active)| active).map(|(name, _)| name.clone()).collect()
+        self.classes
+            .iter()
+            .filter(|(_, &active)| active)
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 
     fn attribute(&self, name: &str) -> Option<&String> {
@@ -195,7 +199,7 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
             return false;
         }
 
-        return self.attributes.eq(&other_data.attributes);
+        self.attributes.eq(&other_data.attributes)
     }
 
     /// Returns true if the given node is a mathml integration point
@@ -232,7 +236,7 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
                 namespace == SVG_NAMESPACE
                     && ["foreignObject", "desc", "title"].contains(&self.name.as_str())
             }
-            None => return false,
+            None => false,
         }
     }
 
@@ -295,9 +299,7 @@ impl<C: CssSystem> ElementData<C> {
             template_contents,
         }
     }
-
 }
-
 
 #[cfg(test)]
 mod tests {

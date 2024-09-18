@@ -1,12 +1,10 @@
-use gosub_html5::parser::errors::ErrorLogger;
 use super::FIXTURE_ROOT;
+use gosub_html5::parser::errors::ErrorLogger;
 use gosub_html5::tokenizer::ParserData;
-use gosub_html5::{
-    tokenizer::{
-        state::State as TokenState,
-        token::Token,
-        {Options, Tokenizer},
-    },
+use gosub_html5::tokenizer::{
+    state::State as TokenState,
+    token::Token,
+    {Options, Tokenizer},
 };
 use gosub_shared::byte_stream::{ByteStream, Config, Encoding, Location};
 use gosub_shared::types::Result;
@@ -315,7 +313,7 @@ impl TestSpec {
                 location,
             } => Token::Comment {
                 comment: escape(value),
-                location: location.clone(),
+                location: *location,
             },
 
             Token::DocType {
@@ -329,7 +327,7 @@ impl TestSpec {
                 force_quirks: *force_quirks,
                 pub_identifier: pub_identifier.as_ref().map(Into::into),
                 sys_identifier: sys_identifier.as_ref().map(Into::into),
-                location: location.clone(),
+                location: *location,
             },
 
             Token::EndTag {
@@ -339,11 +337,11 @@ impl TestSpec {
             } => Token::EndTag {
                 name: escape(name),
                 is_self_closing: *is_self_closing,
-                location: location.clone(),
+                location: *location,
             },
 
             Token::Eof { location } => Token::Eof {
-                location: location.clone(),
+                location: *location,
             },
 
             Token::StartTag {
@@ -355,7 +353,7 @@ impl TestSpec {
                 name: escape(name),
                 is_self_closing: *is_self_closing,
                 attributes: attributes.clone(),
-                location: location.clone(),
+                location: *location,
             },
 
             Token::Text {
@@ -363,7 +361,7 @@ impl TestSpec {
                 location,
             } => Token::Text {
                 text: escape(value),
-                location: location.clone(),
+                location: *location,
             },
         }
     }

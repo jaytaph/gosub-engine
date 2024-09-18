@@ -1,10 +1,11 @@
-use crate::render_tree::{RenderNodeData, RenderTree};
 use crate::layout::{Layout, Layouter};
+use crate::render_tree::{RenderNodeData, RenderTree};
 use crate::{NodeDesc, Point, Size};
 use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::{CssPropertyMap, CssSystem};
 use gosub_shared::traits::document::Document;
 
-impl<L: Layouter, D: Document<L::CssSystem>> RenderTree<L, D> {
+impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
     pub fn desc(&self) -> NodeDesc {
         self.desc_node(self.root)
     }
@@ -23,11 +24,15 @@ impl<L: Layouter, D: Document<L::CssSystem>> RenderTree<L, D> {
             };
         };
 
-        let attributes = if let RenderNodeData::Element(e) = &node.data {
-            e.attributes
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect()
+        let attributes = if let RenderNodeData::Element = &node.data {
+            // we need to get the attributes from the document, not from the render tree
+
+            todo!("attributes")
+
+            // e.attributes
+            //     .iter()
+            //     .map(|(k, v)| (k.clone(), v.clone()))
+            //     .collect()
         } else {
             vec![]
         };
@@ -49,9 +54,8 @@ impl<L: Layouter, D: Document<L::CssSystem>> RenderTree<L, D> {
             attributes,
             properties: node
                 .properties
-                .properties
                 .iter()
-                .map(|(k, v)| (k.clone(), v.actual.to_string()))
+                .map(|(k, v)| (k.to_owned(), format!("{v:?}")))
                 .collect(),
             text,
             pos: node.layout.rel_pos(),

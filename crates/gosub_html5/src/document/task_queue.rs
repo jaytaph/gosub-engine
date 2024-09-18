@@ -89,7 +89,7 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                         name,
                         Some(namespace),
                         HashMap::new(),
-                        location.clone(),
+                        *location,
                     );
                     self.document
                         .get_mut()
@@ -100,7 +100,7 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     parent_id,
                     location,
                 } => {
-                    let node = D::new_text_node(self.document.clone(), content, location.clone());
+                    let node = D::new_text_node(self.document.clone(), content, *location);
                     self.document
                         .get_mut()
                         .register_node_at(node, *parent_id, None);
@@ -110,8 +110,7 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     parent_id,
                     location,
                 } => {
-                    let node =
-                        D::new_comment_node(self.document.clone(), content, location.clone());
+                    let node = D::new_comment_node(self.document.clone(), content, *location);
                     self.document
                         .get_mut()
                         .register_node_at(node, *parent_id, None);
@@ -122,7 +121,7 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     element_id,
                 } => {
                     if let Some(node) = self.document.get_mut().node_by_id_mut(*element_id) {
-                        if let Some(mut data) = node.get_element_data_mut() {
+                        if let Some(data) = node.get_element_data_mut() {
                             data.attributes_mut().insert(key.clone(), value.clone());
                             // let mut attributes = node.get_element_data().unwrap().attributes().clone();
                             // attributes.insert(key.clone(), value.clone());

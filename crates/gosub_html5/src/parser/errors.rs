@@ -190,7 +190,7 @@ impl ErrorLogger {
 
         self.errors.push(ParseError {
             message: message.to_string(),
-            location: location.clone(),
+            location: location,
         });
     }
 }

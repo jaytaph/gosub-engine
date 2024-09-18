@@ -1,5 +1,9 @@
+use crate::document::DocumentHandle;
+use crate::node::NodeId;
+use crate::traits::document::Document;
 use crate::traits::ParserConfig;
 use crate::types::Result;
+use std::fmt::{Debug, Display};
 
 /// Defines the origin of the stylesheet (or declaration)
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -12,14 +16,31 @@ pub enum CssOrigin {
     User,
 }
 
-
 /// The CssSystem trait is a trait that defines all things CSS3 that are used by other non-css3 crates. This is the main trait that
 /// is used to parse CSS3 files. It contains sub elements like the Stylesheet trait that is used in for instance the Document trait.
 pub trait CssSystem: Clone {
     type Stylesheet: CssStylesheet;
 
+    type PropertyMap: CssPropertyMap<Property = Self::Property>;
+
+    type Property: CssProperty;
+
     /// Parses a string into a CSS3 stylesheet
-    fn parse_str(str: &str, config: ParserConfig, origin: CssOrigin, source_url: &str) -> Result<Self::Stylesheet>;
+    fn parse_str(
+        str: &str,
+        config: ParserConfig,
+        origin: CssOrigin,
+        source_url: &str,
+    ) -> Result<Self::Stylesheet>;
+
+    /// Returns the properties of a node
+    /// If `None` is returned, the node is not renderable
+    fn properties_from_node<D: Document<Self>>(
+        node: &D::Node,
+        sheets: &[Self::Stylesheet],
+        handle: DocumentHandle<D, Self>,
+        id: NodeId,
+    ) -> Option<Self::PropertyMap>;
 }
 
 pub trait CssStylesheet: PartialEq {
@@ -28,4 +49,52 @@ pub trait CssStylesheet: PartialEq {
 
     /// Returns the source URL of the stylesheet
     fn location(&self) -> &str;
+}
+
+pub trait CssPropertyMap: Default + Debug {
+    type Property: CssProperty;
+
+    fn get(&self, name: &str) -> Option<&Self::Property>;
+
+    fn get_mut(&mut self, name: &str) -> Option<&mut Self::Property>;
+
+    fn make_dirty(&mut self);
+
+    fn iter(&self) -> impl Iterator<Item = (&str, &Self::Property)> + '_;
+
+    fn iter_mut(&mut self) -> impl Iterator<Item = (&str, &mut Self::Property)> + '_;
+
+    fn make_clean(&mut self);
+}
+pub trait CssProperty: Debug + Sized {
+    type Value: CssValue;
+
+    fn compute_value(&mut self); // this should probably be removed
+
+    fn unit_to_px(&self) -> f32;
+
+    fn as_string(&self) -> Option<&str>;
+    fn as_percentage(&self) -> Option<f32>;
+    fn as_unit(&self) -> Option<(f32, &str)>;
+    fn as_color(&self) -> Option<(f32, f32, f32, f32)>;
+
+    fn parse_color(&self) -> Option<(f32, f32, f32, f32)>;
+
+    fn as_number(&self) -> Option<f32>;
+    fn as_list(&self) -> Option<Vec<Self::Value>>;
+
+    fn is_none(&self) -> bool;
+}
+
+pub trait CssValue: Sized {
+    fn unit_to_px(&self) -> f32;
+
+    fn as_string(&self) -> Option<&str>;
+    fn as_percentage(&self) -> Option<f32>;
+    fn as_unit(&self) -> Option<(f32, &str)>;
+    fn as_color(&self) -> Option<(f32, f32, f32, f32)>;
+    fn as_number(&self) -> Option<f32>;
+    fn as_list(&self) -> Option<Vec<Self>>;
+
+    fn is_none(&self) -> bool;
 }

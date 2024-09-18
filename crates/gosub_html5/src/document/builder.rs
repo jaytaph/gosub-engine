@@ -33,7 +33,7 @@ impl<C: CssSystem> gosub_shared::traits::document::DocumentBuilder<C> for Docume
             "html",
             Some(HTML_NAMESPACE),
             HashMap::new(),
-            context_node.location().clone(),
+            context_node.location(),
         );
         let fragment_doc = <Self::Document as Document<C>>::new(
             DocumentType::HTML,

@@ -18,10 +18,9 @@ impl Css3<'_> {
             _ => {
                 self.tokenizer.reconsume();
 
-                return Err(Error::Parse(
-                    format!("Expected attribute operator, got {:?}", c),
-                    loc,
-                ).into());
+                return Err(
+                    Error::Parse(format!("Expected attribute operator, got {:?}", c), loc).into(),
+                );
             }
         }
 
@@ -69,7 +68,8 @@ impl Css3<'_> {
             _ => Err(Error::Parse(
                 format!("Unexpected token {:?}", t),
                 self.tokenizer.current_location(),
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -141,7 +141,8 @@ impl Css3<'_> {
                     return Err(Error::Parse(
                         format!("Unexpected token {:?}", t),
                         self.tokenizer.current_location(),
-                    ).into());
+                    )
+                    .into());
                 }
             }
 
@@ -182,7 +183,8 @@ impl Css3<'_> {
                 return Err(Error::Parse(
                     format!("Unexpected token {:?}", t),
                     self.tokenizer.current_location(),
-                ).into());
+                )
+                .into());
             }
         };
 
@@ -204,7 +206,8 @@ impl Css3<'_> {
             return Err(Error::Parse(
                 format!("Unexpected token {:?}", t),
                 self.tokenizer.current_location(),
-            ).into());
+            )
+            .into());
         };
 
         Ok(Node::new(NodeType::PseudoElementSelector { value }, loc))
@@ -237,7 +240,8 @@ impl Css3<'_> {
                 return Err(Error::Parse(
                     format!("Unexpected token {:?}", t),
                     self.tokenizer.current_location(),
-                ).into());
+                )
+                .into());
             }
         };
 
@@ -254,7 +258,7 @@ impl Css3<'_> {
 
         // When true, we have encountered a space which means we need to emit a descendant combinator
         let mut space = false;
-        let mut whitespace_location = loc.clone();
+        let mut whitespace_location = loc;
 
         let mut skip_space = false;
 
@@ -274,7 +278,7 @@ impl Css3<'_> {
 
             if t.is_whitespace() {
                 // on whitespace for selector
-                whitespace_location = t.location.clone();
+                whitespace_location = t.location;
                 space = true;
                 continue;
             }
@@ -352,7 +356,7 @@ impl Css3<'_> {
                     NodeType::Combinator {
                         value: " ".to_string(),
                     },
-                    whitespace_location.clone(),
+                    whitespace_location,
                 );
                 // insert before the last added node
                 children.push(node);

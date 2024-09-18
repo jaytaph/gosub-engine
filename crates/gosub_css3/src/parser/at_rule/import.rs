@@ -14,17 +14,21 @@ impl Css3<'_> {
         let t = self.consume_any()?;
         match t.token_type {
             TokenType::QuotedString(value) => {
-                children.push(Node::new(NodeType::String { value }, loc.clone()));
+                children.push(Node::new(NodeType::String { value }, loc));
             }
             TokenType::Url(url) => {
-                children.push(Node::new(NodeType::Url { url }, loc.clone()));
+                children.push(Node::new(NodeType::Url { url }, loc));
             }
             TokenType::Function(name) if name.eq_ignore_ascii_case("url") => {
                 self.tokenizer.reconsume();
                 children.push(self.parse_url()?);
             }
             _ => {
-                return Err(Error::Parse(format!("Expected string or url()").to_string(), t.location.clone()).into());
+                return Err(Error::Parse(
+                    "Expected string or url()".to_string().to_string(),
+                    t.location,
+                )
+                .into());
             }
         }
 
@@ -33,7 +37,7 @@ impl Css3<'_> {
         let t = self.tokenizer.lookahead_sc(0);
         match t.token_type {
             TokenType::Ident(value) if value.eq_ignore_ascii_case("layer") => {
-                children.push(Node::new(NodeType::Ident { value }, t.location.clone()));
+                children.push(Node::new(NodeType::Ident { value }, t.location));
             }
             TokenType::Function(name) if name.eq_ignore_ascii_case("layer") => {
                 children.push(self.parse_function()?);
@@ -67,6 +71,6 @@ impl Css3<'_> {
         //     _ => {}
         // }
 
-        Ok(Node::new(NodeType::ImportList { children }, loc.clone()))
+        Ok(Node::new(NodeType::ImportList { children }, loc))
     }
 }

@@ -1,11 +1,10 @@
-use std::cell::{Ref, RefMut};
-use crate::traits::document::DocumentFragment;
-use std::collections::HashMap;
 use crate::byte_stream::Location;
 use crate::document::DocumentHandle;
 use crate::node::NodeId;
 use crate::traits::css3::CssSystem;
 use crate::traits::document::Document;
+use crate::traits::document::DocumentFragment;
+use std::collections::HashMap;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum QuirksMode {
@@ -34,6 +33,14 @@ pub enum NodeData<'a, C: CssSystem, N: Node<C>> {
     Element(&'a N::ElementData),
 }
 
+impl<C: CssSystem, N: Node<C>> Copy for NodeData<'_, C, N> {}
+
+impl<C: CssSystem, N: Node<C>> Clone for NodeData<'_, C, N> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
 pub trait DocumentDataType {
     fn quirks_mode(&self) -> QuirksMode;
     fn set_quirks_mode(&mut self, quirks_mode: QuirksMode);
@@ -47,6 +54,8 @@ pub trait DocTypeDataType {
 
 pub trait TextDataType {
     fn value(&self) -> &str;
+
+    fn string_value(&self) -> String;
     fn value_mut(&mut self) -> &mut String;
 }
 
@@ -97,7 +106,11 @@ pub trait Node<C: CssSystem>: Clone + PartialEq {
     type DocTypeData: DocTypeDataType;
     type TextData: TextDataType;
     type CommentData: CommentDataType;
-    type ElementData: ElementDataType<C, Document = Self::Document, DocumentFragment = <Self::Document as Document<C>>::Fragment>;
+    type ElementData: ElementDataType<
+        C,
+        Document = Self::Document,
+        DocumentFragment = <Self::Document as Document<C>>::Fragment,
+    >;
 
     /// Return the ID of the node
     fn id(&self) -> NodeId;
@@ -119,16 +132,16 @@ pub trait Node<C: CssSystem>: Clone + PartialEq {
     fn type_of(&self) -> NodeType;
 
     fn is_element_node(&self) -> bool;
-    fn get_element_data(&self) -> Option<Ref<Self::ElementData>>;
-    fn get_element_data_mut(&self) -> Option<RefMut<Self::ElementData>>;
+    fn get_element_data(&self) -> Option<&Self::ElementData>;
+    fn get_element_data_mut(&mut self) -> Option<&mut Self::ElementData>;
 
     fn is_text_node(&self) -> bool;
-    fn get_text_data(&self) -> Option<Ref<Self::TextData>>;
-    fn get_text_data_mut(&self) -> Option<RefMut<Self::TextData>>;
+    fn get_text_data(&self) -> Option<&Self::TextData>;
+    fn get_text_data_mut(&mut self) -> Option<&mut Self::TextData>;
 
-    fn get_comment_data(&self) -> Option<Ref<Self::CommentData>>;
-    fn get_doctype_data(&self) -> Option<Ref<Self::DocTypeData>>;
-    
+    fn get_comment_data(&self) -> Option<&Self::CommentData>;
+    fn get_doctype_data(&self) -> Option<&Self::DocTypeData>;
+
     /// Returns the document handle of the node
     fn handle(&self) -> DocumentHandle<Self::Document, C>;
     /// Removes a child node from the node
@@ -137,4 +150,6 @@ pub trait Node<C: CssSystem>: Clone + PartialEq {
     fn insert(&mut self, node_id: NodeId, idx: usize);
     /// Pushes a child node to the node
     fn push(&mut self, node_id: NodeId);
+
+    fn data(&self) -> NodeData<C, Self>;
 }

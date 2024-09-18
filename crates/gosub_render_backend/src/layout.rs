@@ -1,5 +1,5 @@
+use gosub_shared::traits::css3::{CssProperty, CssSystem};
 use std::fmt::Debug;
-use gosub_shared::traits::css3::CssSystem;
 
 use gosub_shared::types::Result;
 use gosub_typeface::font::{Font, Glyph};
@@ -31,7 +31,6 @@ pub trait LayoutTree<L: Layouter>: Sized {
 pub trait Layouter: Sized + Clone {
     type Cache: Default;
     type Layout: Layout;
-    type CssSystem: CssSystem;
 
     type TextLayout: TextLayout;
 
@@ -123,7 +122,6 @@ pub trait Layout: Default {
     }
 }
 
-/// TODO: This struct should be removed and done somehow differently...
 pub trait Node {
     type Property: CssProperty;
 
@@ -139,39 +137,6 @@ pub trait Node {
 
 pub trait HasTextLayout<L: Layouter> {
     fn set_text_layout(&mut self, layout: L::TextLayout);
-}
-
-pub trait CssProperty: Debug + Sized {
-    type Value: CssValue;
-
-    fn compute_value(&mut self);
-
-    fn unit_to_px(&self) -> f32;
-
-    fn as_string(&self) -> Option<&str>;
-    fn as_percentage(&self) -> Option<f32>;
-    fn as_unit(&self) -> Option<(f32, &str)>;
-    fn as_color(&self) -> Option<(f32, f32, f32, f32)>;
-
-    fn parse_color(&self) -> Option<(f32, f32, f32, f32)>;
-
-    fn as_number(&self) -> Option<f32>;
-    fn as_list(&self) -> Option<Vec<Self::Value>>;
-
-    fn is_none(&self) -> bool;
-}
-
-pub trait CssValue: Sized {
-    fn unit_to_px(&self) -> f32;
-
-    fn as_string(&self) -> Option<&str>;
-    fn as_percentage(&self) -> Option<f32>;
-    fn as_unit(&self) -> Option<(f32, &str)>;
-    fn as_color(&self) -> Option<(f32, f32, f32, f32)>;
-    fn as_number(&self) -> Option<f32>;
-    fn as_list(&self) -> Option<Vec<Self>>;
-
-    fn is_none(&self) -> bool;
 }
 
 pub trait TextLayout {

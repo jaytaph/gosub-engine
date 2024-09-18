@@ -79,12 +79,12 @@ impl Token {
 
     pub fn get_location(&self) -> Location {
         match self {
-            Token::DocType { location, .. } => location.clone(),
-            Token::StartTag { location, .. } => location.clone(),
-            Token::EndTag { location, .. } => location.clone(),
-            Token::Comment { location, .. } => location.clone(),
-            Token::Text { location, .. } => location.clone(),
-            Token::Eof { location, .. } => location.clone(),
+            Token::DocType { location, .. } => *location,
+            Token::StartTag { location, .. } => *location,
+            Token::EndTag { location, .. } => *location,
+            Token::Comment { location, .. } => *location,
+            Token::Text { location, .. } => *location,
+            Token::Eof { location, .. } => *location,
         }
     }
 

@@ -135,7 +135,7 @@ where
                         let mut last_node = get_node_by_id!(mut_handle, last_node_id);
 
                         if last_node.is_text_node() {
-                            let mut data = get_text_data_mut!(&mut last_node);
+                            let data = get_text_data_mut!(&mut last_node);
                             data.value_mut().push_str(&token.to_string());
                             return;
                         }
@@ -155,7 +155,7 @@ where
                     let mut last_node = get_node_by_id!(mut_handle, last_node_id);
 
                     if last_node.is_text_node() {
-                        let mut data = get_text_data_mut!(&mut last_node);
+                        let data = get_text_data_mut!(&mut last_node);
                         data.value_mut().push_str(&token.to_string());
                         return;
                     };
@@ -198,7 +198,7 @@ where
             let mut_handle = &mut self.document.clone();
             let mut node = get_node_by_id!(mut_handle, node.id());
 
-            let mut data = get_element_data_mut!(&mut node);
+            let data = get_element_data_mut!(&mut node);
             if let Some(class_string) = data.attributes().get("class") {
                 let class_string = class_string.clone();
 
@@ -221,7 +221,7 @@ where
             let mut_handle = &mut self.document.clone();
             let mut new_node = get_node_by_id!(mut_handle, new_node.id());
 
-            let mut data = get_element_data_mut!(&mut new_node);
+            let data = get_element_data_mut!(&mut new_node);
             if let Some(class_string) = data.attributes().get("class") {
                 let class_string = class_string.clone();
                 data.add_class(&class_string);
@@ -299,8 +299,7 @@ where
         if !(self.foster_parenting
             && ["table", "tbody", "thead", "tfoot", "tr"].contains(&element_data.name()))
         {
-            if element_data.name() == "template" && element_data.is_namespace(HTML_NAMESPACE.into())
-            {
+            if element_data.name() == "template" && element_data.is_namespace(HTML_NAMESPACE) {
                 if let Some(template_fragment) = element_data.template_contents() {
                     return InsertionPositionMode::LastChild {
                         handle: template_fragment.handle(),
@@ -359,7 +358,7 @@ where
 
         // step 2
         if current_data.name() == *subject
-            && current_data.is_namespace(HTML_NAMESPACE.into())
+            && current_data.is_namespace(HTML_NAMESPACE)
             && self
                 .find_position_in_active_format(current_node.id())
                 .is_none()
@@ -407,7 +406,7 @@ where
             };
 
             // step 4.5
-            if !self.is_in_scope(&format_element_data.name(), HTML_NAMESPACE, Scope::Regular) {
+            if !self.is_in_scope(format_element_data.name(), HTML_NAMESPACE, Scope::Regular) {
                 self.parse_error("format_element_node not in regular scope");
                 return;
             }
@@ -477,10 +476,10 @@ where
 
                 let replacement_node = D::new_element_node(
                     self.document.clone(),
-                    &element_data.name(),
+                    element_data.name(),
                     Some(element_data.namespace()),
                     element_data.attributes().clone(),
-                    element_node.location().clone(),
+                    element_node.location(),
                 );
                 let replace_node_id = self.document.get_mut().register_node(replacement_node);
 
@@ -514,10 +513,10 @@ where
             // step 4.15
             let new_format_node = D::new_element_node(
                 self.document.clone(),
-                &format_element_data.name(),
+                format_element_data.name(),
                 Some(format_element_data.namespace()),
                 format_element_data.attributes().clone(),
-                format_node.location().clone(),
+                format_node.location(),
             );
 
             // step 4.16

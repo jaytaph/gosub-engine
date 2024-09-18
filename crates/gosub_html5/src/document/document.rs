@@ -106,10 +106,7 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
 
     /// Returns the URL of the document, or "" when no location is set
     fn url(&self) -> Option<Url> {
-        match self.url {
-            Some(ref url) => Some(url.clone()),
-            None => None,
-        }
+        self.url.as_ref().map(|url| url.clone())
     }
 
     fn set_quirks_mode(&mut self, quirks_mode: QuirksMode) {
@@ -232,14 +229,11 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     /// if the node is still available as a child or parent in the tree.
     fn delete_node_by_id(&mut self, node_id: NodeId) {
         let node = self.arena.node(node_id).unwrap();
-        let parent_id = node.parent_id().clone();
+        let parent_id = node.parent_id();
 
-        match parent_id {
-            Some(parent_id) => {
-                let parent = self.node_by_id_mut(parent_id).unwrap();
-                parent.remove(node_id);
-            }
-            None => {}
+        if let Some(parent_id) = parent_id {
+            let parent = self.node_by_id_mut(parent_id).unwrap();
+            parent.remove(node_id);
         }
 
         self.arena.delete_node(node_id);
@@ -457,7 +451,7 @@ fn internal_visit<C: CssSystem>(
     node: &<DocumentImpl<C> as Document<C>>::Node,
     visitor: &mut Box<dyn Visitor<<DocumentImpl<C> as Document<C>>::Node, C>>,
 ) {
-    visitor.document_enter(&node);
+    visitor.document_enter(node);
 
     let binding = handle.get();
     for child_id in node.children() {
@@ -466,31 +460,33 @@ fn internal_visit<C: CssSystem>(
     }
 
     // Leave node
-    visitor.document_leave(&node);
+    visitor.document_leave(node);
 }
 
 /// Constructs an iterator from a given DocumentHandle.
 /// WARNING: mutations in the document would be reflected
 /// in the iterator. It's advised to consume the entire iterator
 /// before mutating the document again.
-pub struct TreeIterator<D: Clone + Document<C>, C: CssSystem> {
+pub struct TreeIterator<D: Document<C>, C: CssSystem> {
     current_node_id: Option<NodeId>,
     node_stack: Vec<NodeId>,
     document: DocumentHandle<D, C>,
 }
 
-impl<D: Document<C> + Clone, C: CssSystem> TreeIterator<D, C> {
+impl<D: Document<C>, C: CssSystem> TreeIterator<D, C> {
     #[must_use]
     pub fn new(doc: DocumentHandle<D, C>) -> Self {
+        let node_stack = vec![doc.get().get_root().id()];
+
         Self {
             current_node_id: None,
-            document: doc.clone(),
-            node_stack: vec![doc.get().get_root().id()],
+            document: doc,
+            node_stack,
         }
     }
 }
 
-impl<D: Document<C> + Clone, C: CssSystem> Iterator for TreeIterator<D, C> {
+impl<D: Document<C>, C: CssSystem> Iterator for TreeIterator<D, C> {
     type Item = NodeId;
 
     fn next(&mut self) -> Option<NodeId> {

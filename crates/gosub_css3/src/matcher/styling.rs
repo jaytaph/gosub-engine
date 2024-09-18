@@ -1,17 +1,19 @@
 use core::fmt::Debug;
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::{CssOrigin, CssPropertyMap, CssSystem};
+use gosub_shared::traits::document::Document;
+use gosub_shared::traits::node::ElementDataType;
+use gosub_shared::traits::node::Node;
 use itertools::Itertools;
+use nom::Parser;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use gosub_shared::traits::node::ElementDataType;
-use gosub_shared::node::NodeId;
-use gosub_shared::traits::document::Document;
-use gosub_shared::traits::node::Node;
-use gosub_shared::document::DocumentHandle;
-use gosub_shared::traits::css3::{CssOrigin, CssSystem};
-
 use crate::matcher::property_definitions::get_css_definitions;
-use crate::stylesheet::{Combinator, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity};
+use crate::stylesheet::{
+    Combinator, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity,
+};
 
 // Matches a complete selector (all parts) against the given node(id)
 pub(crate) fn match_selector<D: Document<C>, C: CssSystem>(
@@ -100,14 +102,19 @@ fn match_selector_part<'a, D: Document<C>, C: CssSystem>(
             if !current_node.is_element_node() {
                 return false;
             }
-            current_node.get_element_data().unwrap().classes().contains(name)
+            current_node
+                .get_element_data()
+                .unwrap()
+                .classes()
+                .contains(name)
         }
         CssSelectorPart::Id(name) => {
             if !current_node.is_element_node() {
                 return false;
             }
             current_node
-                .get_element_data().unwrap()
+                .get_element_data()
+                .unwrap()
                 .attributes()
                 .get("id")
                 .unwrap_or(&"".to_string())
@@ -269,7 +276,6 @@ fn match_selector_part<'a, D: Document<C>, C: CssSystem>(
                     match_selector_part(last, prev, doc, next_node, parts)
                 }
                 Combinator::SubsequentSibling => {
-
                     let parent_node = doc.node_by_id(current_node.parent_id().unwrap());
                     let Some(children) = parent_node.map(|p| p.children()) else {
                         return false;
@@ -310,7 +316,10 @@ fn match_selector_part<'a, D: Document<C>, C: CssSystem>(
                         return false;
                     };
 
-                    current_node.get_element_data().unwrap().is_namespace(namespace)
+                    current_node
+                        .get_element_data()
+                        .unwrap()
+                        .is_namespace(namespace)
                 }
                 Combinator::Column => {
                     //TODO
@@ -531,6 +540,75 @@ impl CssProperty {
     }
 }
 
+impl gosub_shared::traits::css3::CssProperty for CssProperty {
+    type Value = CssValue;
+
+    fn compute_value(&mut self) {
+        self.compute_value();
+    }
+    fn unit_to_px(&self) -> f32 {
+        self.actual.unit_to_px()
+    }
+
+    fn as_string(&self) -> Option<&str> {
+        if let CssValue::String(str) = &self.actual {
+            Some(str)
+        } else {
+            None
+        }
+    }
+
+    fn as_percentage(&self) -> Option<f32> {
+        if let CssValue::Percentage(percent) = &self.actual {
+            Some(*percent)
+        } else {
+            None
+        }
+    }
+
+    fn as_unit(&self) -> Option<(f32, &str)> {
+        if let CssValue::Unit(value, unit) = &self.actual {
+            Some((*value, unit))
+        } else {
+            None
+        }
+    }
+
+    fn as_color(&self) -> Option<(f32, f32, f32, f32)> {
+        if let CssValue::Color(color) = &self.actual {
+            Some((color.r, color.g, color.b, color.a))
+        } else {
+            None
+        }
+    }
+
+    fn parse_color(&self) -> Option<(f32, f32, f32, f32)> {
+        self.actual
+            .to_color()
+            .map(|color| (color.r, color.g, color.b, color.a))
+    }
+
+    fn as_number(&self) -> Option<f32> {
+        if let CssValue::Number(num) = &self.actual {
+            Some(*num)
+        } else {
+            None
+        }
+    }
+
+    fn as_list(&self) -> Option<Vec<Self::Value>> {
+        if let CssValue::List(list) = &self.actual {
+            Some(list.iter().cloned().collect())
+        } else {
+            None
+        }
+    }
+
+    fn is_none(&self) -> bool {
+        matches!(self.actual, CssValue::None)
+    }
+}
+
 /// Map of all declared values for a single node. Note that these are only the defined properties, not
 /// the non-existing properties.
 #[derive(Debug)]
@@ -556,6 +634,34 @@ impl CssProperties {
     }
 }
 
+impl CssPropertyMap for CssProperties {
+    type Property = CssProperty;
+
+    fn get(&self, name: &str) -> Option<&Self::Property> {
+        todo!()
+    }
+
+    fn get_mut(&mut self, name: &str) -> Option<&mut Self::Property> {
+        todo!()
+    }
+
+    fn make_dirty(&mut self) {
+        todo!()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&str, &Self::Property)> + '_ {
+        Vec::new().into_iter()
+    }
+
+    fn iter_mut(&mut self) -> impl Iterator<Item = (&str, &mut Self::Property)> + '_ {
+        Vec::new().into_iter()
+    }
+
+    fn make_clean(&mut self) {
+        todo!()
+    }
+}
+
 pub fn prop_is_inherit(name: &str) -> bool {
     get_css_definitions()
         .find_property(name)
@@ -565,8 +671,8 @@ pub fn prop_is_inherit(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::colors::RgbColor;
     use super::*;
+    use crate::colors::RgbColor;
 
     #[test]
     fn css_props() {

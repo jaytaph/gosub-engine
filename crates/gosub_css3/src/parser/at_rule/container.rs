@@ -12,15 +12,12 @@ impl Css3<'_> {
         let t = self.consume_any()?;
         if let TokenType::Ident(value) = t.token_type {
             if !["none", "and", "not", "or"].contains(&value.as_str()) {
-                children.push(Node::new(NodeType::Ident { value }, t.location.clone()));
+                children.push(Node::new(NodeType::Ident { value }, t.location));
             }
         }
 
         children.push(self.parse_condition(FeatureKind::Container)?);
 
-        Ok(Node::new(
-            NodeType::Container { children },
-            t.location.clone(),
-        ))
+        Ok(Node::new(NodeType::Container { children }, t.location))
     }
 }

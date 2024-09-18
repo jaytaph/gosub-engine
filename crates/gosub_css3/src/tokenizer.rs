@@ -256,7 +256,7 @@ impl<'stream> Tokenizer<'stream> {
 
     /// Returns the current location (line/col) of the tokenizer
     pub fn current_location(&self) -> Location {
-        self.location_handler.cur_location.clone()
+        self.location_handler.cur_location
     }
 
     /// Returns true when there is no next element, and the stream is closed

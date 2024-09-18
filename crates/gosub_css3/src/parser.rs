@@ -1,9 +1,6 @@
-use gosub_shared::traits::css3::{CssOrigin, CssSystem};
-use gosub_shared::traits::ParserConfig;
-use gosub_shared::types::Result;
 use crate::tokenizer::{Number, Token, TokenType};
 use crate::{Css3, Error};
-use crate::stylesheet::CssStylesheet as CssStylesheetImpl;
+use gosub_shared::types::Result;
 
 mod anplusb;
 mod at_rule;
@@ -23,18 +20,6 @@ mod stylesheet;
 mod url;
 mod value;
 
-#[derive(Debug, Clone)]
-struct Css3Parser {
-}
-
-impl CssSystem for Css3Parser {
-    type Stylesheet = CssStylesheetImpl;
-
-    fn parse_str(str: &str, config: ParserConfig, origin: CssOrigin, source_url: &str) -> Result<Self::Stylesheet> {
-        Css3::parse_str(str, config, origin, source_url)
-    }
-}
-
 impl Css3<'_> {
     /// Consumes a specific token
     pub fn consume(&mut self, token_type: TokenType) -> Result<Token> {
@@ -43,7 +28,8 @@ impl Css3<'_> {
             return Err(Error::Parse(
                 format!("Expected {:?}, got {:?}", token_type, t),
                 self.tokenizer.current_location(),
-            ).into());
+            )
+            .into());
         }
 
         Ok(t)
@@ -61,7 +47,8 @@ impl Css3<'_> {
             _ => Err(Error::Parse(
                 format!("Expected function, got {:?}", t),
                 self.tokenizer.current_location(),
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -72,7 +59,8 @@ impl Css3<'_> {
             _ => Err(Error::Parse(
                 format!("Expected number, got {:?}", t),
                 self.tokenizer.current_location(),
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -83,7 +71,8 @@ impl Css3<'_> {
             _ => Err(Error::Parse(
                 format!("Expected delimiter, got {:?}", t),
                 self.tokenizer.current_location(),
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -94,7 +83,8 @@ impl Css3<'_> {
             _ => Err(Error::Parse(
                 format!("Expected string, got {:?}", t),
                 self.tokenizer.current_location(),
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -105,7 +95,8 @@ impl Css3<'_> {
             _ => Err(Error::Parse(
                 format!("Expected delimiter '{}', got {:?}", delimiter, t),
                 self.tokenizer.current_location(),
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -131,7 +122,8 @@ impl Css3<'_> {
             _ => Err(Error::Parse(
                 format!("Expected ident, got {:?}", t),
                 self.tokenizer.current_location(),
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -142,7 +134,8 @@ impl Css3<'_> {
             _ => Err(Error::Parse(
                 format!("Expected ident, got {:?}", t),
                 self.tokenizer.current_location(),
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -157,14 +150,16 @@ impl Css3<'_> {
                     _ => Err(Error::Parse(
                         format!("Expected ident, got {:?}", t),
                         self.tokenizer.current_location(),
-                    ).into()),
+                    )
+                    .into()),
                 }
             }
             TokenType::Ident(s) => Ok(s),
             _ => Err(Error::Parse(
                 format!("Expected ident, got {:?}", t),
                 self.tokenizer.current_location(),
-            ).into()),
+            )
+            .into()),
         }
     }
 

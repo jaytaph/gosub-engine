@@ -19,17 +19,14 @@ impl Css3<'_> {
                 TokenType::Whitespace(_) => {}
                 TokenType::Comment(comment) => {
                     if comment.chars().nth(2) == Some('!') {
-                        children.push(Node::new(
-                            NodeType::Comment { value: comment },
-                            t.location.clone(),
-                        ));
+                        children.push(Node::new(NodeType::Comment { value: comment }, t.location));
                     }
                 }
                 TokenType::Cdo => {
-                    children.push(Node::new(NodeType::Cdo, t.location.clone()));
+                    children.push(Node::new(NodeType::Cdo, t.location));
                 }
                 TokenType::Cdc => {
-                    children.push(Node::new(NodeType::Cdc, t.location.clone()));
+                    children.push(Node::new(NodeType::Cdc, t.location));
                 }
                 TokenType::AtKeyword(_keyword) => {
                     self.tokenizer.reconsume();

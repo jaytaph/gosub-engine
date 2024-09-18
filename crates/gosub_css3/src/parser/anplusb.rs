@@ -4,17 +4,17 @@ use crate::{Css3, Error};
 use gosub_shared::types::Result;
 
 impl Css3<'_> {
-    fn do_dimension_block(
-        &mut self,
-        value: Number,
-        unit: String,
-    ) -> Result<(String, String)> {
+    fn do_dimension_block(&mut self, value: Number, unit: String) -> Result<(String, String)> {
         log::trace!("do_dimension_block");
 
         let value = value.to_string();
 
         if unit.chars().nth(0).unwrap().to_lowercase().to_string() != "n" {
-            return Err(Error::Parse(format!("Expected n, found {}", unit).to_string(), self.tokenizer.current_location()).into());
+            return Err(Error::Parse(
+                format!("Expected n, found {}", unit).to_string(),
+                self.tokenizer.current_location(),
+            )
+            .into());
         }
         Ok(if unit.len() == 1 {
             (value.to_string(), self.parse_anplusb_b()?)
@@ -23,12 +23,7 @@ impl Css3<'_> {
         })
     }
 
-    fn check_integer(
-        &mut self,
-        value: &str,
-        offset: usize,
-        allow_sign: bool,
-    ) -> Result<bool> {
+    fn check_integer(&mut self, value: &str, offset: usize, allow_sign: bool) -> Result<bool> {
         let sign = value
             .chars()
             .nth(offset)
@@ -39,7 +34,11 @@ impl Css3<'_> {
 
         if sign == "+" || sign == "-" {
             if !allow_sign {
-                return Err(Error::Parse(format!("Unexpected sign {}", sign).to_string(), self.tokenizer.current_location()).into());
+                return Err(Error::Parse(
+                    format!("Unexpected sign {}", sign).to_string(),
+                    self.tokenizer.current_location(),
+                )
+                .into());
             }
             pos += 1;
         }
@@ -61,7 +60,11 @@ impl Css3<'_> {
             .to_lowercase()
             .to_string();
         if nval != c {
-            return Err(Error::Parse(format!("Expected {}", c).to_string(), self.tokenizer.current_location()).into());
+            return Err(Error::Parse(
+                format!("Expected {}", c).to_string(),
+                self.tokenizer.current_location(),
+            )
+            .into());
         }
 
         Ok(true)
@@ -99,7 +102,15 @@ impl Css3<'_> {
                 false
             }
             _ => {
-                return Err(Error::Parse(format!("Expected +, - or number, found {:?}", self.tokenizer.lookahead(0).token_type).to_string(), self.tokenizer.current_location()).into());
+                return Err(Error::Parse(
+                    format!(
+                        "Expected +, - or number, found {:?}",
+                        self.tokenizer.lookahead(0).token_type
+                    )
+                    .to_string(),
+                    self.tokenizer.current_location(),
+                )
+                .into());
             }
         };
 
@@ -213,7 +224,11 @@ impl Css3<'_> {
             }
             _ => {
                 self.tokenizer.reconsume();
-                return Err(Error::Parse(format!("Expected anplusb").to_string(), self.tokenizer.current_location()).into());
+                return Err(Error::Parse(
+                    "Expected anplusb".to_string(),
+                    self.tokenizer.current_location(),
+                )
+                .into());
             }
         }
 
@@ -233,8 +248,8 @@ impl Css3<'_> {
 mod test {
     use super::*;
     use gosub_shared::byte_stream::{ByteStream, Encoding};
-    use gosub_shared::traits::ParserConfig;
     use gosub_shared::traits::css3::CssOrigin;
+    use gosub_shared::traits::ParserConfig;
 
     macro_rules! test {
         ($func:ident, $input:expr, $expected:expr) => {
@@ -242,7 +257,8 @@ mod test {
             stream.read_from_str($input, Some(Encoding::UTF8));
             stream.close();
 
-            let mut parser = crate::Css3::new(&mut stream, ParserConfig::default(), CssOrigin::User, "");
+            let mut parser =
+                crate::Css3::new(&mut stream, ParserConfig::default(), CssOrigin::User, "");
             let result = parser.$func().unwrap();
 
             assert_eq!(result.node_type, $expected);

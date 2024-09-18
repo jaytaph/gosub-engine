@@ -359,7 +359,7 @@ where
         // 3.
         let error_logger = Rc::new(RefCell::new(ErrorLogger::new()));
 
-        let tokenizer = Tokenizer::new(stream, None, error_logger.clone(), start_location.clone());
+        let tokenizer = Tokenizer::new(stream, None, error_logger.clone(), start_location);
         let mut parser = Html5Parser::init(tokenizer, document.clone(), error_logger, options);
 
         // 4. / 12.
@@ -385,7 +385,7 @@ where
             name: context_node_element_data.name().to_string(),
             is_self_closing: false,
             attributes: node_attributes,
-            location: start_location.clone(),
+            location: start_location,
         };
 
         // 10.
@@ -575,11 +575,11 @@ where
 
                 let acn = self.get_adjusted_current_node();
                 let acn_element_data = get_element_data!(acn);
-                if acn_element_data.is_namespace(MATHML_NAMESPACE.into()) {
+                if acn_element_data.is_namespace(MATHML_NAMESPACE) {
                     self.adjust_mathml_attributes(&mut current_token);
                 }
 
-                if acn_element_data.is_namespace(SVG_NAMESPACE.into()) {
+                if acn_element_data.is_namespace(SVG_NAMESPACE) {
                     self.adjust_svg_tag_names(&mut current_token);
                     self.adjust_svg_attributes(&mut current_token);
                 }
@@ -635,7 +635,7 @@ where
                     node_idx -= 1;
                     node = get_node_by_id!(self.document, self.open_elements[node_idx]);
 
-                    if !get_element_data!(node).is_namespace(HTML_NAMESPACE.into()) {
+                    if !get_element_data!(node).is_namespace(HTML_NAMESPACE) {
                         continue;
                     }
 
@@ -679,7 +679,7 @@ where
                     // We don't need to skip 1 char, but we can skip 1 byte, as we just checked for \n
                     self.current_token = Token::Text {
                         text: value.chars().skip(1).collect::<String>(),
-                        location: location.clone(),
+                        location: *location,
                     };
                 }
             }
@@ -1813,7 +1813,7 @@ where
 
             let node = current_node!(self);
             let element_data = get_element_data!(node);
-            if element_data.name() == name && element_data.is_namespace(HTML_NAMESPACE.into()) {
+            if element_data.name() == name && element_data.is_namespace(HTML_NAMESPACE) {
                 self.open_elements.pop();
                 break;
             }
@@ -1849,7 +1849,7 @@ where
 
             let element_node = get_node_by_id!(self.document, node_id.unwrap());
             let data = get_element_data!(element_node);
-            if arr.contains(&&data.name()) {
+            if arr.contains((&data.name())) {
                 break;
             }
         }
@@ -1927,7 +1927,7 @@ where
                     Some(value) => Some(value.as_str()),
                     None => None,
                 },
-                location.clone(),
+                *location,
             ),
             Token::StartTag {
                 name,
@@ -1939,25 +1939,25 @@ where
                 name,
                 namespace.into(),
                 attributes.clone(),
-                location.clone(),
+                *location,
             ),
             Token::EndTag { name, location, .. } => D::new_element_node(
                 self.document.clone(),
                 name,
                 namespace.into(),
                 HashMap::new(),
-                location.clone(),
+                *location,
             ),
             Token::Comment {
                 comment: value,
                 location,
                 ..
-            } => D::new_comment_node(self.document.clone(), value, location.clone()),
+            } => D::new_comment_node(self.document.clone(), value, *location),
             Token::Text {
                 text: value,
                 location,
                 ..
-            } => D::new_text_node(self.document.clone(), value.as_str(), location.clone()),
+            } => D::new_text_node(self.document.clone(), value.as_str(), *location),
             Token::Eof { .. } => {
                 panic!("EOF token not allowed");
             }
@@ -1981,7 +1981,7 @@ where
             let data = get_element_data!(node);
             let tag = data.name();
 
-            let is_html = get_element_data!(node).is_namespace(HTML_NAMESPACE.into());
+            let is_html = get_element_data!(node).is_namespace(HTML_NAMESPACE);
             if let Some(except) = except {
                 if except == tag && is_html {
                     return;
@@ -2163,7 +2163,7 @@ where
         for &node_id in self.open_elements.iter().rev() {
             let node = get_node_by_id!(self.document, node_id).clone();
             let node_element_data = get_element_data!(node);
-            if node_element_data.name() == tag && node_element_data.is_namespace(namespace.into()) {
+            if node_element_data.name() == tag && node_element_data.is_namespace(namespace) {
                 return true;
             }
             let default_html_scope = [
@@ -2173,35 +2173,35 @@ where
             let default_svg_scope = ["foreignObject", "desc", "title"];
             match scope {
                 Scope::Regular => {
-                    if (node_element_data.is_namespace(HTML_NAMESPACE.into())
+                    if (node_element_data.is_namespace(HTML_NAMESPACE)
                         && default_html_scope.contains(&node_element_data.name()))
-                        || (node_element_data.is_namespace(MATHML_NAMESPACE.into())
+                        || (node_element_data.is_namespace(MATHML_NAMESPACE)
                             && default_mathml_scope.contains(&node_element_data.name()))
-                        || (node_element_data.is_namespace(SVG_NAMESPACE.into())
+                        || (node_element_data.is_namespace(SVG_NAMESPACE)
                             && default_svg_scope.contains(&node_element_data.name()))
                     {
                         return false;
                     }
                 }
                 Scope::ListItem => {
-                    if (node_element_data.is_namespace(HTML_NAMESPACE.into())
+                    if (node_element_data.is_namespace(HTML_NAMESPACE)
                         && (default_html_scope.contains(&node_element_data.name())
                             || ["ol", "ul"].contains(&node_element_data.name())))
-                        || (node_element_data.is_namespace(MATHML_NAMESPACE.into())
+                        || (node_element_data.is_namespace(MATHML_NAMESPACE)
                             && default_mathml_scope.contains(&node_element_data.name()))
-                        || (node_element_data.is_namespace(SVG_NAMESPACE.into())
+                        || (node_element_data.is_namespace(SVG_NAMESPACE)
                             && default_svg_scope.contains(&node_element_data.name()))
                     {
                         return false;
                     }
                 }
                 Scope::Button => {
-                    if (node_element_data.is_namespace(HTML_NAMESPACE.into())
+                    if (node_element_data.is_namespace(HTML_NAMESPACE)
                         && (default_html_scope.contains(&node_element_data.name())
                             || node_element_data.name() == "button"))
-                        || (node_element_data.is_namespace(MATHML_NAMESPACE.into())
+                        || (node_element_data.is_namespace(MATHML_NAMESPACE)
                             && default_mathml_scope.contains(&node_element_data.name()))
-                        || (node_element_data.is_namespace(SVG_NAMESPACE.into())
+                        || (node_element_data.is_namespace(SVG_NAMESPACE)
                             && default_svg_scope.contains(&node_element_data.name()))
                     {
                         return false;
@@ -2215,7 +2215,7 @@ where
                     }
                 }
                 Scope::Select => {
-                    if !(node_element_data.is_namespace(HTML_NAMESPACE.into())
+                    if !(node_element_data.is_namespace(HTML_NAMESPACE)
                         && ["optgroup", "option"].contains(&node_element_data.name()))
                     {
                         return false;
@@ -2289,7 +2289,7 @@ where
                 let first_node = doc.node_by_id_mut(first_node_id).expect("node not found");
 
                 if first_node.is_element_node() {
-                    let mut element_data = get_element_data_mut!(first_node);
+                    let element_data = get_element_data_mut!(first_node);
 
                     for (key, value) in attributes {
                         let attrs = element_data.attributes_mut();
@@ -2337,14 +2337,14 @@ where
                     let node_element_data = get_element_data!(node);
 
                     node_element_data.name() == "body"
-                        && node_element_data.is_namespace(HTML_NAMESPACE.into())
+                        && node_element_data.is_namespace(HTML_NAMESPACE)
                 });
 
                 if let Some(body_node_id) = body_node_id {
                     let mut doc = self.document.get_mut();
                     let body_node = doc.node_by_id_mut(*body_node_id).expect("node not found");
 
-                    let mut element_data = get_element_data_mut!(body_node);
+                    let element_data = get_element_data_mut!(body_node);
                     for (key, value) in attributes {
                         if !element_data.attributes_mut().contains_key(key) {
                             element_data
@@ -3224,7 +3224,7 @@ where
                     let mut binding = self.document.get_mut();
                     let node = binding.node_by_id_mut(node_id).expect("node not found");
                     if node.is_element_node() {
-                        let mut element_data = get_element_data_mut!(node);
+                        let element_data = get_element_data_mut!(node);
                         element_data.set_template_contents(D::Fragment::new(
                             clone_document,
                             current_node_id,
@@ -3724,7 +3724,7 @@ where
                 &ActiveElement::Node(id) => {
                     let current_node = get_node_by_id!(self.document, id);
                     if get_element_data!(current_node)
-                        .matches_tag_and_attrs_without_order(&node_element_data)
+                        .matches_tag_and_attrs_without_order(node_element_data)
                     {
                         if matched >= 2 {
                             first_matched = Some(id);
@@ -4005,7 +4005,7 @@ where
             {
                 self.token_queue.push(Token::Text {
                     text: value,
-                    location: location.clone(),
+                    location: location,
                 });
                 // for c in value.chars() {
                 //     self.token_queue.push(Token::Text(c.to_string()));
@@ -4092,7 +4092,7 @@ where
 
         while !current_node_element_data.is_mathml_integration_point()
             && !current_node_element_data.is_html_integration_point()
-            && !current_node_element_data.is_namespace(HTML_NAMESPACE.into())
+            && !current_node_element_data.is_namespace(HTML_NAMESPACE)
         {
             self.open_elements.pop();
             if self.open_elements.is_empty() {
@@ -4113,7 +4113,7 @@ where
     /// Find the correct tokenizer state when we are about to parse a fragment case
     fn find_initial_state_for_context(&self, context_node: &D::Node) -> State {
         let context_node_element_data = get_element_data!(context_node);
-        if !context_node_element_data.is_namespace(HTML_NAMESPACE.into()) {
+        if !context_node_element_data.is_namespace(HTML_NAMESPACE) {
             return State::Data;
         }
 

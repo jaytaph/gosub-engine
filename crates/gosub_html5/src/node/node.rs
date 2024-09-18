@@ -1,16 +1,15 @@
-use gosub_shared::traits::node::{Node, NodeType};
+use crate::document::document::DocumentImpl;
 use crate::node::data::comment::CommentData;
 use crate::node::data::doctype::DocTypeData;
 use crate::node::data::document::DocumentData;
+use crate::node::data::element::ElementData;
 use crate::node::data::text::TextData;
 use core::fmt::Debug;
-use std::cell::{Ref, RefCell, RefMut};
 use gosub_shared::byte_stream::Location;
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
-use crate::document::document::DocumentImpl;
-use crate::node::data::element::ElementData;
+use gosub_shared::traits::node::{Node, NodeData, NodeType};
 
 /// Implementation of the NodeDataType trait
 #[derive(Debug, Clone, PartialEq)]
@@ -36,7 +35,7 @@ pub struct NodeImpl<C: CssSystem> {
     /// any children of the node
     pub children: Vec<NodeId>,
     /// actual data of the node
-    pub data: RefCell<NodeDataTypeInternal<C>>,
+    pub data: NodeDataTypeInternal<C>,
     /// Handle to the document in which this node resides
     pub document: DocumentHandle<DocumentImpl<C>, C>,
     // Returns true when the given node is registered into the document arena
@@ -58,15 +57,15 @@ impl<C: CssSystem> Node<C> for NodeImpl<C> {
     }
 
     fn set_id(&mut self, id: NodeId) {
-        self.id = id.clone()
+        self.id = id
     }
 
     fn location(&self) -> Location {
-        self.location.clone()
+        self.location
     }
 
     fn parent_id(&self) -> Option<NodeId> {
-        self.parent.clone()
+        self.parent
     }
 
     fn set_parent(&mut self, parent_id: Option<NodeId>) {
@@ -82,7 +81,7 @@ impl<C: CssSystem> Node<C> for NodeImpl<C> {
     }
 
     fn type_of(&self) -> NodeType {
-        match *self.data.borrow() {
+        match self.data {
             NodeDataTypeInternal::Document(_) => NodeType::DocumentNode,
             NodeDataTypeInternal::DocType(_) => NodeType::DocTypeNode,
             NodeDataTypeInternal::Text(_) => NodeType::TextNode,
@@ -95,99 +94,51 @@ impl<C: CssSystem> Node<C> for NodeImpl<C> {
         self.type_of() == NodeType::ElementNode
     }
 
-    fn get_element_data(&self) -> Option<Ref<Self::ElementData>> {
-        let borrowed_data = self.data.borrow();
-
-        if let NodeDataTypeInternal::Element(_) = *borrowed_data {
-            return Some(Ref::map(borrowed_data, |d|
-                if let NodeDataTypeInternal::Element(ref element_data) = d {
-                    element_data
-                } else {
-                    unreachable!()
-                }
-            ));
+    fn get_element_data(&self) -> Option<&Self::ElementData> {
+        if let NodeDataTypeInternal::Element(data) = &self.data {
+            return Some(data);
         }
         None
     }
 
-    fn get_element_data_mut(&self) -> Option<RefMut<ElementData<C>>> {
-        let borrowed_data = self.data.borrow_mut();
-
-        if let NodeDataTypeInternal::Element(_) = *borrowed_data {
-            return Some(RefMut::map(borrowed_data, |d| {
-                if let NodeDataTypeInternal::Element(ref mut element_data) = d {
-                    element_data
-                } else {
-                    unreachable!()
-                }
-            }));
+    fn get_element_data_mut(&mut self) -> Option<&mut ElementData<C>> {
+        if let NodeDataTypeInternal::Element(data) = &mut self.data {
+            return Some(data);
         }
         None
     }
 
     fn is_text_node(&self) -> bool {
-        match *self.data.borrow() {
+        match self.data {
             NodeDataTypeInternal::Text(_) => true,
             _ => false,
         }
     }
 
-    fn get_text_data(&self) -> Option<Ref<Self::TextData>> {
-        let borrowed_data = self.data.borrow();
-
-        if let NodeDataTypeInternal::Text(_) = *borrowed_data {
-            return Some(Ref::map(borrowed_data, |d|
-                if let NodeDataTypeInternal::Text(ref text_data) = d {
-                    text_data
-                } else {
-                    unreachable!()
-                }
-            ));
+    fn get_text_data(&self) -> Option<&Self::TextData> {
+        if let NodeDataTypeInternal::Text(data) = &self.data {
+            return Some(data);
         }
         None
     }
 
-    fn get_text_data_mut(&self) -> Option<RefMut<TextData>> {
-        let borrowed_data = self.data.borrow_mut();
-
-        if let NodeDataTypeInternal::Text(_) = *borrowed_data {
-            return Some(RefMut::map(borrowed_data, |d| {
-                if let NodeDataTypeInternal::Text(ref mut text_data) = d {
-                    text_data
-                } else {
-                    unreachable!()
-                }
-            }));
+    fn get_text_data_mut(&mut self) -> Option<&mut TextData> {
+        if let NodeDataTypeInternal::Text(data) = &mut self.data {
+            return Some(data);
         }
         None
     }
 
-    fn get_comment_data(&self) -> Option<Ref<Self::CommentData>> {
-        let borrowed_data = self.data.borrow();
-
-        if let NodeDataTypeInternal::Comment(_) = *borrowed_data {
-            return Some(Ref::map(borrowed_data, |d|
-                if let NodeDataTypeInternal::Comment(ref text_data) = d {
-                    text_data
-                } else {
-                    unreachable!()
-                }
-            ));
+    fn get_comment_data(&self) -> Option<&Self::CommentData> {
+        if let NodeDataTypeInternal::Comment(data) = &self.data {
+            return Some(data);
         }
         None
     }
 
-    fn get_doctype_data(&self) -> Option<Ref<Self::DocTypeData>> {
-        let borrowed_data = self.data.borrow();
-
-        if let NodeDataTypeInternal::DocType(_) = *borrowed_data {
-            return Some(Ref::map(borrowed_data, |d|
-                if let NodeDataTypeInternal::DocType(ref text_data) = d {
-                    text_data
-                } else {
-                    unreachable!()
-                }
-            ));
+    fn get_doctype_data(&self) -> Option<&Self::DocTypeData> {
+        if let NodeDataTypeInternal::DocType(data) = &self.data {
+            return Some(data);
         }
         None
     }
@@ -197,7 +148,7 @@ impl<C: CssSystem> Node<C> for NodeImpl<C> {
     }
 
     fn remove(&mut self, node_id: NodeId) {
-        self.children = self.children.iter().filter(|&x| x != &node_id).cloned().collect();
+        self.children.retain(|x| x != &node_id);
     }
 
     fn insert(&mut self, node_id: NodeId, idx: usize) {
@@ -206,6 +157,16 @@ impl<C: CssSystem> Node<C> for NodeImpl<C> {
 
     fn push(&mut self, node_id: NodeId) {
         self.children.push(node_id);
+    }
+
+    fn data(&self) -> NodeData<C, Self> {
+        match self.data {
+            NodeDataTypeInternal::Document(ref data) => NodeData::Document(data),
+            NodeDataTypeInternal::DocType(ref data) => NodeData::DocType(data),
+            NodeDataTypeInternal::Text(ref data) => NodeData::Text(data),
+            NodeDataTypeInternal::Comment(ref data) => NodeData::Comment(data),
+            NodeDataTypeInternal::Element(ref data) => NodeData::Element(data),
+        }
     }
 }
 
@@ -235,7 +196,7 @@ impl<C: CssSystem> Clone for NodeImpl<C> {
             data: self.data.clone(),
             document: self.document.clone(),
             is_registered: self.is_registered,
-            location: self.location.clone(),
+            location: self.location,
         }
     }
 }
@@ -243,13 +204,17 @@ impl<C: CssSystem> Clone for NodeImpl<C> {
 impl<C: CssSystem> NodeImpl<C> {
     /// create a new `Node`
     #[must_use]
-    pub fn new(document: DocumentHandle<DocumentImpl<C>, C>, location: Location, data: &NodeDataTypeInternal<C>) -> Self {
+    pub fn new(
+        document: DocumentHandle<DocumentImpl<C>, C>,
+        location: Location,
+        data: &NodeDataTypeInternal<C>,
+    ) -> Self {
         let (id, parent, children, is_registered) = <_>::default();
         Self {
             id,
             parent,
             children,
-            data: data.clone().into(),
+            data: data.clone(),
             document: document.clone(),
             is_registered,
             location,
@@ -317,7 +282,6 @@ impl<C: CssSystem> NodeImpl<C> {
     //         &NodeDataTypeInternal::Text(TextData::with_value(value)),
     //     )
     // }
-
 
     /// Returns true if this node is registered into an arena
     pub fn is_registered(&self) -> bool {

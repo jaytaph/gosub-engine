@@ -1,7 +1,12 @@
+use anyhow::anyhow;
 use core::fmt::Debug;
+use gosub_shared::byte_stream::Location;
+use gosub_shared::traits::css3::CssOrigin;
+use gosub_shared::types::Result;
 use std::cmp::Ordering;
 use std::fmt::Display;
-use gosub_shared::byte_stream::Location;
+
+use crate::colors::RgbColor;
 
 /// Severity of a CSS error
 #[derive(Debug, PartialEq)]
@@ -71,15 +76,13 @@ impl CssLog {
 
 impl Debug for CssLog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] ({}:{}): {}", self.severity, self.location.line, self.location.column, self.message)
+        write!(
+            f,
+            "[{}] ({}:{}): {}",
+            self.severity, self.location.line, self.location.column, self.message
+        )
     }
 }
-
-use anyhow::anyhow;
-use gosub_shared::traits::css3::CssOrigin;
-use gosub_shared::types::Result;
-
-use crate::colors::RgbColor;
 
 /// Defines a complete stylesheet with all its rules and the location where it was found
 #[derive(Debug, PartialEq)]
@@ -91,7 +94,7 @@ pub struct CssStylesheet {
     /// Url or file path where the stylesheet was found
     pub location: String,
     /// Any issues during parsing of the stylesheet
-    pub parse_log: Vec<CssLog>
+    pub parse_log: Vec<CssLog>,
 }
 
 impl gosub_shared::traits::css3::CssStylesheet for CssStylesheet {
@@ -515,6 +518,64 @@ impl CssValue {
         }
 
         Ok(CssValue::String(value.to_string()))
+    }
+}
+
+impl gosub_shared::traits::css3::CssValue for CssValue {
+    fn unit_to_px(&self) -> f32 {
+        self.unit_to_px()
+    }
+
+    fn as_string(&self) -> Option<&str> {
+        if let CssValue::String(str) = &self {
+            Some(str)
+        } else {
+            None
+        }
+    }
+
+    fn as_percentage(&self) -> Option<f32> {
+        if let CssValue::Percentage(percent) = &self {
+            Some(*percent)
+        } else {
+            None
+        }
+    }
+
+    fn as_unit(&self) -> Option<(f32, &str)> {
+        if let CssValue::Unit(value, unit) = &self {
+            Some((*value, unit))
+        } else {
+            None
+        }
+    }
+
+    fn as_color(&self) -> Option<(f32, f32, f32, f32)> {
+        if let CssValue::Color(color) = &self {
+            Some((color.r, color.g, color.b, color.a))
+        } else {
+            None
+        }
+    }
+
+    fn as_number(&self) -> Option<f32> {
+        if let CssValue::Number(num) = &self {
+            Some(*num)
+        } else {
+            None
+        }
+    }
+
+    fn as_list(&self) -> Option<Vec<Self>> {
+        if let CssValue::List(list) = &self {
+            Some(list.iter().cloned().collect())
+        } else {
+            None
+        }
+    }
+
+    fn is_none(&self) -> bool {
+        matches!(self, CssValue::None)
     }
 }
 

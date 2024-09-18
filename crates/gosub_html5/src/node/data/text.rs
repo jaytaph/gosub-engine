@@ -34,6 +34,10 @@ impl TextDataType for TextData {
         &self.value
     }
 
+    fn string_value(&self) -> String {
+        self.value.clone()
+    }
+
     fn value_mut(&mut self) -> &mut String {
         &mut self.value
     }

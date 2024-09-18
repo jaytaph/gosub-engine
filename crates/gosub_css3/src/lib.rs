@@ -3,29 +3,29 @@ use crate::errors::Error;
 use crate::stylesheet::CssStylesheet;
 use crate::tokenizer::Tokenizer;
 
-use gosub_shared::{timing_start, timing_stop};
 use gosub_shared::byte_stream::{ByteStream, Encoding, Location};
-use gosub_shared::traits::Context;
 use gosub_shared::traits::css3::CssOrigin;
+use gosub_shared::traits::Context;
 use gosub_shared::traits::ParserConfig;
 use gosub_shared::types::Result;
+use gosub_shared::{timing_start, timing_stop};
 
+pub mod ast;
 /// This CSS3 parser is heavily based on the MIT licensed CssTree parser written by
 /// Roman Dvornov (https://github.com/lahmatiy).
 /// The original version can be found at https://github.com/csstree/csstree
-
 pub mod colors;
-pub mod ast;
+mod errors;
+mod functions;
+#[allow(dead_code)]
+pub mod matcher;
 pub mod node;
 pub mod parser;
 pub mod stylesheet;
+mod system;
 pub mod tokenizer;
 mod unicode;
 pub mod walker;
-#[allow(dead_code)]
-pub mod matcher;
-mod errors;
-mod functions;
 
 pub struct Css3<'stream> {
     /// The tokenizer is responsible for reading the input stream and
@@ -42,7 +42,12 @@ pub struct Css3<'stream> {
 
 impl<'stream> Css3<'stream> {
     /// Creates a new parser with the given byte stream so only parse() needs to be called.
-    fn new(stream: &'stream mut ByteStream, config: ParserConfig, origin: CssOrigin, source: &str) -> Self {
+    fn new(
+        stream: &'stream mut ByteStream,
+        config: ParserConfig,
+        origin: CssOrigin,
+        source: &str,
+    ) -> Self {
         Self {
             tokenizer: Tokenizer::new(stream, Location::default()),
             allow_values_in_argument_list: Vec::new(),
@@ -53,7 +58,12 @@ impl<'stream> Css3<'stream> {
     }
 
     /// Parses a direct string to a CssStyleSheet
-    pub fn parse_str(data: &str, config: ParserConfig, origin: CssOrigin, source_url: &str) -> Result<CssStylesheet> {
+    pub fn parse_str(
+        data: &str,
+        config: ParserConfig,
+        origin: CssOrigin,
+        source_url: &str,
+    ) -> Result<CssStylesheet> {
         let mut stream = ByteStream::new(Encoding::UTF8, None);
         stream.read_from_str(data, Some(Encoding::UTF8));
         stream.close();
@@ -62,13 +72,22 @@ impl<'stream> Css3<'stream> {
     }
 
     /// Parses a direct stream to a CssStyleSheet
-    pub fn parse_stream(stream: &mut ByteStream, config: ParserConfig, origin: CssOrigin, source_url: &str) -> Result<CssStylesheet> {
+    pub fn parse_stream(
+        stream: &mut ByteStream,
+        config: ParserConfig,
+        origin: CssOrigin,
+        source_url: &str,
+    ) -> Result<CssStylesheet> {
         Css3::new(stream, config, origin, source_url).parse()
     }
 
     fn parse(&mut self) -> Result<CssStylesheet> {
         if self.config.context != Context::Stylesheet {
-            return Err(Error::Parse("Expected a stylesheet context".to_string(), Location::default()).into());
+            return Err(Error::Parse(
+                "Expected a stylesheet context".to_string(),
+                Location::default(),
+            )
+            .into());
         }
 
         let t_id = timing_start!("css3.parse", self.config.source.as_deref().unwrap_or(""));
@@ -87,9 +106,13 @@ impl<'stream> Css3<'stream> {
         timing_stop!(t_id);
 
         match node_tree {
-            Ok(None) => return Err(Error::Parse("No node tree found".to_string(), Location::default()).into()),
-            Ok(Some(node)) => convert_ast_to_stylesheet(&node, self.origin.clone(), self.source.clone().as_str()),
-            Err(e) => Err(e.into()),
+            Ok(None) => {
+                Err(Error::Parse("No node tree found".to_string(), Location::default()).into())
+            }
+            Ok(Some(node)) => {
+                convert_ast_to_stylesheet(&node, self.origin, self.source.clone().as_str())
+            }
+            Err(e) => Err(e),
         }
     }
 }
@@ -106,9 +129,9 @@ pub fn load_default_useragent_stylesheet() -> CssStylesheet {
     };
 
     let css_data = include_str!("../resources/useragent.css");
-    Css3::parse_str(css_data, config, CssOrigin::UserAgent, url).expect("Could not parse useragent stylesheet")
+    Css3::parse_str(css_data, config, CssOrigin::UserAgent, url)
+        .expect("Could not parse useragent stylesheet")
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -133,7 +156,6 @@ mod tests {
         let res = Css3::parse_str(css.as_str(), config, CssOrigin::Author, filename);
         if res.is_err() {
             println!("{:?}", res.err().unwrap());
-            return;
         }
 
         // let binding = res.unwrap();

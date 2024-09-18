@@ -1,8 +1,8 @@
+use crate::errors::Error;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
 use gosub_shared::types::Result;
-use crate::errors::Error;
 
 #[derive(Debug, PartialEq)]
 pub enum BlockParseMode {
@@ -64,7 +64,7 @@ impl Css3<'_> {
                     // End the block
                     self.tokenizer.reconsume();
 
-                    let n = Node::new(NodeType::Block { children }, t.location.clone());
+                    let n = Node::new(NodeType::Block { children }, t.location);
                     return Ok(n);
                 }
                 TokenType::Whitespace(_) | TokenType::Comment(_) => {
@@ -90,7 +90,8 @@ impl Css3<'_> {
                             return Err(Error::Parse(
                                 format!("Expected a ; got {:?}", t),
                                 self.tokenizer.current_location(),
-                            ).into());
+                            )
+                            .into());
                         }
 
                         self.tokenizer.reconsume();
