@@ -83,8 +83,8 @@ pub trait Document<C: CssSystem>: Sized {
     /// Return number of nodes in the document
     fn node_count(&self) -> usize;
 
-    // /// Returns the next node ID that will be used when registering a new node
-    // fn peek_next_id(&self) -> NodeId;
+    /// Returns the next node ID that will be used when registering a new node
+    fn peek_next_id(&self) -> NodeId;
 
     /// Register a new node
     fn register_node(&mut self, node: Self::Node) -> NodeId;

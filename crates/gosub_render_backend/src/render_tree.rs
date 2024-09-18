@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-
+use std::marker::PhantomData;
 use log::warn;
-
 use gosub_css3::matcher::property_definitions::get_css_definitions;
 use gosub_css3::matcher::shorthands::FixList;
 use gosub_css3::matcher::styling::{CssProperty, CssProperties, DeclarationProperty, prop_is_inherit};
@@ -15,7 +14,7 @@ use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::Document;
-use gosub_shared::traits::node::Node as DocumentNode;
+use gosub_shared::traits::node::{ElementDataType, Node as DocumentNode, TextDataType};
 use gosub_shared::traits::node::NodeData;
 use gosub_shared::types::Result;
 use gosub_shared::traits::css3::CssStylesheet;
@@ -30,17 +29,18 @@ const INLINE_ELEMENTS: [&str; 31] = [
 
 /// Map of all declared values for all nodes in the document
 #[derive(Debug)]
-pub struct RenderTree<L: Layouter> {
-    pub nodes: HashMap<NodeId, RenderTreeNode<L>>,
+pub struct RenderTree<L: Layouter, D: Document<L::CssSystem>> {
+    pub nodes: HashMap<NodeId, RenderTreeNode<L, D>>,
     pub root: NodeId,
     pub dirty: bool,
     next_id: NodeId,
+    phantom_data: PhantomData<D>,
 }
 
 #[allow(unused)]
-impl<L: Layouter> LayoutTree<L> for RenderTree<L> {
+impl<L: Layouter, D: Document<L::CssSystem>> LayoutTree<L> for RenderTree<L, D> {
     type NodeId = NodeId;
-    type Node = RenderTreeNode<L>;
+    type Node = RenderTreeNode<L, D>;
 
     fn children(&self, id: Self::NodeId) -> Option<Vec<Self::NodeId>> {
         self.get_children(id).cloned()
@@ -101,7 +101,7 @@ impl<L: Layouter> LayoutTree<L> for RenderTree<L> {
     }
 }
 
-impl<L: Layouter> RenderTree<L> {
+impl<L: Layouter, D: Document<L::CssSystem>> RenderTree<L, D> {
     // Generates a new render tree with a root node
     pub fn with_capacity(capacity: usize) -> Self {
         let mut tree = Self {
@@ -109,6 +109,7 @@ impl<L: Layouter> RenderTree<L> {
             root: NodeId::root(),
             dirty: false,
             next_id: NodeId::from(1u64),
+            phantom_data: PhantomData,
         };
 
         tree.insert_node(
@@ -131,17 +132,17 @@ impl<L: Layouter> RenderTree<L> {
     }
 
     /// Returns the root node of the render tree
-    pub fn get_root(&self) -> &RenderTreeNode<L> {
+    pub fn get_root(&self) -> &RenderTreeNode<L, D> {
         self.nodes.get(&self.root).expect("root node")
     }
 
     /// Returns the node with the given id
-    pub fn get_node(&self, id: NodeId) -> Option<&RenderTreeNode<L>> {
+    pub fn get_node(&self, id: NodeId) -> Option<&RenderTreeNode<L, D>> {
         self.nodes.get(&id)
     }
 
     /// Returns a mutable reference to the node with the given id
-    pub fn get_node_mut(&mut self, id: NodeId) -> Option<&mut RenderTreeNode<L>> {
+    pub fn get_node_mut(&mut self, id: NodeId) -> Option<&mut RenderTreeNode<L, D>> {
         self.nodes.get_mut(&id)
     }
 
@@ -160,12 +161,12 @@ impl<L: Layouter> RenderTree<L> {
 
     /// Inserts a new node into the render tree, note that you are responsible for the node id
     /// and the children of the node
-    pub fn insert_node(&mut self, id: NodeId, node: RenderTreeNode<L>) {
+    pub fn insert_node(&mut self, id: NodeId, node: RenderTreeNode<L, D>) {
         self.nodes.insert(id, node);
     }
 
     /// Deletes the node with the given id from the render tree
-    pub fn delete_node(&mut self, id: &NodeId) -> Option<(NodeId, RenderTreeNode<L>)> {
+    pub fn delete_node(&mut self, id: &NodeId) -> Option<(NodeId, RenderTreeNode<L, D>)> {
         // println!("Deleting node: {id:?}");
 
         if let Some(n) = self.nodes.get(id) {
@@ -236,7 +237,7 @@ impl<L: Layouter> RenderTree<L> {
     }
 
     /// Generate a render tree from the given document
-    pub fn from_document<D: Document<L::CssSystem> + Clone>(document: DocumentHandle<D, L::CssSystem>) -> Self {
+    pub fn from_document(document: DocumentHandle<D, L::CssSystem>) -> Self {
         let mut render_tree = RenderTree::with_capacity(document.get().node_count());
 
         render_tree.generate_from(document);
@@ -244,25 +245,21 @@ impl<L: Layouter> RenderTree<L> {
         render_tree
     }
 
-    fn generate_from<D: Document<L::CssSystem> + Clone>(&mut self, handle: DocumentHandle<D, L::CssSystem>) {
+    fn generate_from(&mut self, handle: DocumentHandle<D, L::CssSystem>) {
         // Iterate the complete document tree
-        let tree_iterator = TreeIterator::new(handle.clone());
-
-        {
-            let doc = handle.get();
-            println!("Stylesheets: {:?}", doc.stylesheets().len());
-
-            for &stylesheet in doc.stylesheets() {
-                println!("   {:?}", stylesheet.location());
-                println!("   {:?}", stylesheet.origin());
-            }
-        }
-
-        for current_node_id in tree_iterator {
+        for current_node_id in TreeIterator::new(handle.clone()) {
             let mut css_map_entry = CssProperties::new();
 
             let doc = handle.get();
             let node = doc.node_by_id(current_node_id).expect("node not found");
+
+            // Extract name and namespace from the node if it's an element node
+            let mut node_element_namespace = "";
+            let mut node_element_name = "";
+            if let Some(data) = node.get_element_data() {
+                node_element_name = data.name().clone();
+                node_element_namespace = data.namespace().clone();
+            }
 
             if node_is_unrenderable(node) {
                 if let Some(parent) = node.parent_id() {
@@ -360,10 +357,10 @@ impl<L: Layouter> RenderTree<L> {
             let render_tree_node = RenderTreeNode {
                 id: current_node_id,
                 properties: css_map_entry,
-                children: current_node.children().clone(),
+                children: current_node.children().to_vec(),
                 parent: node.parent_id(),
-                name: node.name().clone(), // We might be able to move node into render_tree_node
-                namespace: node.namespace().clone(),
+                name: node_element_name, // We might be able to move node into render_tree_node
+                namespace: node_element_namespace,
                 data,
                 css_dirty: true,
                 cache: L::Cache::default(),
@@ -604,14 +601,14 @@ pub fn add_property_to_map(
     }
 }
 
-pub enum RenderNodeData<L: Layouter> {
+pub enum RenderNodeData<L: Layouter, D: Document<L::CssSystem>> {
     Document,
     Element(Box<ElementData<L::CssSystem>>),
     Text(Box<TextData<L>>),
     AnonymousInline,
 }
 
-impl<L: Layouter> Debug for RenderNodeData<L> {
+impl<L: Layouter, D: Document<L::CssSystem>> Debug for RenderNodeData<L, D> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             RenderNodeData::Document => f.write_str("Document"),
@@ -644,12 +641,12 @@ pub enum ControlFlow<T> {
     Error(anyhow::Error),
 }
 
-impl<L: Layouter> RenderNodeData<L> {
+impl<L: Layouter, D: Document<L::CssSystem>> RenderNodeData<L, D> {
     pub fn from_node_data(node: NodeData<L::CssSystem, D::Node>) -> ControlFlow<Self> {
         ControlFlow::Ok(match node {
             NodeData::Element(data) => RenderNodeData::Element(data),
             NodeData::Text(data) => {
-                let text = pre_transform_text(data.value);
+                let text = pre_transform_text(data.value());
 
                 RenderNodeData::Text(Box::new(TextData { text, layout: None }))
             }
@@ -678,7 +675,7 @@ fn pre_transform_text(text: String) -> String {
     new_text
 }
 
-pub struct RenderTreeNode<L: Layouter> {
+pub struct RenderTreeNode<L: Layouter, D: Document<L::CssSystem>> {
     pub id: NodeId,
     pub properties: CssProperties,
     pub css_dirty: bool,
@@ -686,12 +683,12 @@ pub struct RenderTreeNode<L: Layouter> {
     pub parent: Option<NodeId>,
     pub name: String,
     pub namespace: Option<String>,
-    pub data: RenderNodeData<L>,
+    pub data: RenderNodeData<L, D>,
     pub cache: L::Cache,
     pub layout: L::Layout,
 }
 
-impl<L: Layouter> Debug for RenderTreeNode<L> {
+impl<L: Layouter, D: Document<L::CssSystem>> Debug for RenderTreeNode<L, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RenderTreeNode")
             .field("id", &self.id)
@@ -706,7 +703,7 @@ impl<L: Layouter> Debug for RenderTreeNode<L> {
     }
 }
 
-impl<L: Layouter> RenderTreeNode<L> {
+impl<L: Layouter, D: Document<L::CssSystem>> RenderTreeNode<L, D> {
     /// Returns true if the node is an element node
     pub fn is_element(&self) -> bool {
         matches!(self.data, RenderNodeData::Element(_))
@@ -764,7 +761,7 @@ impl<L: Layouter> RenderTreeNode<L> {
     }
 }
 
-impl<L: Layouter> HasTextLayout<L> for RenderTreeNode<L> {
+impl<L: Layouter, D: Document<L::CssSystem>> HasTextLayout<L> for RenderTreeNode<L, D> {
     fn set_text_layout(&mut self, layout: L::TextLayout) {
         if let RenderNodeData::Text(text) = &mut self.data {
             text.layout = Some(layout);
@@ -772,7 +769,7 @@ impl<L: Layouter> HasTextLayout<L> for RenderTreeNode<L> {
     }
 }
 
-impl<L: Layouter> Node for RenderTreeNode<L> {
+impl<L: Layouter, D: Document<L::CssSystem>> Node for RenderTreeNode<L, D> {
     type Property = CssProperty;
 
     fn get_property(&mut self, name: &str) -> Option<&mut Self::Property> {
@@ -935,7 +932,7 @@ impl From<CssValue> for Value {
 }
 
 /// Generates a render tree for the given document based on its loaded stylesheets
-pub fn generate_render_tree<L: Layouter, D: Document<C>, C: CssSystem>(document: DocumentHandle<D, C>) -> Result<RenderTree<L>> {
+pub fn generate_render_tree<L: Layouter<CssSystem = C>, D: Document<L::CssSystem> + Clone, C: CssSystem>(document: DocumentHandle<D, L::CssSystem>) -> Result<RenderTree<L, D>> {
     let render_tree = RenderTree::from_document(document);
 
     Ok(render_tree)
@@ -946,14 +943,14 @@ pub fn node_is_unrenderable<D: Document<C>, C: CssSystem>(node: &D::Node) -> boo
 
     const REMOVABLE_ELEMENTS: [&str; 6] = ["head", "script", "style", "svg", "noscript", "title"];
 
-    if let NodeData::Element(element) = &node.get_element_data() {
-        if REMOVABLE_ELEMENTS.contains(&element.name.as_str()) {
+    if let Some(element_data) = node.get_element_data() {
+        if REMOVABLE_ELEMENTS.contains(&element_data.name()) {
             return true;
         }
     }
 
-    if let NodeData::Text(text) = &node.get_text_data() {
-        if text.value.chars().all(|c| c.is_whitespace()) {
+    if let Some(text_data) = &node.get_text_data() {
+        if text_data.value().chars().all(|c| c.is_whitespace()) {
             return true;
         }
     }

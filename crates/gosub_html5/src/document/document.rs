@@ -267,6 +267,10 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.arena.node_count()
     }
 
+    fn peek_next_id(&self) -> NodeId {
+        self.arena.peek_next_id()
+    }
+
     /// Register a node
     fn register_node(&mut self, _node: Self::Node) -> NodeId {
         todo!("register_node() not implemented");

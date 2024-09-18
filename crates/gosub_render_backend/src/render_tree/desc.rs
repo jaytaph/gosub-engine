@@ -2,8 +2,9 @@ use crate::render_tree::{RenderNodeData, RenderTree};
 use crate::layout::{Layout, Layouter};
 use crate::{NodeDesc, Point, Size};
 use gosub_shared::node::NodeId;
+use gosub_shared::traits::document::Document;
 
-impl<L: Layouter> RenderTree<L> {
+impl<L: Layouter, D: Document<L::CssSystem>> RenderTree<L, D> {
     pub fn desc(&self) -> NodeDesc {
         self.desc_node(self.root)
     }

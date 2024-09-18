@@ -7,7 +7,6 @@ use crate::traits::document::Document;
 
 pub struct DocumentHandle<D: Document<C>, C: CssSystem>(pub Rc<RefCell<D>>, pub PhantomData<C>);
 
-
 impl<C, D> DocumentHandle<D, C>
 where C: CssSystem, D: Document<C> {
     /// Create a new DocumentHandle from a document
