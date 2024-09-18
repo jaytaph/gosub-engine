@@ -144,6 +144,10 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.arena.node_mut(node_id)
     }
 
+    fn stylesheets(&self) -> &Vec<C::Stylesheet> {
+        &self.stylesheets
+    }
+
     fn add_stylesheet(&mut self, stylesheet: C::Stylesheet) {
         self.stylesheets.push(stylesheet);
     }
@@ -257,6 +261,10 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         }
 
         None
+    }
+
+    fn node_count(&self) -> usize {
+        self.arena.node_count()
     }
 
     /// Register a node
@@ -461,15 +469,15 @@ fn internal_visit<C: CssSystem>(
 /// WARNING: mutations in the document would be reflected
 /// in the iterator. It's advised to consume the entire iterator
 /// before mutating the document again.
-pub struct TreeIterator<D: Clone + Document<S>, S: CssSystem> {
+pub struct TreeIterator<D: Clone + Document<C>, C: CssSystem> {
     current_node_id: Option<NodeId>,
     node_stack: Vec<NodeId>,
-    document: DocumentHandle<D, S>,
+    document: DocumentHandle<D, C>,
 }
 
-impl<D: Document<S> + Clone, S: CssSystem> TreeIterator<D, S> {
+impl<D: Document<C> + Clone, C: CssSystem> TreeIterator<D, C> {
     #[must_use]
-    pub fn new(doc: DocumentHandle<D, S>) -> Self {
+    pub fn new(doc: DocumentHandle<D, C>) -> Self {
         Self {
             current_node_id: None,
             document: doc.clone(),
@@ -478,7 +486,7 @@ impl<D: Document<S> + Clone, S: CssSystem> TreeIterator<D, S> {
     }
 }
 
-impl<D: Document<S> + Clone, S: CssSystem> Iterator for TreeIterator<D, S> {
+impl<D: Document<C> + Clone, C: CssSystem> Iterator for TreeIterator<D, C> {
     type Item = NodeId;
 
     fn next(&mut self) -> Option<NodeId> {

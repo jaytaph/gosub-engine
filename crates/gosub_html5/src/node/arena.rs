@@ -15,6 +15,12 @@ pub struct NodeArena<N: Node<C>, C: CssSystem> {
     _marker: PhantomData<C>
 }
 
+impl<C: CssSystem, N: Node<C>>NodeArena<N, C> {
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+}
+
 impl<C: CssSystem, N: Node<C>> PartialEq for NodeArena<N, C> {
     fn eq(&self, other: &Self) -> bool {
         if self.next_id != other.next_id {

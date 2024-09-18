@@ -26,7 +26,7 @@ where C: CssSystem, D: Document<C> {
     }
 }
 
-impl<S: CssSystem, D: Document<S> + Debug> Debug for DocumentHandle<D, S> {
+impl<C: CssSystem, D: Document<C> + Debug> Debug for DocumentHandle<D, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.0.borrow())
     }
@@ -38,21 +38,21 @@ impl<S: CssSystem, D: Document<S> + Debug> Debug for DocumentHandle<D, S> {
 //     }
 // }
 
-impl<S: CssSystem, D: Document<S> + PartialEq> PartialEq for DocumentHandle<D, S> {
+impl<C: CssSystem, D: Document<C> + PartialEq> PartialEq for DocumentHandle<D, C> {
     fn eq(&self, other: &Self) -> bool {
         self.0.borrow().eq(&other.0.borrow())
     }
 }
 
 
-impl<S: CssSystem, D: Document<S> + Eq> Eq for DocumentHandle<D, S> {}
+impl<C: CssSystem, D: Document<C> + Eq> Eq for DocumentHandle<D, C> {}
 
 // NOTE: it is preferred to use Document::clone() when
 // copying a DocumentHandle reference. However, for
 // any structs using this handle that use #[derive(Clone)],
 // this implementation is required.
-impl<S: CssSystem, D: Document<S>> Clone for DocumentHandle<D, S>  {
-    fn clone(&self) -> DocumentHandle<D, S> {
+impl<C: CssSystem, D: Document<C>> Clone for DocumentHandle<D, C>  {
+    fn clone(&self) -> DocumentHandle<D, C> {
         DocumentHandle(Rc::clone(&self.0), PhantomData)
     }
 }

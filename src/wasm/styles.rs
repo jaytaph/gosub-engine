@@ -2,7 +2,7 @@ use url::Url;
 
 use gosub_html5::parser::document::{Document, DocumentBuilder};
 use gosub_html5::parser::Html5Parser;
-use gosub_styling::render_tree::generate_render_tree;
+use gobub_css3::render_tree::generate_render_tree;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[wasm_bindgen]

@@ -94,7 +94,15 @@ pub struct CssStylesheet {
     pub parse_log: Vec<CssLog>
 }
 
-impl gosub_shared::traits::css3::CssStylesheet for CssStylesheet {}
+impl gosub_shared::traits::css3::CssStylesheet for CssStylesheet {
+    fn origin(&self) -> CssOrigin {
+        self.origin
+    }
+
+    fn location(&self) -> &str {
+        &self.location
+    }
+}
 
 /// A CSS rule, which contains a list of selectors and a list of declarations
 #[derive(Debug, PartialEq, Clone)]

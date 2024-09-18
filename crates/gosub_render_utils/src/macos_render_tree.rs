@@ -1,12 +1,10 @@
 use std::borrow::BorrowMut;
 use std::{cell::RefCell, rc::Rc};
+use gosub_html5::node::node::NodeDataTypeInternal;
+use gosub_shared::document::DocumentHandle;
 
-use gosub_html5::node::NodeData;
-use gosub_html5::parser::document;
-use gosub_html5::parser::document::{Document, DocumentHandle};
-
-use crate::render_tree::properties::Position;
-use crate::render_tree::{properties::Rectangle, text::TextNode};
+use crate::macos_render_tree::properties::Position;
+use crate::macos_render_tree::{properties::Rectangle, text::TextNode};
 
 pub mod properties;
 pub mod text;
@@ -15,10 +13,10 @@ pub mod util;
 /// A RenderTree is a data structure to be consumed by a user agent
 /// that combines the DOM and CSSOM to compute layouts and styles
 /// for objects to draw on the screen.
-pub struct RenderTree {
+pub struct MacOSRenderTree {
     /// Pointer to the underlying document that builds this render tree
     // TODO: Add CSSOM here as well when we get to that point
-    document: DocumentHandle,
+    document: DocumentHandle<D, C>,
     /// Entry point of the render tree
     // TODO: make this a NodeHandle to make operations easier and not
     // have to keep doing borrow(), borrow_mut() etc.
@@ -30,11 +28,11 @@ pub struct RenderTree {
     pub position: Position,
 }
 
-impl RenderTree {
+impl MacOSRenderTree {
     #[must_use]
-    pub fn new(document: DocumentHandle) -> Self {
+    pub fn new(handle: DocumentHandle<D, C>) -> Self {
         Self {
-            document: Document::clone(document),
+            document: DocumentHandle::clone(&handle),
             root: Rc::new(RefCell::new(Node::new())),
             position: Position::new(),
         }
@@ -44,14 +42,14 @@ impl RenderTree {
         // start with a clean root (if build is called multiple times)
         self.root = Rc::new(RefCell::new(Node::new()));
 
-        let tree_iterator = document::TreeIterator::new(&self.document);
+        let tree_iterator = TreeIterator::new(&self.document);
         let mut reference_element = Rc::clone(&self.root);
 
         for current_node_id in tree_iterator {
             let doc_read = self.document.get();
             if let Some(current_node) = doc_read.get_node_by_id(current_node_id) {
-                match &current_node.data {
-                    NodeData::Element(element) => {
+                match &current_node.get_data() {
+                    NodeDataTypeInternal::Element(element) => {
                         let new_node = match element.name.as_str() {
                             "h1" => Node::new_heading1,
                             "h2" => Node::new_heading2,
@@ -68,7 +66,7 @@ impl RenderTree {
                         util::add_node_to_element(&reference_element, &new_node);
                         reference_element = Rc::clone(&new_node);
                     }
-                    NodeData::Text(text) => {
+                    NodeDataTypeInternal::Text(text) => {
                         let mut mut_element_ref = reference_element.as_ref().borrow_mut();
                         if let NodeType::Text(element_text) = &mut mut_element_ref.node_type {
                             element_text.value.push_str(text.value());
@@ -263,7 +261,7 @@ impl Iterator for TreeIterator {
 mod tests {
     use std::{cell::RefCell, rc::Rc};
 
-    use crate::render_tree::Node;
+    use crate::macos_render_tree::Node;
 
     #[test]
     fn next_sibling() {

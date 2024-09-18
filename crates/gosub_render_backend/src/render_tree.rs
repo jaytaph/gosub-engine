@@ -3,12 +3,14 @@ use std::fmt::{Debug, Formatter};
 
 use log::warn;
 
+use gosub_css3::matcher::property_definitions::get_css_definitions;
+use gosub_css3::matcher::shorthands::FixList;
 use gosub_css3::matcher::styling::{CssProperty, CssProperties, DeclarationProperty, prop_is_inherit};
-use gosub_css3::stylesheet::{CssDeclaration, CssStylesheet, CssValue, Specificity};
+use gosub_css3::stylesheet::{CssDeclaration, CssValue, Specificity};
 use gosub_html5::document::document::TreeIterator;
 use gosub_html5::node::data::element::ElementData;
-use gosub_render_backend::geo::Size;
-use gosub_render_backend::layout::{HasTextLayout, Layout, LayoutTree, Layouter, Node, TextLayout};
+use crate::geo::Size;
+use crate::layout::{HasTextLayout, Layout, LayoutTree, Layouter, Node, TextLayout};
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
@@ -16,6 +18,7 @@ use gosub_shared::traits::document::Document;
 use gosub_shared::traits::node::Node as DocumentNode;
 use gosub_shared::traits::node::NodeData;
 use gosub_shared::types::Result;
+use gosub_shared::traits::css3::CssStylesheet;
 
 mod desc;
 
@@ -233,25 +236,25 @@ impl<L: Layouter> RenderTree<L> {
     }
 
     /// Generate a render tree from the given document
-    pub fn from_document<D: Document<L::CssSystem>>(document: DocumentHandle<D, L::CssSystem>) -> Self {
-        let mut render_tree = RenderTree::with_capacity(document.get().count_nodes());
+    pub fn from_document<D: Document<L::CssSystem> + Clone>(document: DocumentHandle<D, L::CssSystem>) -> Self {
+        let mut render_tree = RenderTree::with_capacity(document.get().node_count());
 
         render_tree.generate_from(document);
 
         render_tree
     }
 
-    fn generate_from<D: Document<L::CssSystem>>(&mut self, handle: DocumentHandle<D, L::CssSystem>) {
+    fn generate_from<D: Document<L::CssSystem> + Clone>(&mut self, handle: DocumentHandle<D, L::CssSystem>) {
         // Iterate the complete document tree
         let tree_iterator = TreeIterator::new(handle.clone());
 
         {
             let doc = handle.get();
-            println!("Stylesheets: {:?}", doc.get_stylesheets().len());
+            println!("Stylesheets: {:?}", doc.stylesheets().len());
 
-            for stylesheet in &doc.get_stylesheets() {
-                println!("   {:?}", stylesheet.location);
-                println!("   {:?}", stylesheet.origin);
+            for &stylesheet in doc.stylesheets() {
+                println!("   {:?}", stylesheet.location());
+                println!("   {:?}", stylesheet.origin());
             }
         }
 
@@ -259,10 +262,10 @@ impl<L: Layouter> RenderTree<L> {
             let mut css_map_entry = CssProperties::new();
 
             let doc = handle.get();
-            let node = doc.get_node_by_id(current_node_id).expect("node not found");
+            let node = doc.node_by_id(current_node_id).expect("node not found");
 
             if node_is_unrenderable(node) {
-                if let Some(parent) = node.parent {
+                if let Some(parent) = node.parent_id() {
                     if let Some(parent) = self.get_node_mut(parent) {
                         parent.children.retain(|id| *id != current_node_id);
                         // continue
@@ -283,7 +286,7 @@ impl<L: Layouter> RenderTree<L> {
             let mut fix_list = FixList::new();
 
             for sheet in handle.get().stylesheets().iter() {
-                for rule in sheet.rules.iter() {
+                for rule in sheet.rules().iter() {
                     for selector in rule.selectors().iter() {
                         let (matched, specificity) = match_selector(
                             handle.clone(),
@@ -308,7 +311,7 @@ impl<L: Layouter> RenderTree<L> {
                                 continue;
                             };
 
-                            let value = resolve_functions(&declaration.value, node, &doc);
+                            let value = resolve_functions(&declaration.value, node, handle.clone());
 
                             // Check if the declaration matches the definition and return the "expanded" order
                             let res = definition.matches_and_shorthands(&value, &mut fix_list);
@@ -341,9 +344,9 @@ impl<L: Layouter> RenderTree<L> {
             fix_list.apply(&mut css_map_entry);
 
             let binding = handle.get();
-            let current_node = binding.get_node_by_id(current_node_id).unwrap();
+            let current_node = binding.node_by_id(current_node_id).unwrap();
 
-            let data = || RenderNodeData::from_node_data(current_node.data.clone());
+            let data = || RenderNodeData::from_node_data(current_node.data().clone());
 
             let data = match data() {
                 ControlFlow::Ok(data) => data,
@@ -357,10 +360,10 @@ impl<L: Layouter> RenderTree<L> {
             let render_tree_node = RenderTreeNode {
                 id: current_node_id,
                 properties: css_map_entry,
-                children: current_node.children.clone(),
-                parent: node.parent,
-                name: node.name.clone(), // We might be able to move node into render_tree_node
-                namespace: node.namespace.clone(),
+                children: current_node.children().clone(),
+                parent: node.parent_id(),
+                name: node.name().clone(), // We might be able to move node into render_tree_node
+                namespace: node.namespace().clone(),
                 data,
                 css_dirty: true,
                 cache: L::Cache::default(),
@@ -557,7 +560,7 @@ impl<L: Layouter> RenderTree<L> {
 // Generates a declaration property and adds it to the css_map_entry
 pub fn add_property_to_map(
     css_map_entry: &mut CssProperties,
-    sheet: &CssStylesheet,
+    sheet: &gosub_css3::stylesheet::CssStylesheet,
     specificity: Specificity,
     declaration: &CssDeclaration,
 ) {
@@ -798,7 +801,7 @@ impl<L: Layouter> Node for RenderTreeNode<L> {
 
 pub struct Value(pub CssValue);
 
-impl gosub_render_backend::layout::CssProperty for CssProperty {
+impl crate::layout::CssProperty for CssProperty {
     type Value = Value;
 
     fn compute_value(&mut self) {
@@ -867,7 +870,7 @@ impl gosub_render_backend::layout::CssProperty for CssProperty {
     }
 }
 
-impl gosub_render_backend::layout::CssValue for Value {
+impl crate::layout::CssValue for Value {
     fn unit_to_px(&self) -> f32 {
         self.0.unit_to_px()
     }

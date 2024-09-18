@@ -1,4 +1,4 @@
-use gosub_rendering::render_tree::text::TextNode;
+use gosub_rendering::macos_render_tree::text::TextNode;
 use std::ffi::c_char;
 use std::ffi::CString;
 

@@ -21,7 +21,7 @@ const (
 
 const (
 	exportType      = Both
-	ResourcePath    = "crates/gosub_styling/resources/definitions"
+	ResourcePath    = "crates/gosub_css3/resources/definitions"
 	SingleFilePath  = ResourcePath + "/definitions.json"
 	MultiFileDir    = ResourcePath
 	MultiFilePrefix = "definitions_"

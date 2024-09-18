@@ -2,7 +2,7 @@ use crate::traits::ParserConfig;
 use crate::types::Result;
 
 /// Defines the origin of the stylesheet (or declaration)
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum CssOrigin {
     /// Browser/user agent defined stylesheets
     UserAgent,
@@ -22,4 +22,10 @@ pub trait CssSystem: Clone {
     fn parse_str(str: &str, config: ParserConfig, origin: CssOrigin, source_url: &str) -> Result<Self::Stylesheet>;
 }
 
-pub trait CssStylesheet: PartialEq {}
+pub trait CssStylesheet: PartialEq {
+    /// Returns the origin of the stylesheet
+    fn origin(&self) -> CssOrigin;
+
+    /// Returns the source URL of the stylesheet
+    fn location(&self) -> &str;
+}

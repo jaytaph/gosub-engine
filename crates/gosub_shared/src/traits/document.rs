@@ -24,13 +24,13 @@ pub trait DocumentBuilder<C: CssSystem> {
     ) -> DocumentHandle<Self::Document, C>;
 }
 
-pub trait DocumentFragment<S: CssSystem>: Sized {
-    type Document: Document<S, Fragment = Self>;
+pub trait DocumentFragment<C: CssSystem>: Sized {
+    type Document: Document<C, Fragment = Self>;
 
     /// Returns the document handle for this document
-    fn handle(&self) -> DocumentHandle<Self::Document, S>;
+    fn handle(&self) -> DocumentHandle<Self::Document, C>;
 
-    fn new(handle: DocumentHandle<Self::Document, S>, node_id: NodeId) -> Self;
+    fn new(handle: DocumentHandle<Self::Document, C>, node_id: NodeId) -> Self;
 }
 
 pub trait Document<C: CssSystem>: Sized {
@@ -59,6 +59,7 @@ pub trait Document<C: CssSystem>: Sized {
     fn node_by_id(&self, node_id: NodeId) -> Option<&Self::Node>;
     fn node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node>;
 
+    fn stylesheets(&self) -> &Vec<C::Stylesheet>;
     fn add_stylesheet(&mut self, stylesheet: C::Stylesheet);
 
     /// Return the root node of the document
@@ -78,6 +79,9 @@ pub trait Document<C: CssSystem>: Sized {
 
     /// Returns the next sibling of the reference node
     fn get_next_sibling(&self, node: NodeId) -> Option<NodeId>;
+
+    /// Return number of nodes in the document
+    fn node_count(&self) -> usize;
 
     // /// Returns the next node ID that will be used when registering a new node
     // fn peek_next_id(&self) -> NodeId;

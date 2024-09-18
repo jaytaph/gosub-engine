@@ -2,10 +2,9 @@ use std::cmp::Ordering;
 
 use rstar::{RTree, RTreeObject, AABB};
 
-use gosub_html5::node::NodeId;
 use gosub_render_backend::layout::{Layout, LayoutTree, Layouter};
 use gosub_render_backend::RenderBackend;
-use gosub_styling::render_tree::RenderTree;
+use gosub_shared::node::NodeId;
 
 #[derive(Debug)]
 pub struct Element {

@@ -6,7 +6,7 @@ pub mod wrapper;
 
 use gosub_html5::parser::document::{Document, DocumentBuilder};
 use gosub_html5::parser::Html5Parser;
-use gosub_rendering::render_tree::{Node, NodeType, RenderTree, TreeIterator};
+use gosub_rendering::macos_render_tree::{Node, NodeType, RenderTree, TreeIterator};
 use gosub_shared::byte_stream::{ByteStream, Encoding};
 use wrapper::node::CNode;
 

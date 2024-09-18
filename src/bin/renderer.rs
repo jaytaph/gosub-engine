@@ -6,7 +6,7 @@ use url::Url;
 
 use gosub_renderer::render_tree::TreeDrawer;
 use gosub_shared::types::Result;
-use gosub_styling::render_tree::RenderTree;
+use gosub_css3::render_tree::RenderTree;
 use gosub_taffy::TaffyLayouter;
 use gosub_useragent::application::{Application, CustomEvent};
 use gosub_vello::VelloBackend;

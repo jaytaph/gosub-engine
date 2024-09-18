@@ -13,8 +13,8 @@ use gosub_render_backend::layout::Layouter;
 use gosub_render_backend::RenderBackend;
 use gosub_rendering::position::PositionTree;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
-use gosub_styling::render_tree::{generate_render_tree, RenderNodeData, RenderTree};
-use gosub_styling::styling::CssProperties;
+use gosub_css3::render_tree::{generate_render_tree, RenderNodeData, RenderTree};
+use gosub_css3::styling::CssProperties;
 
 pub struct TreeDrawer<B: RenderBackend, L: Layouter> {
     pub(crate) fetcher: Fetcher,
@@ -93,7 +93,7 @@ pub(crate) fn load_html_rendertree<L: Layouter>(
 
     let mut doc = doc_handle.get_mut();
     doc.stylesheets
-        .push(gosub_styling::load_default_useragent_stylesheet()?);
+        .push(gosub_css3::load_default_useragent_stylesheet()?);
 
     drop(doc);
 

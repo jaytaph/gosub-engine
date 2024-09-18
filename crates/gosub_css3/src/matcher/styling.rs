@@ -14,8 +14,8 @@ use crate::matcher::property_definitions::get_css_definitions;
 use crate::stylesheet::{Combinator, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity};
 
 // Matches a complete selector (all parts) against the given node(id)
-pub(crate) fn match_selector<D: Document<S>, S: CssSystem>(
-    document: DocumentHandle<D, S>,
+pub(crate) fn match_selector<D: Document<C>, C: CssSystem>(
+    document: DocumentHandle<D, C>,
     node_id: NodeId,
     selector: &CssSelector,
 ) -> (bool, Specificity) {
@@ -39,8 +39,8 @@ fn consume<'a, T>(this: &mut &'a [T]) -> Option<&'a T> {
 }
 
 /// Returns true when the given node matches the part(s)
-fn match_selector_parts<D: Document<S>, S: CssSystem>(
-    handle: DocumentHandle<D, S>,
+fn match_selector_parts<D: Document<C>, C: CssSystem>(
+    handle: DocumentHandle<D, C>,
     node_id: NodeId,
     mut parts: &[CssSelectorPart],
 ) -> bool {
@@ -78,7 +78,7 @@ fn match_selector_parts<D: Document<S>, S: CssSystem>(
     true
 }
 
-fn match_selector_part<'a, D: Document<S>, S: CssSystem>(
+fn match_selector_part<'a, D: Document<C>, C: CssSystem>(
     part: &CssSelectorPart,
     current_node: &D::Node,
     doc: &'a D,
