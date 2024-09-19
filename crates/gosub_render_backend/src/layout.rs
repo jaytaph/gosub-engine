@@ -125,7 +125,7 @@ pub trait Layout: Default {
 pub trait Node {
     type Property: CssProperty;
 
-    fn get_property(&mut self, name: &str) -> Option<&mut Self::Property>;
+    fn get_property(&self, name: &str) -> Option<&Self::Property>;
     fn text_data(&self) -> Option<&str>;
 
     fn text_size(&self) -> Option<Size>;

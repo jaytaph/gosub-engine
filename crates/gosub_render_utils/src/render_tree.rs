@@ -1,19 +1,15 @@
-use crate::geo::Size;
-use crate::layout::{HasTextLayout, Layout, LayoutTree, Layouter, Node, TextLayout};
 use gosub_html5::document::document::TreeIterator;
-use gosub_html5::node::data::element::ElementData;
+use gosub_render_backend::layout::{HasTextLayout, Layout, LayoutTree, Layouter, TextLayout};
+use gosub_render_backend::{layout, Size};
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
-use gosub_shared::traits::css3::CssStylesheet;
 use gosub_shared::traits::css3::{CssProperty, CssPropertyMap, CssSystem};
 use gosub_shared::traits::document::Document;
-use gosub_shared::traits::node::NodeData;
 use gosub_shared::traits::node::{ElementDataType, Node as DocumentNode, TextDataType};
+use gosub_shared::traits::node::{Node, NodeData};
 use gosub_shared::types::Result;
-use log::warn;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::marker::PhantomData;
 
 mod desc;
 
@@ -30,7 +26,7 @@ pub struct RenderTree<L: Layouter, D: Document<C>, C: CssSystem> {
     pub root: NodeId,
     pub dirty: bool,
     next_id: NodeId,
-    handle: Option<DocumentHandle<D, C>>,
+    pub handle: Option<DocumentHandle<D, C>>,
 }
 
 #[allow(unused)]
@@ -308,7 +304,7 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
 
         for id in self.nodes.keys() {
             // Check CSS styles and remove if not renderable
-            if let Some(mut prop) = self.get_property(*id, "display") {
+            if let Some(prop) = self.get_property(*id, "display") {
                 if prop.as_string() == Some("none") {
                     delete_list.append(&mut self.get_child_node_ids(*id));
                     delete_list.push(*id);
@@ -602,11 +598,11 @@ impl<L: Layouter, C: CssSystem> HasTextLayout<L> for RenderTreeNode<L, C> {
     }
 }
 
-impl<L: Layouter, C: CssSystem> Node for RenderTreeNode<L, C> {
+impl<L: Layouter, C: CssSystem> layout::Node for RenderTreeNode<L, C> {
     type Property = C::Property;
 
-    fn get_property(&mut self, name: &str) -> Option<&mut Self::Property> {
-        self.get_property(name)
+    fn get_property(&self, name: &str) -> Option<&Self::Property> {
+        self.properties.get(name)
     }
     fn text_data(&self) -> Option<&str> {
         if let RenderNodeData::Text(text) = &self.data {

@@ -5,12 +5,21 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use gosub_render_backend::layout::{LayoutTree, Layouter};
 use gosub_render_backend::{Point, RenderBackend, SizeU32, FP};
 use gosub_renderer::draw::SceneDrawer;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::document::Document;
 use gosub_shared::types::Result;
 
 use crate::window::{Window, WindowState};
 
-impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree<L>>
-    Window<'a, D, B, L, LT>
+impl<
+        'a,
+        D: SceneDrawer<B, L, LT, Doc, C>,
+        B: RenderBackend,
+        L: Layouter,
+        LT: LayoutTree<L>,
+        Doc: Document<C>,
+        C: CssSystem,
+    > Window<'a, D, B, L, LT, Doc, C>
 {
     pub fn event(
         &mut self,

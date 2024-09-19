@@ -1,10 +1,10 @@
-use std::borrow::BorrowMut;
-use std::{cell::RefCell, rc::Rc};
-use gosub_html5::node::node::NodeDataTypeInternal;
-use gosub_shared::document::DocumentHandle;
-
 use crate::macos_render_tree::properties::Position;
 use crate::macos_render_tree::{properties::Rectangle, text::TextNode};
+use gosub_html5::node::node::NodeDataTypeInternal;
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::traits::node::TextDataType;
+use std::borrow::BorrowMut;
+use std::{cell::RefCell, rc::Rc};
 
 pub mod properties;
 pub mod text;

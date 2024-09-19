@@ -230,6 +230,31 @@ pub struct Html5Parser<'chars, D: Document<C>, C: CssSystem> {
     context_doc: Option<DocumentHandle<D, C>>,
 }
 
+impl<D: Document<C>, C: CssSystem> gosub_shared::traits::html5::Html5Parser<C>
+    for Html5Parser<'_, D, C>
+{
+    type Document = D;
+    type Options = Html5ParserOptions;
+
+    fn parse(
+        stream: &mut ByteStream,
+        doc: DocumentHandle<Self::Document, C>,
+        opts: Option<Self::Options>,
+    ) -> Result<Vec<ParseError>> {
+        Self::parse_document(stream, doc, opts)
+    }
+
+    fn parse_fragment(
+        stream: &mut ByteStream,
+        doc: DocumentHandle<Self::Document, C>,
+        context_node: &<Self::Document as Document<C>>::Node,
+        options: Option<Self::Options>,
+        start_location: Location,
+    ) -> Result<Vec<ParseError>> {
+        Self::parse_fragment(stream, doc, context_node, options, start_location)
+    }
+}
+
 /// Defines the scopes for in_scope()
 #[derive(Clone, Copy)]
 enum Scope {

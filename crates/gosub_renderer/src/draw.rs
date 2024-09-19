@@ -8,16 +8,21 @@ use gosub_css3::colors::RgbColor;
 use gosub_css3::stylesheet::CssValue;
 use gosub_net::http::fetcher::Fetcher;
 use gosub_render_backend::geo::{Size, SizeU32, FP};
-use gosub_render_backend::layout::{Layout, LayoutTree, Layouter, TextLayout};
+use gosub_render_backend::layout::{Layout, LayoutTree, Layouter, Node as _, TextLayout};
 use gosub_render_backend::svg::SvgRenderer;
 use gosub_render_backend::{
     Border, BorderSide, BorderStyle, Brush, Color, ImageBuffer, NodeDesc, Rect, RenderBackend,
     RenderBorder, RenderRect, RenderText, Scene as TScene, Text, Transform,
 };
+
 use gosub_rendering::position::PositionTree;
+use gosub_rendering::render_tree::{RenderNodeData, RenderTree, RenderTreeNode};
 use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::{CssProperty, CssPropertyMap, CssSystem};
+use gosub_shared::traits::document::Document;
+use gosub_shared::traits::html5::Html5Parser;
+use gosub_shared::traits::node::{ElementDataType, Node};
 use gosub_shared::types::Result;
-use gosub_css3::render_tree::{RenderNodeData, RenderTree, RenderTreeNode};
 
 use crate::debug::scale::px_scale;
 use crate::draw::img::request_img;
@@ -25,14 +30,22 @@ use crate::render_tree::{load_html_rendertree, TreeDrawer};
 
 mod img;
 
-pub trait SceneDrawer<B: RenderBackend, L: Layouter, LT: LayoutTree<L>> {
+pub trait SceneDrawer<
+    B: RenderBackend,
+    L: Layouter,
+    LT: LayoutTree<L>,
+    D: Document<C>,
+    C: CssSystem,
+>
+{
     fn draw(&mut self, backend: &mut B, data: &mut B::WindowData<'_>, size: SizeU32) -> bool;
     fn mouse_move(&mut self, backend: &mut B, x: FP, y: FP) -> bool;
 
     fn scroll(&mut self, point: Point);
-    fn from_url(url: Url, layouter: L, debug: bool) -> Result<Self>
+    fn from_url<P>(url: Url, layouter: L, debug: bool) -> Result<Self>
     where
-        Self: Sized;
+        Self: Sized,
+        P: Html5Parser<C, Document = D>;
 
     fn clear_buffers(&mut self);
     fn toggle_debug(&mut self);
@@ -52,7 +65,8 @@ const DEBUG_BORDER_COLOR: (u8, u8, u8) = (255, 72, 72); //rgb(255, 72, 72)
 
 type Point = gosub_shared::types::Point<FP>;
 
-impl<B: RenderBackend, L: Layouter> SceneDrawer<B, L, RenderTree<L>> for TreeDrawer<B, L>
+impl<B: RenderBackend, L: Layouter, D: Document<C>, C: CssSystem>
+    SceneDrawer<B, L, RenderTree<L, D, C>, D, C> for TreeDrawer<B, L, D, C>
 where
     <<B as RenderBackend>::Text as Text>::Font:
         From<<<L as Layouter>::TextLayout as TextLayout>::Font>,
@@ -196,8 +210,11 @@ where
         self.dirty = true;
     }
 
-    fn from_url(url: Url, layouter: L, debug: bool) -> Result<Self> {
-        let rt = load_html_rendertree(url.clone())?;
+    fn from_url<P>(url: Url, layouter: L, debug: bool) -> Result<Self>
+    where
+        P: Html5Parser<C, Document = D>,
+    {
+        let rt = load_html_rendertree::<L, P, C>(url.clone())?;
 
         Ok(Self::new(rt, layouter, url, debug))
     }
@@ -236,13 +253,13 @@ where
     }
 }
 
-struct Drawer<'s, 't, B: RenderBackend, L: Layouter> {
+struct Drawer<'s, 't, B: RenderBackend, L: Layouter, D: Document<C>, C: CssSystem> {
     scene: &'s mut B::Scene,
-    drawer: &'t mut TreeDrawer<B, L>,
+    drawer: &'t mut TreeDrawer<B, L, D, C>,
     svg: B::SVGRenderer,
 }
 
-impl<B: RenderBackend, L: Layouter> Drawer<'_, '_, B, L>
+impl<B: RenderBackend, L: Layouter, D: Document<C>, C: CssSystem> Drawer<'_, '_, B, L, D, C>
 where
     <<B as RenderBackend>::Text as Text>::Font:
         From<<<L as Layouter>::TextLayout as TextLayout>::Font>,
@@ -260,7 +277,7 @@ where
 
         // print_tree(&self.taffy, self.root, &self.style);
 
-        self.drawer.position = PositionTree::from_tree::<B, L>(&self.drawer.tree);
+        self.drawer.position = PositionTree::from_tree::<B, L, D, C>(&self.drawer.tree);
 
         self.render_node_with_children(self.drawer.tree.root, Point::ZERO);
     }
@@ -282,56 +299,71 @@ where
     }
 
     fn render_node(&mut self, id: NodeId, pos: &mut Point) -> anyhow::Result<()> {
-        let mut needs_redraw = false;
-
+        let mut size_change = None;
         let node = self
             .drawer
             .tree
-            .get_node_mut(id)
+            .get_node(id)
             .ok_or(anyhow!("Node {id} not found"))?;
 
         let p = node.layout.rel_pos();
         pos.x += p.x as FP;
         pos.y += p.y as FP;
 
-        let (border_radius, redraw) =
-            render_bg::<B, L>(node, self.scene, pos, &mut self.svg, &self.drawer.fetcher);
+        let (border_radius, new_size) =
+            render_bg::<B, L, C>(node, self.scene, pos, &mut self.svg, &self.drawer.fetcher);
 
-        needs_redraw |= redraw;
+        size_change = new_size;
 
-        if let RenderNodeData::Element(element) = &node.data {
-            if element.name() == "img" {
-                let src = element
-                    .attributes
-                    .get("src")
-                    .ok_or(anyhow!("Image element has no src attribute"))?;
+        if node.name == "img" {
+            let Some(handle) = self.drawer.tree.handle.as_ref() else {
+                return Err(anyhow!("No document handle"));
+            };
 
-                let url = src.as_str();
+            let doc = handle.get();
 
-                let size = node.layout.size_or().map(|x| x.u32());
+            let dom_node = doc.node_by_id(id).ok_or(anyhow!("Node not found"))?;
 
-                let img = request_img(&self.drawer.fetcher, &mut self.svg, url, size)?;
+            let element = dom_node
+                .get_element_data()
+                .ok_or(anyhow!("Node is not an element"))?;
 
-                if size.is_none() {
-                    node.layout.set_size_and_content(img.size());
-                    needs_redraw |= true;
-                }
+            let src = element
+                .attribute("src")
+                .ok_or(anyhow!("Image element has no src attribute"))?;
 
-                let fit = element
-                    .attributes
-                    .get("object-fit")
-                    .map(|prop| prop.as_str())
-                    .unwrap_or("contain");
+            let url = src.as_str();
 
-                let size = size.unwrap_or(img.size()).f32();
+            let size = node.layout.size_or().map(|x| x.u32());
 
-                render_image::<B>(img, self.scene, *pos, size, border_radius, fit)?;
+            let img = request_img(&self.drawer.fetcher, &mut self.svg, url, size)?;
+
+            if size.is_none() {
+                size_change = Some(img.size());
             }
+
+            let fit = node
+                .properties
+                .get("object-fit")
+                .and_then(|prop| prop.as_string())
+                .unwrap_or("contain");
+
+            let size = size.unwrap_or(img.size()).f32();
+
+            render_image::<B>(img, self.scene, *pos, size, border_radius, fit)?;
         }
 
-        render_text::<B, L>(node, self.scene, pos);
+        render_text::<B, L, C>(node, self.scene, pos);
 
-        if needs_redraw {
+        if let Some(new) = size_change {
+            let node = self
+                .drawer
+                .tree
+                .get_node_mut(id)
+                .ok_or(anyhow!("Node {id} not found"))?;
+
+            node.layout.set_size(new.into());
+
             self.drawer.set_needs_redraw()
         }
 
@@ -339,8 +371,8 @@ where
     }
 }
 
-fn render_text<B: RenderBackend, L: Layouter>(
-    node: &mut RenderTreeNode<L>,
+fn render_text<B: RenderBackend, L: Layouter, C: CssSystem>(
+    node: &RenderTreeNode<L, C>,
     scene: &mut B::Scene,
     pos: &Point,
 ) where
@@ -358,19 +390,11 @@ fn render_text<B: RenderBackend, L: Layouter>(
     let color = node
         .properties
         .get("color")
-        .and_then(|prop| {
-            prop.compute_value();
-
-            match &prop.actual {
-                CssValue::Color(color) => Some(*color),
-                CssValue::String(color) => Some(RgbColor::from(color.as_str())),
-                _ => None,
-            }
-        })
-        .map(|color| Color::rgba(color.r as u8, color.g as u8, color.b as u8, color.a as u8))
+        .and_then(|prop| prop.parse_color())
+        .map(|color| Color::rgba(color.0 as u8, color.1 as u8, color.2 as u8, color.3 as u8))
         .unwrap_or(Color::BLACK);
 
-    if let RenderNodeData::Text(ref text) = node.data {
+    if let RenderNodeData::Text(text) = &node.data {
         let Some(layout) = text.layout.as_ref() else {
             warn!("No layout for text node");
             return;
@@ -399,61 +423,41 @@ fn render_text<B: RenderBackend, L: Layouter>(
     }
 }
 
-fn render_bg<B: RenderBackend, L: Layouter>(
-    node: &mut RenderTreeNode<L>,
+fn render_bg<B: RenderBackend, L: Layouter, C: CssSystem>(
+    node: &RenderTreeNode<L, C>,
     scene: &mut B::Scene,
     pos: &Point,
     svg: &mut B::SVGRenderer,
     fetcher: &Fetcher,
-) -> ((FP, FP, FP, FP), bool) {
+) -> ((FP, FP, FP, FP), Option<SizeU32>) {
     let bg_color = node
         .properties
         .get("background-color")
-        .and_then(|prop| {
-            prop.compute_value();
-
-            match &prop.actual {
-                CssValue::Color(color) => Some(*color),
-                CssValue::String(color) => Some(RgbColor::from(color.as_str())),
-                _ => None,
-            }
-        })
-        .map(|color| Color::rgba(color.r as u8, color.g as u8, color.b as u8, color.a as u8));
+        .and_then(|prop| prop.parse_color())
+        .map(|color| Color::rgba(color.0 as u8, color.1 as u8, color.2 as u8, color.3 as u8));
 
     let border_radius_left = node
         .properties
         .get("border-radius-left")
-        .map(|prop| {
-            prop.compute_value();
-            prop.actual.unit_to_px() as f64
-        })
+        .map(|prop| prop.unit_to_px() as f64)
         .unwrap_or(0.0);
 
     let border_radius_right = node
         .properties
         .get("border-radius-right")
-        .map(|prop| {
-            prop.compute_value();
-            prop.actual.unit_to_px() as f64
-        })
+        .map(|prop| prop.unit_to_px() as f64)
         .unwrap_or(0.0);
 
     let border_radius_top = node
         .properties
         .get("border-radius-top")
-        .map(|prop| {
-            prop.compute_value();
-            prop.actual.unit_to_px() as f64
-        })
+        .map(|prop| prop.unit_to_px() as f64)
         .unwrap_or(0.0);
 
     let border_radius_bottom = node
         .properties
         .get("border-radius-bottom")
-        .map(|prop| {
-            prop.compute_value();
-            prop.actual.unit_to_px() as f64
-        })
+        .map(|prop| prop.unit_to_px() as f64)
         .unwrap_or(0.0);
 
     let border_radius = (
@@ -463,7 +467,7 @@ fn render_bg<B: RenderBackend, L: Layouter>(
         border_radius_left as FP,
     );
 
-    let border = get_border::<B, L>(node).map(|border| RenderBorder::new(border));
+    let border = get_border::<B, L, C>(node).map(|border| RenderBorder::new(border));
 
     if let Some(bg_color) = bg_color {
         let size = node.layout.size();
@@ -507,16 +511,12 @@ fn render_bg<B: RenderBackend, L: Layouter>(
         scene.draw_rect(&rect);
     }
 
-    let background_image = node.properties.get("background-image").and_then(|prop| {
-        prop.compute_value();
+    let background_image = node
+        .properties
+        .get("background-image")
+        .and_then(|prop| prop.as_string());
 
-        match &prop.actual {
-            CssValue::String(url) => Some(url.as_str()),
-            _ => None,
-        }
-    });
-
-    let mut redraw = false;
+    let mut img_size = None;
 
     if let Some(url) = background_image {
         let size = node.layout.size_or().map(|x| x.u32());
@@ -525,14 +525,12 @@ fn render_bg<B: RenderBackend, L: Layouter>(
             Ok(img) => img,
             Err(e) => {
                 eprintln!("Error loading image: {:?}", e);
-                return (border_radius, false);
+                return (border_radius, None);
             }
         };
 
         if size.is_none() {
-            node.layout.set_size_and_content(img.size());
-
-            redraw = true;
+            img_size = Some(img.size());
         }
 
         let _ = render_image::<B>(img, scene, *pos, node.layout.size(), border_radius, "fill")
@@ -541,7 +539,7 @@ fn render_bg<B: RenderBackend, L: Layouter>(
             });
     }
 
-    (border_radius, redraw)
+    (border_radius, img_size)
 }
 
 enum Side {
@@ -707,11 +705,13 @@ pub fn print_tree<B: RenderBackend, L: Layouter>(
 }
 */
 
-fn get_border<B: RenderBackend, L: Layouter>(node: &mut RenderTreeNode<L>) -> Option<B::Border> {
-    let left = get_border_side::<B, L>(node, Side::Left);
-    let right = get_border_side::<B, L>(node, Side::Right);
-    let top = get_border_side::<B, L>(node, Side::Top);
-    let bottom = get_border_side::<B, L>(node, Side::Bottom);
+fn get_border<B: RenderBackend, L: Layouter, C: CssSystem>(
+    node: &RenderTreeNode<L, C>,
+) -> Option<B::Border> {
+    let left = get_border_side::<B, L, C>(node, Side::Left);
+    let right = get_border_side::<B, L, C>(node, Side::Right);
+    let top = get_border_side::<B, L, C>(node, Side::Top);
+    let bottom = get_border_side::<B, L, C>(node, Side::Bottom);
 
     if left.is_none() && right.is_none() && top.is_none() && bottom.is_none() {
         return None;
@@ -738,53 +738,39 @@ fn get_border<B: RenderBackend, L: Layouter>(node: &mut RenderTreeNode<L>) -> Op
     Some(border)
 }
 
-fn get_border_side<B: RenderBackend, L: Layouter>(
-    node: &mut RenderTreeNode<L>,
+fn get_border_side<B: RenderBackend, L: Layouter, C: CssSystem>(
+    node: &RenderTreeNode<L, C>,
     side: Side,
 ) -> Option<B::BorderSide> {
     let width = node
         .properties
         .get(&format!("border-{}-width", side.to_str()))
-        .map(|prop| {
-            prop.compute_value();
-            prop.actual.unit_to_px()
-        })?;
+        .map(|prop| prop.unit_to_px())?;
 
     let color = node
         .properties
         .get(&format!("border-{}-color", side.to_str()))
-        .and_then(|prop| {
-            prop.compute_value();
-
-            match &prop.actual {
-                CssValue::Color(color) => Some(*color),
-                CssValue::String(color) => Some(RgbColor::from(color.as_str())),
-                _ => None,
-            }
-        })?;
+        .and_then(|prop| prop.parse_color())?;
 
     let style = node
         .properties
         .get(&format!("border-{}-style", side.to_str()))
-        .map(|prop| {
-            prop.compute_value();
-            prop.actual.to_string()
-        })
-        .unwrap_or("none".to_string());
+        .and_then(|prop| prop.as_string())
+        .unwrap_or("none");
 
     let style = BorderStyle::from_str(&style);
 
     let brush = Brush::color(Color::rgba(
-        color.r as u8,
-        color.g as u8,
-        color.b as u8,
-        color.a as u8,
+        color.0 as u8,
+        color.1 as u8,
+        color.2 as u8,
+        color.3 as u8,
     ));
 
     Some(BorderSide::new(width as FP, style, brush))
 }
 
-impl<B: RenderBackend, L: Layouter> TreeDrawer<B, L> {
+impl<B: RenderBackend, L: Layouter, D: Document<C>, C: CssSystem> TreeDrawer<B, L, D, C> {
     fn debug_annotate(&mut self, e: NodeId) -> bool {
         let Some(node) = self.tree.get_node(e) else {
             return false;

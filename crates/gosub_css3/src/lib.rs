@@ -22,7 +22,7 @@ pub mod matcher;
 pub mod node;
 pub mod parser;
 pub mod stylesheet;
-mod system;
+pub mod system;
 pub mod tokenizer;
 mod unicode;
 pub mod walker;

@@ -10,9 +10,8 @@ use taffy::{
 };
 
 use gosub_render_backend::geo;
-use gosub_render_backend::layout::{
-    CssProperty, CssValue, Decoration, DecorationStyle, HasTextLayout, LayoutTree, Node,
-};
+use gosub_render_backend::layout::{Decoration, DecorationStyle, HasTextLayout, LayoutTree, Node};
+use gosub_shared::traits::css3::{CssProperty, CssValue};
 use gosub_typeface::font::Glyph;
 
 use crate::text::{Font, TextLayout};

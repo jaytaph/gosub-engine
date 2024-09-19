@@ -11,7 +11,6 @@ use smallvec::SmallVec;
 pub mod geo;
 pub mod layout;
 pub mod svg;
-mod render_tree;
 
 pub trait WindowHandle: HasDisplayHandle + HasWindowHandle + Send + Sync + Clone {}
 

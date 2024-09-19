@@ -2,9 +2,12 @@ use std::cmp::Ordering;
 
 use rstar::{RTree, RTreeObject, AABB};
 
+use crate::render_tree::RenderTree;
 use gosub_render_backend::layout::{Layout, LayoutTree, Layouter};
 use gosub_render_backend::RenderBackend;
 use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::document::Document;
 
 #[derive(Debug)]
 pub struct Element {
@@ -32,7 +35,9 @@ pub struct PositionTree {
 }
 
 impl PositionTree {
-    pub fn from_tree<B: RenderBackend, L: Layouter>(from_tree: &RenderTree<L>) -> Self {
+    pub fn from_tree<B: RenderBackend, L: Layouter, D: Document<C>, C: CssSystem>(
+        from_tree: &RenderTree<L, D, C>,
+    ) -> Self {
         let mut tree = RTree::new();
 
         //TODO: we somehow need to get the border radius and a potential stacking context of the element here
@@ -42,8 +47,8 @@ impl PositionTree {
         Self { tree }
     }
 
-    fn add_node_to_tree<L: Layouter>(
-        from_tree: &RenderTree<L>,
+    fn add_node_to_tree<L: Layouter, D: Document<C>, C: CssSystem>(
+        from_tree: &RenderTree<L, D, C>,
         id: NodeId,
         z_index: i32,
         tree: &mut RTree<Element>,

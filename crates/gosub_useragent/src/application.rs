@@ -10,28 +10,43 @@ use winit::window::WindowId;
 use gosub_render_backend::layout::{LayoutTree, Layouter};
 use gosub_render_backend::{NodeDesc, RenderBackend};
 use gosub_renderer::draw::SceneDrawer;
+use gosub_shared::traits::css3::CssSystem;
+use gosub_shared::traits::document::Document;
+use gosub_shared::traits::html5::Html5Parser;
 use gosub_shared::types::Result;
 
 use crate::window::Window;
 
 pub struct Application<
     'a,
-    D: SceneDrawer<B, L, LT>,
+    D: SceneDrawer<B, L, LT, Doc, C>,
     B: RenderBackend,
     L: Layouter,
     LT: LayoutTree<L>,
+    Doc: Document<C>,
+    C: CssSystem,
+    P: Html5Parser<C, Document = Doc>,
 > {
     open_windows: Vec<Vec<Url>>, // Vec of Windows, each with a Vec of URLs, representing tabs
-    windows: HashMap<WindowId, Window<'a, D, B, L, LT>>,
+    windows: HashMap<WindowId, Window<'a, D, B, L, LT, Doc, C>>,
     backend: B,
     layouter: L,
     proxy: Option<EventLoopProxy<CustomEvent>>,
     event_loop: Option<EventLoop<CustomEvent>>,
     debug: bool,
+    _marker: std::marker::PhantomData<&'a P>,
 }
 
-impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree<L>>
-    ApplicationHandler<CustomEvent> for Application<'a, D, B, L, LT>
+impl<
+        'a,
+        D: SceneDrawer<B, L, LT, Doc, C>,
+        B: RenderBackend,
+        L: Layouter,
+        LT: LayoutTree<L>,
+        Doc: Document<C>,
+        C: CssSystem,
+        P: Html5Parser<C, Document = Doc>,
+    > ApplicationHandler<CustomEvent> for Application<'a, D, B, L, LT, Doc, C, P>
 {
     fn resumed(&mut self, _event_loop: &ActiveEventLoop) {
         for window in self.windows.values_mut() {
@@ -44,7 +59,7 @@ impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: CustomEvent) {
         match event {
             CustomEvent::OpenWindow(url) => {
-                let mut window = match Window::new(
+                let mut window = match Window::new::<P>(
                     event_loop,
                     &mut self.backend,
                     self.layouter.clone(),
@@ -69,7 +84,7 @@ impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree
             }
             CustomEvent::OpenInitial => {
                 for urls in self.open_windows.drain(..) {
-                    let mut window = match Window::new(
+                    let mut window = match Window::new::<P>(
                         event_loop,
                         &mut self.backend,
                         self.layouter.clone(),
@@ -132,8 +147,16 @@ impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree
     }
 }
 
-impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree<L>>
-    Application<'a, D, B, L, LT>
+impl<
+        'a,
+        D: SceneDrawer<B, L, LT, Doc, C>,
+        B: RenderBackend,
+        L: Layouter,
+        LT: LayoutTree<L>,
+        Doc: Document<C>,
+        C: CssSystem,
+        P: Html5Parser<C, Document = Doc>,
+    > Application<'a, D, B, L, LT, Doc, C, P>
 {
     pub fn new(backend: B, layouter: L, debug: bool) -> Self {
         Self {
@@ -144,6 +167,7 @@ impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree
             event_loop: None,
             open_windows: Vec::new(),
             debug,
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -155,7 +179,7 @@ impl<'a, D: SceneDrawer<B, L, LT>, B: RenderBackend, L: Layouter, LT: LayoutTree
         self.open_windows.append(&mut windows);
     }
 
-    pub fn add_window(&mut self, window: Window<'a, D, B, L, LT>) {
+    pub fn add_window(&mut self, window: Window<'a, D, B, L, LT, Doc, C>) {
         self.windows.insert(window.window.id(), window);
     }
 

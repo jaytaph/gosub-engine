@@ -17,7 +17,7 @@ use crate::stylesheet::{CssDeclaration, CssValue, Specificity};
 use gosub_shared::types::Result;
 
 #[derive(Debug, Clone)]
-struct Css3System;
+pub struct Css3System;
 
 impl CssSystem for Css3System {
     type Stylesheet = crate::stylesheet::CssStylesheet;
