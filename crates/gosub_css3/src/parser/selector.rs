@@ -1,10 +1,11 @@
+use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
-use crate::{Css3, Error};
-use gosub_shared::types::Result;
+use crate::Css3;
+use gosub_shared::errors::CssError;
 
 impl Css3<'_> {
-    fn parse_attribute_operator(&mut self) -> Result<Node> {
+    fn parse_attribute_operator(&mut self) -> CssResult<Node> {
         log::trace!("parse_attribute_operator");
 
         let mut value = String::new();
@@ -19,7 +20,7 @@ impl Css3<'_> {
                 self.tokenizer.reconsume();
 
                 return Err(
-                    Error::Parse(format!("Expected attribute operator, got {:?}", c), loc).into(),
+                    CssError::with_location(format!("Expected attribute operator, got {:?}", c).as_str(), loc),
                 );
             }
         }
@@ -32,7 +33,7 @@ impl Css3<'_> {
         Ok(Node::new(NodeType::Operator(value), loc))
     }
 
-    fn parse_class_selector(&mut self) -> Result<Node> {
+    fn parse_class_selector(&mut self) -> CssResult<Node> {
         log::trace!("parse_class_selector");
 
         let loc = self.tokenizer.current_location();
@@ -44,7 +45,7 @@ impl Css3<'_> {
         Ok(Node::new(NodeType::ClassSelector { value }, loc))
     }
 
-    fn parse_nesting_selector(&mut self) -> Result<Node> {
+    fn parse_nesting_selector(&mut self) -> CssResult<Node> {
         log::trace!("parse_nesting_selector");
 
         let loc = self.tokenizer.current_location();
@@ -54,7 +55,7 @@ impl Css3<'_> {
         Ok(Node::new(NodeType::NestingSelector, loc))
     }
 
-    fn parse_type_selector_ident_or_asterisk(&mut self) -> Result<String> {
+    fn parse_type_selector_ident_or_asterisk(&mut self) -> CssResult<String> {
         let t = self.tokenizer.lookahead(0);
         match t.token_type {
             TokenType::Ident(value) => {
@@ -65,15 +66,14 @@ impl Css3<'_> {
                 self.tokenizer.consume();
                 Ok("*".to_string())
             }
-            _ => Err(Error::Parse(
-                format!("Unexpected token {:?}", t),
+            _ => Err(CssError::with_location(
+                format!("Unexpected token {:?}", t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 
-    fn parse_type_selector(&mut self) -> Result<Node> {
+    fn parse_type_selector(&mut self) -> CssResult<Node> {
         log::trace!("parse_type_selector");
 
         let loc = self.tokenizer.current_location();
@@ -109,7 +109,7 @@ impl Css3<'_> {
         ))
     }
 
-    fn parse_attribute_selector(&mut self) -> Result<Node> {
+    fn parse_attribute_selector(&mut self) -> CssResult<Node> {
         log::trace!("parse_attribute_selector");
 
         let loc = self.tokenizer.current_location();
@@ -138,11 +138,10 @@ impl Css3<'_> {
                 } else if t.is_ident() {
                     value = self.consume_any_ident()?;
                 } else {
-                    return Err(Error::Parse(
-                        format!("Unexpected token {:?}", t),
+                    return Err(CssError::with_location(
+                        format!("Unexpected token {:?}", t).as_str(),
                         self.tokenizer.current_location(),
-                    )
-                    .into());
+                    ));
                 }
             }
 
@@ -169,7 +168,7 @@ impl Css3<'_> {
         ))
     }
 
-    fn parse_id_selector(&mut self) -> Result<Node> {
+    fn parse_id_selector(&mut self) -> CssResult<Node> {
         log::trace!("parse_id_selector");
 
         let loc = self.tokenizer.current_location();
@@ -180,18 +179,17 @@ impl Css3<'_> {
         let value = match t.token_type {
             TokenType::Ident(s) => s,
             _ => {
-                return Err(Error::Parse(
-                    format!("Unexpected token {:?}", t),
+                return Err(CssError::with_location(
+                    format!("Unexpected token {:?}", t).as_str(),
                     self.tokenizer.current_location(),
-                )
-                .into());
+                ));
             }
         };
 
         Ok(Node::new(NodeType::IdSelector { value }, loc))
     }
 
-    fn parse_pseudo_element_selector(&mut self) -> Result<Node> {
+    fn parse_pseudo_element_selector(&mut self) -> CssResult<Node> {
         log::trace!("parse_pseudo_element_selector");
 
         let loc = self.tokenizer.current_location();
@@ -203,17 +201,16 @@ impl Css3<'_> {
         let value = if t.is_ident() {
             self.consume_any_ident()?
         } else {
-            return Err(Error::Parse(
-                format!("Unexpected token {:?}", t),
+            return Err(CssError::with_location(
+                format!("Unexpected token {:?}", t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into());
+            ));
         };
 
         Ok(Node::new(NodeType::PseudoElementSelector { value }, loc))
     }
 
-    fn parse_pseudo_selector(&mut self) -> Result<Node> {
+    fn parse_pseudo_selector(&mut self) -> CssResult<Node> {
         log::trace!("parse_pseudo_selector");
 
         let loc = self.tokenizer.current_location();
@@ -237,18 +234,17 @@ impl Css3<'_> {
                 )
             }
             _ => {
-                return Err(Error::Parse(
-                    format!("Unexpected token {:?}", t),
+                return Err(CssError::with_location(
+                    format!("Unexpected token {:?}", t).as_str(),
                     self.tokenizer.current_location(),
-                )
-                .into());
+                ));
             }
         };
 
         Ok(Node::new(NodeType::PseudoClassSelector { value }, loc))
     }
 
-    pub fn parse_selector(&mut self) -> Result<Node> {
+    pub fn parse_selector(&mut self) -> CssResult<Node> {
         log::trace!("parse_selector");
 
         let loc = self.tokenizer.current_location();

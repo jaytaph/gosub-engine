@@ -1,21 +1,22 @@
+use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
-use crate::{Css3, Error};
-use gosub_shared::types::Result;
+use crate::Css3;
+use gosub_shared::errors::CssError;
 
 impl Css3<'_> {
-    fn parse_pseudo_function_selector_list(&mut self) -> Result<Node> {
+    fn parse_pseudo_function_selector_list(&mut self) -> CssResult<Node> {
         log::trace!("parse_pseudo_function_selector_list");
         self.parse_selector_list()
     }
 
-    fn parse_pseudo_function_selector(&mut self) -> Result<Node> {
+    fn parse_pseudo_function_selector(&mut self) -> CssResult<Node> {
         log::trace!("parse_pseudo_function_selector");
 
         self.parse_selector()
     }
 
-    fn parse_pseudo_function_ident_list(&mut self) -> Result<Node> {
+    fn parse_pseudo_function_ident_list(&mut self) -> CssResult<Node> {
         log::trace!("parse_pseudo_function_ident_list");
 
         let loc = self.tokenizer.current_location();
@@ -25,7 +26,7 @@ impl Css3<'_> {
         Ok(Node::new(NodeType::Ident { value }, loc))
     }
 
-    fn parse_pseudo_function_nth(&mut self) -> Result<Node> {
+    fn parse_pseudo_function_nth(&mut self) -> CssResult<Node> {
         log::trace!("parse_pseudo_function_nth");
 
         self.consume_whitespace_comments();
@@ -59,8 +60,8 @@ impl Css3<'_> {
             }
             TokenType::Number(value) => Node::new(NodeType::Number { value }, loc),
             _ => {
-                return Err(Error::Parse(
-                    format!("Unexpected token {:?}", self.tokenizer.lookahead(0)),
+                return Err(CssError::with_location(
+                    format!("Unexpected token {:?}", self.tokenizer.lookahead(0)).as_str(),
                     self.tokenizer.current_location(),
                 )
                 .into());
@@ -81,7 +82,7 @@ impl Css3<'_> {
         Ok(Node::new(NodeType::Nth { nth, selector }, loc))
     }
 
-    pub(crate) fn parse_pseudo_function(&mut self, name: &str) -> Result<Node> {
+    pub(crate) fn parse_pseudo_function(&mut self, name: &str) -> CssResult<Node> {
         log::trace!("parse_pseudo_function");
         match name {
             "dir" => self.parse_pseudo_function_ident_list(),
@@ -100,11 +101,10 @@ impl Css3<'_> {
             "slotted" => self.parse_pseudo_function_selector(),
             "host" => self.parse_pseudo_function_selector(),
             "host-context" => self.parse_pseudo_function_selector(),
-            _ => Err(Error::Parse(
-                format!("Unexpected pseudo function {:?}", name),
+            _ => Err(CssError::with_location(
+                format!("Unexpected pseudo function {:?}", name).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 }

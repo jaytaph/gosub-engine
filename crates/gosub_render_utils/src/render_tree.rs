@@ -6,7 +6,7 @@ use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::{CssProperty, CssPropertyMap, CssSystem};
 use gosub_shared::traits::document::Document;
 use gosub_shared::traits::node::{ElementDataType, Node as DocumentNode, TextDataType};
-use gosub_shared::traits::node::{Node, NodeData};
+use gosub_shared::traits::node::{NodeData};
 use gosub_shared::types::Result;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};

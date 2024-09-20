@@ -3,10 +3,10 @@ use crate::stylesheet::{
     AttributeSelector, Combinator, CssDeclaration, CssRule, CssSelector,
     CssSelectorPart, CssStylesheet, CssValue, MatcherType,
 };
-use anyhow::anyhow;
-use gosub_shared::types::Result;
 use log::warn;
-use gosub_shared::traits::css3::CssOrigin;
+use gosub_shared::errors::{CssError, CssResult};
+use gosub_shared::traits::css3::{ CssOrigin};
+
 /*
 
 Given the following css:
@@ -63,16 +63,16 @@ vs
 pub fn convert_ast_to_stylesheet(
     css_ast: &CssNode,
     origin: CssOrigin,
-    location: &str,
-) -> Result<CssStylesheet> {
+    url: &str,
+) -> CssResult<CssStylesheet> {
     if !css_ast.is_stylesheet() {
-        return Err(anyhow!("CSS AST must start with a stylesheet node"));
+        return Err(CssError::new("CSS AST must start with a stylesheet node"));
     }
 
     let mut sheet = CssStylesheet {
         rules: vec![],
         origin,
-        location: location.to_string(),
+        url: url.to_string(),
         parse_log: vec![],
     };
 
@@ -112,7 +112,7 @@ pub fn convert_ast_to_stylesheet(
                                 " " => Combinator::Descendant,
                                 "||" => Combinator::Column,
                                 "|" => Combinator::Namespace,
-                                _ => return Err(anyhow!("Unknown combinator: {}", value)),
+                                _ => return Err(CssError::new(format!("Unknown combinator: {}", value).as_str())),
                             };
 
                             CssSelectorPart::Combinator(combinator)
@@ -171,7 +171,7 @@ pub fn convert_ast_to_stylesheet(
                             continue;
                         }
                         _ => {
-                            return Err(anyhow!("Unsupported selector part: {:?}", node.node_type))
+                            return Err(CssError::new(format!("Unsupported selector part: {:?}", node.node_type).as_str()));
                         }
                     };
                     if let Some(x) = selector.parts.last_mut() {

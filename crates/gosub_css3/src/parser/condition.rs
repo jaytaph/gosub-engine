@@ -1,11 +1,11 @@
+use gosub_shared::errors::CssResult;
 use crate::node::{FeatureKind, Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
-use gosub_shared::types::Result;
-use crate::errors::Error;
+use gosub_shared::errors::CssError;
 
 impl Css3<'_> {
-    pub fn parse_condition(&mut self, kind: FeatureKind) -> Result<Node> {
+    pub fn parse_condition(&mut self, kind: FeatureKind) -> CssResult<Node> {
         log::trace!("parse_condition");
 
         let loc = self.tokenizer.current_location();
@@ -57,7 +57,7 @@ impl Css3<'_> {
         }
 
         if list.is_empty() {
-            return Err(Error::Parse("Expected condition".to_string(), loc).into());
+            return Err(CssError::with_location("Expected condition", loc));
         }
 
         Ok(Node::new(NodeType::Condition { list }, loc))

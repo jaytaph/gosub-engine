@@ -1,7 +1,6 @@
 use crate::colors::RgbColor;
 use anyhow::anyhow;
 use core::fmt::Debug;
-use gosub_shared::types::Result;
 use std::cmp::Ordering;
 use std::fmt::Display;
 use gosub_shared::byte_stream::Location;
@@ -296,7 +295,7 @@ impl CssValue {
     }
 
     /// Converts a CSS AST node to a CSS value
-    pub fn parse_ast_node(node: &crate::node::Node) -> Result<CssValue> {
+    pub fn parse_ast_node(node: &crate::node::Node) -> CssResult<CssValue> {
         match *node.node_type.clone() {
             crate::node::NodeType::Ident { value } => Ok(CssValue::String(value)),
             crate::node::NodeType::Number { value } => {
@@ -338,7 +337,7 @@ impl CssValue {
     }
 
     /// Parses a string into a CSS value or list of css values
-    pub fn parse_str(value: &str) -> Result<CssValue> {
+    pub fn parse_str(value: &str) -> CssResult<CssValue> {
         match value {
             "initial" => return Ok(CssValue::Initial),
             "inherit" => return Ok(CssValue::Inherit),

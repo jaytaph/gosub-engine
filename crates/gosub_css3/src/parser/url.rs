@@ -1,31 +1,31 @@
+use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
-use crate::{Css3, Error};
-use gosub_shared::types::Result;
-
+use crate::Css3;
+use gosub_shared::errors::CssError;
 
 impl Css3<'_> {
-    pub fn parse_url(&mut self) -> Result<Node> {
+    pub fn parse_url(&mut self) -> CssResult<Node> {
         log::trace!("parse_url");
 
         let loc = self.tokenizer.current_location();
 
         let name = self.consume_function()?;
         if name.to_ascii_lowercase() != "url" {
-            return Err(Error::Parse(
-                format!("Expected url, got {:?}", name),
+            return Err(CssError::with_location(
+                format!("Expected url, got {:?}", name).as_str(),
                 self.tokenizer.current_location(),
-            ).into());
+            ));
         }
 
         let t = self.consume_any()?;
         let url = match t.token_type {
             TokenType::QuotedString(url) => url,
             _ => {
-                return Err(Error::Parse(
-                    format!("Expected url, got {:?}", t),
+                return Err(CssError::with_location(
+                    format!("Expected url, got {:?}", t).as_str(),
                     self.tokenizer.current_location(),
-                ).into())
+                ));
             }
         };
 

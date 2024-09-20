@@ -1,5 +1,4 @@
 use anyhow::bail;
-use gosub_html5::parser::document::{Document, DocumentBuilder};
 use gosub_html5::parser::Html5Parser;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
 use gosub_shared::timing::Scale;
@@ -9,6 +8,10 @@ use std::fs;
 use std::process::exit;
 use std::str::FromStr;
 use url::Url;
+use gosub_css3::system::Css3System;
+use gosub_html5::document::builder::DocumentBuilder;
+use gosub_html5::document::document::DocumentImpl;
+use gosub_shared::document::DocumentHandle;
 
 fn bail(message: &str) -> ! {
     println!("{message}");
@@ -57,11 +60,11 @@ fn main() -> Result<()> {
     // SimpleLogger::new().init().unwrap();
 
     // Create a new document that will be filled in by the parser
-    let handle = DocumentBuilder::new_document(Some(url));
-    let parse_errors = Html5Parser::parse_document(&mut stream, Document::clone(&handle), None)?;
+    let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> = <DocumentBuilder as gosub_shared::traits::document::DocumentBuilder<Css3System>>::new_document(Some(url));
+    let parse_errors = Html5Parser::parse_document(&mut stream, doc_handle.clone(), None)?;
 
-    println!("Found {} stylesheets", handle.get().stylesheets.len());
-    for sheet in &handle.get().stylesheets {
+    println!("Found {} stylesheets", doc_handle.get().stylesheets.len());
+    for sheet in &doc_handle.get().stylesheets {
         println!("Stylesheet location: {:?}", sheet.location);
     }
 

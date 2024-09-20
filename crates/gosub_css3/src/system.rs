@@ -6,6 +6,7 @@ use gosub_shared::traits::css3::{CssOrigin, CssSystem};
 use gosub_shared::traits::document::Document;
 use gosub_shared::traits::node::{ElementDataType, Node, TextDataType};
 use gosub_shared::traits::ParserConfig;
+use gosub_shared::errors::CssResult;
 use log::warn;
 
 use crate::functions::attr::resolve_attr;
@@ -14,7 +15,6 @@ use crate::functions::var::resolve_var;
 use crate::matcher::property_definitions::get_css_definitions;
 use crate::matcher::shorthands::FixList;
 use crate::stylesheet::{CssDeclaration, CssValue, Specificity};
-use gosub_shared::types::Result;
 
 #[derive(Debug, Clone)]
 pub struct Css3System;
@@ -30,9 +30,9 @@ impl CssSystem for Css3System {
         str: &str,
         config: ParserConfig,
         origin: CssOrigin,
-        source_url: &str,
-    ) -> Result<Self::Stylesheet> {
-        Css3::parse_str(str, config, origin, source_url)
+        url: &str,
+    ) -> CssResult<Self::Stylesheet> {
+        Css3::parse_str(str, config, origin, url)
     }
 
     fn properties_from_node<D: Document<Self>>(
@@ -42,14 +42,6 @@ impl CssSystem for Css3System {
         id: NodeId,
     ) -> Option<Self::PropertyMap> {
         let mut css_map_entry = CssProperties::new();
-
-        // Extract name and namespace from the node if it's an element node
-        let mut node_element_namespace = "";
-        let mut node_element_name = "";
-        if let Some(data) = node.get_element_data() {
-            node_element_name = data.name();
-            node_element_namespace = data.namespace();
-        }
 
         if node_is_unrenderable::<D, Self>(node) {
             return None;
@@ -191,7 +183,7 @@ pub fn add_property_to_map(
         value: declaration.value.first().unwrap().clone(),
         origin: sheet.origin,
         important: declaration.important,
-        location: sheet.location.clone(),
+        location: sheet.url.clone(),
         specificity,
     };
 

@@ -1,8 +1,7 @@
-use crate::errors::Error;
+use gosub_shared::errors::{CssError, CssResult};
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
-use gosub_shared::types::Result;
 
 #[derive(Debug, PartialEq)]
 pub enum BlockParseMode {
@@ -11,12 +10,12 @@ pub enum BlockParseMode {
 }
 
 impl Css3<'_> {
-    fn parse_consume_rule(&mut self) -> Result<Option<Node>> {
+    fn parse_consume_rule(&mut self) -> CssResult<Option<Node>> {
         log::trace!("parse_consume_rule");
         self.parse_rule()
     }
 
-    fn parse_consume_declaration(&mut self) -> Result<Option<Node>> {
+    fn parse_consume_declaration(&mut self) -> CssResult<Option<Node>> {
         log::trace!("parse_consume_declaration");
 
         match self.parse_declaration()? {
@@ -50,7 +49,7 @@ impl Css3<'_> {
         }
     }
 
-    pub fn parse_block(&mut self, mode: BlockParseMode) -> Result<Node> {
+    pub fn parse_block(&mut self, mode: BlockParseMode) -> CssResult<Node> {
         log::trace!("parse_block with parse mode: {:?}", mode);
 
         let loc = self.tokenizer.current_location();
@@ -87,11 +86,10 @@ impl Css3<'_> {
                 _ => match mode {
                     BlockParseMode::StyleBlock => {
                         if !semicolon_seperated {
-                            return Err(Error::Parse(
-                                format!("Expected a ; got {:?}", t),
+                            return Err(CssError::with_location(
+                                format!("Expected a ; got {:?}", t).as_str(),
                                 self.tokenizer.current_location(),
-                            )
-                            .into());
+                            ));
                         }
 
                         self.tokenizer.reconsume();

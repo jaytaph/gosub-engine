@@ -11,10 +11,8 @@ use nom::number::complete::float;
 use nom::sequence::{delimited, pair, preceded, separated_pair, tuple};
 use nom::Err;
 use nom::IResult;
+use gosub_shared::errors::{CssError, CssResult};
 
-use gosub_shared::types::Result;
-
-use crate::errors::Error;
 use crate::matcher::syntax_matcher::CssSyntaxTree;
 use crate::stylesheet::CssValue;
 
@@ -260,7 +258,7 @@ impl CssSyntax {
     }
 
     /// Compiles the current syntax into a list of components or Err on compilation error
-    pub fn compile(self) -> Result<CssSyntaxTree> {
+    pub fn compile(self) -> CssResult<CssSyntaxTree> {
         if self.source.is_empty() {
             return Ok(CssSyntaxTree::new(vec![]));
         }
@@ -269,15 +267,11 @@ impl CssSyntax {
         match p {
             Ok((input, components)) => {
                 if !input.trim().is_empty() {
-                    return Err(Error::CssFailure(format!(
-                        "Failed to parse all input (left: '{}')",
-                        input
-                    ))
-                    .into());
+                    return Err(CssError::new(format!("Failed to parse all input (left: '{}')", input).as_str()));
                 }
                 Ok(CssSyntaxTree::new(vec![components]))
             }
-            Err(err) => Err(Error::CssFailure(err.to_string()).into()),
+            Err(e) => Err(CssError::new(e.to_string().as_str())),
         }
     }
 }

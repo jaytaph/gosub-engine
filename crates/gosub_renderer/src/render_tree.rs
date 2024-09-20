@@ -1,7 +1,6 @@
 use std::fs;
 
 use anyhow::bail;
-use gosub_css3::matcher::styling::CssProperties;
 use gosub_net::http::fetcher::Fetcher;
 use gosub_net::http::ureq;
 use gosub_render_backend::geo::SizeU32;

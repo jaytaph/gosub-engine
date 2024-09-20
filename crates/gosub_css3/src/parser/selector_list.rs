@@ -1,9 +1,9 @@
+use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::Css3;
-use gosub_shared::types::Result;
 
 impl Css3<'_> {
-    pub fn parse_selector_list(&mut self) -> Result<Node> {
+    pub fn parse_selector_list(&mut self) -> CssResult<Node> {
         log::trace!("parse_selector_list");
 
         let loc = self.tokenizer.current_location();

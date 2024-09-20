@@ -1,5 +1,4 @@
 use crate::ast::convert_ast_to_stylesheet;
-use crate::errors::Error;
 use crate::stylesheet::CssStylesheet;
 use crate::tokenizer::Tokenizer;
 
@@ -7,15 +6,15 @@ use gosub_shared::byte_stream::{ByteStream, Encoding, Location};
 use gosub_shared::traits::css3::CssOrigin;
 use gosub_shared::traits::Context;
 use gosub_shared::traits::ParserConfig;
-use gosub_shared::types::Result;
 use gosub_shared::{timing_start, timing_stop};
+use gosub_shared::errors::{CssError, CssResult};
 
 pub mod ast;
 /// This CSS3 parser is heavily based on the MIT licensed CssTree parser written by
 /// Roman Dvornov (https://github.com/lahmatiy).
 /// The original version can be found at https://github.com/csstree/csstree
 pub mod colors;
-mod errors;
+pub mod errors;
 mod functions;
 #[allow(dead_code)]
 pub mod matcher;
@@ -63,7 +62,7 @@ impl<'stream> Css3<'stream> {
         config: ParserConfig,
         origin: CssOrigin,
         source_url: &str,
-    ) -> Result<CssStylesheet> {
+    ) -> CssResult<CssStylesheet> {
         let mut stream = ByteStream::new(Encoding::UTF8, None);
         stream.read_from_str(data, Some(Encoding::UTF8));
         stream.close();
@@ -77,17 +76,13 @@ impl<'stream> Css3<'stream> {
         config: ParserConfig,
         origin: CssOrigin,
         source_url: &str,
-    ) -> Result<CssStylesheet> {
+    ) -> CssResult<CssStylesheet> {
         Css3::new(stream, config, origin, source_url).parse()
     }
 
-    fn parse(&mut self) -> Result<CssStylesheet> {
+    fn parse(&mut self) -> CssResult<CssStylesheet> {
         if self.config.context != Context::Stylesheet {
-            return Err(Error::Parse(
-                "Expected a stylesheet context".to_string(),
-                Location::default(),
-            )
-            .into());
+            return Err(CssError::new("Expected a stylesheet context"));
         }
 
         let t_id = timing_start!("css3.parse", self.config.source.as_deref().unwrap_or(""));
@@ -106,12 +101,8 @@ impl<'stream> Css3<'stream> {
         timing_stop!(t_id);
 
         match node_tree {
-            Ok(None) => {
-                Err(Error::Parse("No node tree found".to_string(), Location::default()).into())
-            }
-            Ok(Some(node)) => {
-                convert_ast_to_stylesheet(&node, self.origin, self.source.clone().as_str())
-            }
+            Ok(None) => Err(CssError::new("No node tree found")),
+            Ok(Some(node)) => convert_ast_to_stylesheet(&node, self.origin, self.source.clone().as_str()),
             Err(e) => Err(e),
         }
     }

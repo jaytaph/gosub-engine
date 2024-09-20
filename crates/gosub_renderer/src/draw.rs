@@ -4,11 +4,9 @@ use anyhow::anyhow;
 use log::warn;
 use url::Url;
 
-use gosub_css3::colors::RgbColor;
-use gosub_css3::stylesheet::CssValue;
 use gosub_net::http::fetcher::Fetcher;
 use gosub_render_backend::geo::{Size, SizeU32, FP};
-use gosub_render_backend::layout::{Layout, LayoutTree, Layouter, Node as _, TextLayout};
+use gosub_render_backend::layout::{Layout, LayoutTree, Layouter, TextLayout};
 use gosub_render_backend::svg::SvgRenderer;
 use gosub_render_backend::{
     Border, BorderSide, BorderStyle, Brush, Color, ImageBuffer, NodeDesc, Rect, RenderBackend,
@@ -299,7 +297,6 @@ where
     }
 
     fn render_node(&mut self, id: NodeId, pos: &mut Point) -> anyhow::Result<()> {
-        let mut size_change = None;
         let node = self
             .drawer
             .tree
@@ -313,7 +310,7 @@ where
         let (border_radius, new_size) =
             render_bg::<B, L, C>(node, self.scene, pos, &mut self.svg, &self.drawer.fetcher);
 
-        size_change = new_size;
+        let mut size_change = new_size;
 
         if node.name == "img" {
             let Some(handle) = self.drawer.tree.handle.as_ref() else {

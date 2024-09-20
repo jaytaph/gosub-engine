@@ -2,8 +2,9 @@ use crate::document::DocumentHandle;
 use crate::node::NodeId;
 use crate::traits::document::Document;
 use crate::traits::ParserConfig;
-use crate::types::Result;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
+use crate::errors::CssResult;
+
 
 /// Defines the origin of the stylesheet (or declaration)
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -31,7 +32,7 @@ pub trait CssSystem: Clone {
         config: ParserConfig,
         origin: CssOrigin,
         source_url: &str,
-    ) -> Result<Self::Stylesheet>;
+    ) -> CssResult<Self::Stylesheet>;
 
     /// Returns the properties of a node
     /// If `None` is returned, the node is not renderable
@@ -48,7 +49,7 @@ pub trait CssStylesheet: PartialEq {
     fn origin(&self) -> CssOrigin;
 
     /// Returns the source URL of the stylesheet
-    fn location(&self) -> &str;
+    fn url(&self) -> &str;
 }
 
 pub trait CssPropertyMap: Default + Debug {

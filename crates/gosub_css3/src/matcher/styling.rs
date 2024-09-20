@@ -6,7 +6,6 @@ use gosub_shared::traits::document::Document;
 use gosub_shared::traits::node::ElementDataType;
 use gosub_shared::traits::node::Node;
 use itertools::Itertools;
-use nom::Parser;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
@@ -341,6 +340,7 @@ pub struct DeclarationProperty {
     pub origin: CssOrigin,
     /// Whether the declaration is !important
     pub important: bool,
+    // @TODO: location should be a Location
     /// The location of the declaration in the stylesheet (name.css:123) or empty
     pub location: String,
     /// The specificity of the selector that declared this property
@@ -637,11 +637,11 @@ impl CssProperties {
 impl CssPropertyMap for CssProperties {
     type Property = CssProperty;
 
-    fn get(&self, name: &str) -> Option<&Self::Property> {
+    fn get(&self, _name: &str) -> Option<&Self::Property> {
         todo!()
     }
 
-    fn get_mut(&mut self, name: &str) -> Option<&mut Self::Property> {
+    fn get_mut(&mut self, _name: &str) -> Option<&mut Self::Property> {
         todo!()
     }
 

@@ -11,3 +11,4 @@ pub mod types;
 pub mod node;
 pub mod traits;
 pub mod document;
+pub mod errors;

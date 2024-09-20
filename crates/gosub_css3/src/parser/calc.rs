@@ -1,10 +1,10 @@
+use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
-use gosub_shared::types::Result;
 
 impl Css3<'_> {
-    pub fn parse_calc(&mut self) -> Result<Node> {
+    pub fn parse_calc(&mut self) -> CssResult<Node> {
         log::trace!("parse_calc");
 
         let loc = self.tokenizer.current_location();
@@ -14,7 +14,7 @@ impl Css3<'_> {
         Ok(Node::new(NodeType::Calc { expr }, loc))
     }
 
-    fn parse_calc_expr(&mut self) -> Result<Node> {
+    fn parse_calc_expr(&mut self) -> CssResult<Node> {
         log::trace!("parse_calc_expr");
 
         let loc = self.tokenizer.current_location();

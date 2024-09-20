@@ -1,6 +1,6 @@
 use crate::tokenizer::{Number, Token, TokenType};
-use crate::{Css3, Error};
-use gosub_shared::types::Result;
+use crate::Css3;
+use gosub_shared::errors::{CssError, CssResult};
 
 mod anplusb;
 mod at_rule;
@@ -22,81 +22,75 @@ mod value;
 
 impl Css3<'_> {
     /// Consumes a specific token
-    pub fn consume(&mut self, token_type: TokenType) -> Result<Token> {
+    pub fn consume(&mut self, token_type: TokenType) -> CssResult<Token> {
         let t = self.tokenizer.consume();
         if t.token_type != token_type {
-            return Err(Error::Parse(
-                format!("Expected {:?}, got {:?}", token_type, t),
+            return Err(CssError::with_location(
+                format!("Expected {:?}, got {:?}", token_type, t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into());
+            ));
         }
 
         Ok(t)
     }
 
     /// Consumes any token
-    pub fn consume_any(&mut self) -> Result<Token> {
+    pub fn consume_any(&mut self) -> CssResult<Token> {
         Ok(self.tokenizer.consume())
     }
 
-    pub fn consume_function(&mut self) -> Result<String> {
+    pub fn consume_function(&mut self) -> CssResult<String> {
         let t = self.tokenizer.consume();
         match t.token_type {
             TokenType::Function(name) => Ok(name),
-            _ => Err(Error::Parse(
-                format!("Expected function, got {:?}", t),
+            _ => Err(CssError::with_location(
+                format!("Expected function, got {:?}", t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 
-    pub fn consume_any_number(&mut self) -> Result<Number> {
+    pub fn consume_any_number(&mut self) -> CssResult<Number> {
         let t = self.tokenizer.consume();
         match t.token_type {
             TokenType::Number(value) => Ok(value),
-            _ => Err(Error::Parse(
-                format!("Expected number, got {:?}", t),
+            _ => Err(CssError::with_location(
+                format!("Expected number, got {:?}", t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 
-    pub fn consume_any_delim(&mut self) -> Result<char> {
+    pub fn consume_any_delim(&mut self) -> CssResult<char> {
         let t = self.tokenizer.consume();
         match t.token_type {
             TokenType::Delim(c) => Ok(c),
-            _ => Err(Error::Parse(
-                format!("Expected delimiter, got {:?}", t),
+            _ => Err(CssError::with_location(
+                format!("Expected delimiter, got {:?}", t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 
-    pub fn consume_any_string(&mut self) -> Result<String> {
+    pub fn consume_any_string(&mut self) -> CssResult<String> {
         let t = self.tokenizer.consume();
         match t.token_type {
             TokenType::QuotedString(s) => Ok(s),
-            _ => Err(Error::Parse(
-                format!("Expected string, got {:?}", t),
+            _ => Err(CssError::with_location(
+                format!("Expected string, got {:?}", t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 
-    pub fn consume_delim(&mut self, delimiter: char) -> Result<char> {
+    pub fn consume_delim(&mut self, delimiter: char) -> CssResult<char> {
         let t = self.tokenizer.consume();
         match t.token_type {
             TokenType::Delim(c) if c == delimiter => Ok(c),
-            _ => Err(Error::Parse(
-                format!("Expected delimiter '{}', got {:?}", delimiter, t),
+            _ => Err(CssError::with_location(
+                format!("Expected delimiter '{}', got {:?}", delimiter, t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 
@@ -115,31 +109,29 @@ impl Css3<'_> {
         }
     }
 
-    pub fn consume_ident_ci(&mut self, ident: &str) -> Result<String> {
+    pub fn consume_ident_ci(&mut self, ident: &str) -> CssResult<String> {
         let t = self.tokenizer.consume();
         match t.token_type {
             TokenType::Ident(s) if s.eq_ignore_ascii_case(ident) => Ok(s),
-            _ => Err(Error::Parse(
-                format!("Expected ident, got {:?}", t),
+            _ => Err(CssError::with_location(
+                format!("Expected ident, got {:?}", t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 
-    pub fn consume_ident(&mut self, ident: &str) -> Result<String> {
+    pub fn consume_ident(&mut self, ident: &str) -> CssResult<String> {
         let t = self.tokenizer.consume();
         match t.token_type {
             TokenType::Ident(s) if s == ident => Ok(s),
-            _ => Err(Error::Parse(
-                format!("Expected ident, got {:?}", t),
+            _ => Err(CssError::with_location(
+                format!("Expected ident, got {:?}", t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 
-    pub fn consume_any_ident(&mut self) -> Result<String> {
+    pub fn consume_any_ident(&mut self) -> CssResult<String> {
         let t = self.tokenizer.consume();
 
         match t.token_type {
@@ -147,23 +139,21 @@ impl Css3<'_> {
                 let t = self.tokenizer.consume();
                 match t.token_type {
                     TokenType::Ident(s) => Ok(format!(".{}", s)),
-                    _ => Err(Error::Parse(
-                        format!("Expected ident, got {:?}", t),
+                    _ => Err(CssError::with_location(
+                        format!("Expected ident, got {:?}", t).as_str(),
                         self.tokenizer.current_location(),
-                    )
-                    .into()),
+                    )),
                 }
             }
             TokenType::Ident(s) => Ok(s),
-            _ => Err(Error::Parse(
-                format!("Expected ident, got {:?}", t),
+            _ => Err(CssError::with_location(
+                format!("Expected ident, got {:?}", t).as_str(),
                 self.tokenizer.current_location(),
-            )
-            .into()),
+            )),
         }
     }
 
-    pub fn consume_raw_condition(&mut self) -> Result<String> {
+    pub fn consume_raw_condition(&mut self) -> CssResult<String> {
         let start = self.tokenizer.tell();
 
         while !self.tokenizer.eof() {

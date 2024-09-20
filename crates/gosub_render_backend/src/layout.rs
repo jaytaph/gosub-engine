@@ -1,4 +1,4 @@
-use gosub_shared::traits::css3::{CssProperty, CssSystem};
+use gosub_shared::traits::css3::CssProperty;
 use std::fmt::Debug;
 
 use gosub_shared::types::Result;

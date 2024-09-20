@@ -1,10 +1,10 @@
-use anyhow::anyhow;
 use core::fmt::Debug;
 use gosub_shared::byte_stream::Location;
 use gosub_shared::traits::css3::CssOrigin;
-use gosub_shared::types::Result;
+use gosub_shared::errors::CssResult;
 use std::cmp::Ordering;
 use std::fmt::Display;
+use gosub_shared::errors::CssError;
 
 use crate::colors::RgbColor;
 
@@ -74,6 +74,16 @@ impl CssLog {
     }
 }
 
+impl Display for CssLog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}] ({}:{}): {}",
+            self.severity, self.location.line, self.location.column, self.message
+        )
+    }
+}
+
 impl Debug for CssLog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -92,7 +102,7 @@ pub struct CssStylesheet {
     /// Origin of the stylesheet (user agent, author, user)
     pub origin: CssOrigin,
     /// Url or file path where the stylesheet was found
-    pub location: String,
+    pub url: String,
     /// Any issues during parsing of the stylesheet
     pub parse_log: Vec<CssLog>,
 }
@@ -102,8 +112,8 @@ impl gosub_shared::traits::css3::CssStylesheet for CssStylesheet {
         self.origin
     }
 
-    fn location(&self) -> &str {
-        &self.location
+    fn url(&self) -> &str {
+        &self.url
     }
 }
 
@@ -429,7 +439,7 @@ impl CssValue {
     }
 
     /// Converts a CSS AST node to a CSS value
-    pub fn parse_ast_node(node: &crate::node::Node) -> Result<CssValue> {
+    pub fn parse_ast_node(node: &crate::node::Node) -> CssResult<CssValue> {
         match *node.node_type.clone() {
             crate::node::NodeType::Ident { value } => Ok(CssValue::String(value)),
             crate::node::NodeType::Number { value } => {
@@ -467,15 +477,12 @@ impl CssValue {
                 }
                 Ok(CssValue::Function(name, list))
             }
-            _ => Err(anyhow!(format!(
-                "Cannot convert node to CssValue: {:?}",
-                node
-            ))),
+            _ => Err(CssError::new(format!("Cannot convert node to CssValue: {:?}", node).as_str())),
         }
     }
 
     /// Parses a string into a CSS value or list of css values
-    pub fn parse_str(value: &str) -> Result<CssValue> {
+    pub fn parse_str(value: &str) -> CssResult<CssValue> {
         match value {
             "initial" => return Ok(CssValue::Initial),
             "inherit" => return Ok(CssValue::Inherit),

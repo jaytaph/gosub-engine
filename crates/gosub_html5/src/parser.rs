@@ -1874,7 +1874,7 @@ where
 
             let element_node = get_node_by_id!(self.document, node_id.unwrap());
             let data = get_element_data!(element_node);
-            if arr.contains((&data.name())) {
+            if arr.contains(&data.name()) {
                 break;
             }
         }
@@ -4124,8 +4124,8 @@ where
                 return;
             }
 
-            // Drop the data, otherwise it's still pointing to the old tmp_node and we cannot change tmp_node below.
-            drop(current_node_element_data);
+            // Make sure tmp_node that current_node_element_data relies on is dropped so we can change it.
+            let _ = current_node_element_data;
 
             tmp_node = current_node!(self);
             current_node_element_data = get_element_data!(tmp_node);

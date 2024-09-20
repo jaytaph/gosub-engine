@@ -1,10 +1,10 @@
 use crate::node::{FeatureKind, Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
-use gosub_shared::types::Result;
+use gosub_shared::errors::{CssResult};
 
 impl Css3<'_> {
-    pub fn parse_at_rule_container_prelude(&mut self) -> Result<Node> {
+    pub fn parse_at_rule_container_prelude(&mut self) -> CssResult<Node> {
         log::trace!("parse_at_rule_container_prelude");
 
         let mut children = Vec::new();

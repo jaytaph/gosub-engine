@@ -3,12 +3,11 @@ use gosub_shared::document::DocumentHandle;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::{Document, DocumentBuilder};
 use gosub_shared::traits::html5::Html5Parser as Html5ParserT;
-use std::fmt::Display;
+
 #[cfg(not(target_arch = "wasm32"))]
 use {
     cookie::CookieJar,
     core::fmt::Debug,
-    gosub_html5::parser::Html5Parser,
     gosub_net::{
         dns::{Dns, ResolveType},
         http::{headers::Headers, request::Request, response::Response},
