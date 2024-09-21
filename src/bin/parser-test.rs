@@ -1,3 +1,6 @@
+use gosub_css3::system::Css3System;
+use gosub_html5::document::document::DocumentImpl;
+use gosub_html5::parser::Html5Parser;
 use gosub_testing::testing::tree_construction::fixture::read_fixtures;
 use gosub_testing::testing::tree_construction::result::ResultStatus;
 use gosub_testing::testing::tree_construction::Harness;
@@ -72,7 +75,7 @@ fn run_test(test_idx: usize, test: Test, all_results: &mut TotalTestResults) {
 
     let mut harness = Harness::new();
     let result = harness
-        .run_test(test.clone(), false)
+        .run_test::<Html5Parser<DocumentImpl<Css3System>, Css3System>, Css3System>(test.clone(), false)
         .expect("problem parsing");
 
     // #[cfg(all(feature = "debug_parser", not(test)))]

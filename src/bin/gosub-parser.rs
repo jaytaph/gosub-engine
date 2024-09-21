@@ -61,11 +61,11 @@ fn main() -> Result<()> {
 
     // Create a new document that will be filled in by the parser
     let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> = <DocumentBuilder as gosub_shared::traits::document::DocumentBuilder<Css3System>>::new_document(Some(url));
-    let parse_errors = Html5Parser::parse_document(&mut stream, doc_handle.clone(), None)?;
+    let parse_errors = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None)?;
 
     println!("Found {} stylesheets", doc_handle.get().stylesheets.len());
     for sheet in &doc_handle.get().stylesheets {
-        println!("Stylesheet location: {:?}", sheet.location);
+        println!("Stylesheet url: {:?}", sheet.url);
     }
 
     // let mut handle_mut = handle.get_mut();

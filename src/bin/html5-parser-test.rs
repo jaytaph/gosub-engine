@@ -6,6 +6,9 @@ use gosub_testing::testing::tree_construction::Harness;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+use gosub_css3::system::Css3System;
+use gosub_html5::document::document::DocumentImpl;
+use gosub_html5::parser::Html5Parser;
 
 fn main() -> Result<()> {
     let mut files = get_files_from_path(fixture_root_path());
@@ -29,7 +32,7 @@ fn main() -> Result<()> {
         for test in &fixture.tests {
             for &scripting_enabled in test.script_modes() {
                 let result = harness
-                    .run_test(test.clone(), scripting_enabled)
+                    .run_test::<Html5Parser<DocumentImpl<Css3System>, Css3System>, Css3System>(test.clone(), scripting_enabled)
                     .expect("problem parsing");
 
                 total += 1;
