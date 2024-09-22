@@ -25,8 +25,8 @@ pub fn html_compile<C: CssSystem>(html: &str) -> DocumentHandle<DocumentImpl<C>,
     stream.read_from_str(html, Some(Encoding::UTF8));
     stream.close();
 
-    let handle = DocumentBuilder::new_document(None);
-    let _ = Html5Parser::parse_document(&mut stream, handle.clone(), None);
+    let doc_handle = DocumentBuilder::new_document(None);
+    let _ = Html5Parser::parse_document(&mut stream, doc_handle.clone(), None);
 
-    handle
+    doc_handle
 }

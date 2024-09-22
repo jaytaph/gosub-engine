@@ -90,6 +90,7 @@ pub trait ElementDataType<C: CssSystem> {
 
     /// Returns true if this is a "special" element node
     fn is_special(&self) -> bool;
+    fn add_attribute(&mut self, name: &str, value: &str);
     /// Add a class to the element
     fn add_class(&mut self, class: &str);
     // Return the template document of the element

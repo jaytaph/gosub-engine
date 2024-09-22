@@ -316,7 +316,7 @@ where
     /// Creates a new parser with a dummy document and dummy tokenizer. This is ONLY used for testing purposes.
     /// Regular users should use the parse_document() and parse_fragment() functions instead.
     pub fn new_parser(stream: &'chars mut ByteStream, start_location: Location) -> Self {
-        let doc = D::Builder::new_document(None);
+        let doc_handle = D::Builder::new_document(None);
         let error_logger = Rc::new(RefCell::new(ErrorLogger::new()));
         let tokenizer = Tokenizer::new(stream, None, error_logger.clone(), start_location);
 
@@ -341,7 +341,7 @@ where
             ack_self_closing: false,
             active_formatting_elements: vec![],
             is_fragment_case: false,
-            document: doc.clone(),
+            document: doc_handle.clone(),
             error_logger,
             script_nesting_level: 0,
             parser_pause_flag: false,

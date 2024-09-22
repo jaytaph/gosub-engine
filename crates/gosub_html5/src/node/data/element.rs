@@ -252,6 +252,11 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
 
         false
     }
+
+    fn add_attribute(&mut self, name: &str, value: &str) {
+        self.attributes.insert(name.into(), value.into());
+    }
+
     fn add_class(&mut self, class_name: &str) {
         self.classes.add(class_name);
     }
