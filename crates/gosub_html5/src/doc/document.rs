@@ -466,41 +466,41 @@ mod tests {
 
     #[test]
     fn relocate() {
-        let mut doc_handle = DocumentBuilder::<Css3System>::new_document(None);
+        let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> = DocumentBuilder::<Css3System>::new_document(None);
 
-        let parent_node = doc_handle.get_mut().new_element_node(
+        let parent_node = DocumentImpl::new_element_node(
             doc_handle.clone(),
             "parent",
-            HTML_NAMESPACE,
-            None,
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
             Location::default(),
         );
-        let node1 = doc_handle.get_mut().new_element_node(
+        let node1 = DocumentImpl::new_element_node(
             doc_handle.clone(),
             "div1",
-            HTML_NAMESPACE,
-            None,
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
             Location::default(),
         );
-        let node2 = doc_handle.get_mut().new_element_node(
+        let node2 = DocumentImpl::new_element_node(
             doc_handle.clone(),
             "div2",
-            HTML_NAMESPACE,
-            None,
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
             Location::default(),
         );
-        let node3 = doc_handle.get_mut().new_element_node(
+        let node3 = DocumentImpl::new_element_node(
             doc_handle.clone(),
             "div3",
-            HTML_NAMESPACE,
-            None,
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
             Location::default(),
         );
-        let node3_1 = doc_handle.get_mut().new_element_node(
+        let node3_1 = DocumentImpl::new_element_node(
             doc_handle.clone(),
             "div3_1",
-            HTML_NAMESPACE,
-            None,
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
             Location::default(),
         );
 
@@ -521,7 +521,7 @@ mod tests {
 "#
         );
 
-        doc_handle.get_mut().relocate(node3_1_id, node1_id);
+        doc_handle.get_mut().relocate_node(node3_1_id, node1_id);
         assert_eq!(
             format!("{}", doc_handle.get()),
             r#"└─ Document
@@ -533,7 +533,7 @@ mod tests {
 "#
         );
 
-        doc_handle.get_mut().relocate(node1_id, node2_id);
+        doc_handle.get_mut().relocate_node(node1_id, node2_id);
         assert_eq!(
             format!("{}", doc_handle.get()),
             r#"└─ Document
@@ -1298,7 +1298,7 @@ mod tests {
 
     #[test]
     fn tree_iterator_mutation() {
-        let mut doc_handle = DocumentBuilder::new_document(None);
+        let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> = DocumentBuilder::<Css3System>::new_document(None);
         let div_id = Document::new_element_node(
             doc_handle.clone(),
             "div",
@@ -1315,15 +1315,12 @@ mod tests {
         assert_eq!(current_node_id.unwrap(), NodeId::root());
 
         // we mutate the tree while the iterator is still "open"
-        let div_id_2 = doc_handle.get_mut().new_element(
-            document.clone(),
+        let div_id_2 = Document::new_element_node(
+            doc_handle.clone(),
+            "div_1",
+            HTML_NAMESPACE,
+            None,
             Location::default(),
-            &NodeDataTypeInternal::Element(ElementData::new(
-                "div_1",
-                Some(HTML_NAMESPACE),
-                HashMap::new(),
-                ElementClass::default(),
-            )),
         );
         current_node_id = tree_iterator.next();
         assert_eq!(current_node_id.unwrap(), div_id);
