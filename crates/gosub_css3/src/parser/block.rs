@@ -1,7 +1,7 @@
-use gosub_shared::errors::{CssError, CssResult};
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
+use gosub_shared::errors::{CssError, CssResult};
 
 #[derive(Debug, PartialEq)]
 pub enum BlockParseMode {
@@ -72,9 +72,7 @@ impl Css3<'_> {
 
                 TokenType::AtKeyword(_) => {
                     self.tokenizer.reconsume();
-                    if let Some(at_rule_node) =
-                        self.parse_at_rule(mode == BlockParseMode::StyleBlock)?
-                    {
+                    if let Some(at_rule_node) = self.parse_at_rule(mode == BlockParseMode::StyleBlock)? {
                         children.push(at_rule_node);
                     }
                     semicolon_seperated = false;

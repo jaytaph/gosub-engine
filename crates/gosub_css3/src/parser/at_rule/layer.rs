@@ -1,6 +1,6 @@
-use gosub_shared::errors::{CssResult};
 use crate::node::{Node, NodeType};
 use crate::Css3;
+use gosub_shared::errors::CssResult;
 
 impl Css3<'_> {
     #[allow(dead_code)]

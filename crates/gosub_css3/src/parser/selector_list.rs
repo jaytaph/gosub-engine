@@ -1,6 +1,6 @@
-use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::Css3;
+use gosub_shared::errors::CssResult;
 
 impl Css3<'_> {
     pub fn parse_selector_list(&mut self) -> CssResult<Node> {

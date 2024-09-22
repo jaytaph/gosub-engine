@@ -3,7 +3,7 @@ use std::{io, thread};
 
 use clap::ArgAction;
 use gosub_css3::system::Css3System;
-use gosub_html5::document::document::DocumentImpl;
+use gosub_html5::doc::document::DocumentImpl;
 use gosub_html5::parser::Html5Parser;
 use gosub_renderer::render_tree::TreeDrawer;
 use gosub_rendering::render_tree::RenderTree;
@@ -48,15 +48,8 @@ fn main() -> Result<()> {
 
     // let mut rt = load_html_rendertree(&url)?;
     //
-    let mut application: Application<
-        Drawer,
-        Backend,
-        Layouter,
-        Tree,
-        Document,
-        CssSystem,
-        HtmlParser,
-    > = Application::new(VelloBackend::new(), TaffyLayouter, debug);
+    let mut application: Application<Drawer, Backend, Layouter, Tree, Document, CssSystem, HtmlParser> =
+        Application::new(VelloBackend::new(), TaffyLayouter, debug);
 
     application.initial_tab(Url::parse(&url)?);
 

@@ -1,8 +1,8 @@
-use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
 use gosub_shared::errors::CssError;
+use gosub_shared::errors::CssResult;
 
 impl Css3<'_> {
     fn parse_pseudo_function_selector_list(&mut self) -> CssResult<Node> {
@@ -63,8 +63,7 @@ impl Css3<'_> {
                 return Err(CssError::with_location(
                     format!("Unexpected token {:?}", self.tokenizer.lookahead(0)).as_str(),
                     self.tokenizer.current_location(),
-                )
-                .into());
+                ));
             }
         };
 

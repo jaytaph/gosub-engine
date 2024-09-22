@@ -1,8 +1,6 @@
 //! Error results that can be returned from the css3 parser
 // use gosub_shared::byte_stream::Location;
 
-
-
 //
 // /// Parser error that defines an error (message) on the given position
 // #[derive(Clone, Debug, PartialEq)]

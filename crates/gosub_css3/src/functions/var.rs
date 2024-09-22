@@ -12,12 +12,7 @@ pub struct VariableEnvironment {
 
 #[allow(dead_code)]
 impl VariableEnvironment {
-    pub fn get<D: Document<C>, C: CssSystem>(
-        &self,
-        name: &str,
-        _doc: &D,
-        _node: &D::Node,
-    ) -> Option<CssValue> {
+    pub fn get<D: Document<C>, C: CssSystem>(&self, name: &str, _doc: &D, _node: &D::Node) -> Option<CssValue> {
         let mut current = Some(self);
 
         while let Some(env) = current {
@@ -37,11 +32,7 @@ impl VariableEnvironment {
 }
 
 #[allow(dead_code)]
-pub fn resolve_var<D: Document<C>, C: CssSystem>(
-    values: &[CssValue],
-    doc: &D,
-    node: &D::Node,
-) -> Vec<CssValue> {
+pub fn resolve_var<D: Document<C>, C: CssSystem>(values: &[CssValue], doc: &D, node: &D::Node) -> Vec<CssValue> {
     let Some(name) = values.first().map(|v| {
         let mut str = v.to_string();
 

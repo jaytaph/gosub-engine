@@ -1,5 +1,5 @@
-use gosub_shared::node::NodeId;
 use gosub_shared::byte_stream::Location;
+use gosub_shared::node::NodeId;
 use gosub_shared::types::Result;
 
 /// TreeBuilder is an interface to abstract DOM tree modifications.
@@ -25,20 +25,12 @@ pub trait TreeBuilder {
     fn create_comment(&mut self, content: &str, parent_id: NodeId, location: Location) -> NodeId;
 
     /// Insert/update an attribute for an element node.
-    fn insert_attribute(
-        &mut self,
-        key: &str,
-        value: &str,
-        element_id: NodeId,
-        location: Location,
-    ) -> Result<()>;
+    fn insert_attribute(&mut self, key: &str, value: &str, element_id: NodeId, location: Location) -> Result<()>;
 }
 
 #[cfg(test)]
 mod tests {
-    use gosub_testing::testing::tree_construction::fixture::{
-        fixture_root_path, read_fixture_from_path,
-    };
+    use gosub_testing::testing::tree_construction::fixture::{fixture_root_path, read_fixture_from_path};
     use gosub_testing::testing::tree_construction::Harness;
     use test_case::test_case;
 
@@ -105,8 +97,7 @@ mod tests {
     #[test_case("webkit01.dat")]
     #[test_case("webkit02.dat")]
     fn tree_construction(filename: &str) {
-        let fixture_file =
-            read_fixture_from_path(fixture_root_path().join(filename)).expect("fixture");
+        let fixture_file = read_fixture_from_path(fixture_root_path().join(filename)).expect("fixture");
         let mut harness = Harness::new();
 
         for test in fixture_file.tests {

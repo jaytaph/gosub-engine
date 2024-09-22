@@ -84,16 +84,9 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     position,
                     location,
                 } => {
-                    let node = D::new_element_node(
-                        self.document.clone(),
-                        name,
-                        Some(namespace),
-                        HashMap::new(),
-                        *location,
-                    );
-                    self.document
-                        .get_mut()
-                        .register_node_at(node, *parent_id, *position);
+                    let node =
+                        D::new_element_node(self.document.clone(), name, Some(namespace), HashMap::new(), *location);
+                    self.document.get_mut().register_node_at(node, *parent_id, *position);
                 }
                 DocumentTask::CreateText {
                     content,
@@ -101,9 +94,7 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     location,
                 } => {
                     let node = D::new_text_node(self.document.clone(), content, *location);
-                    self.document
-                        .get_mut()
-                        .register_node_at(node, *parent_id, None);
+                    self.document.get_mut().register_node_at(node, *parent_id, None);
                 }
                 DocumentTask::CreateComment {
                     content,
@@ -111,15 +102,9 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     location,
                 } => {
                     let node = D::new_comment_node(self.document.clone(), content, *location);
-                    self.document
-                        .get_mut()
-                        .register_node_at(node, *parent_id, None);
+                    self.document.get_mut().register_node_at(node, *parent_id, None);
                 }
-                DocumentTask::InsertAttribute {
-                    key,
-                    value,
-                    element_id,
-                } => {
+                DocumentTask::InsertAttribute { key, value, element_id } => {
                     if let Some(node) = self.document.get_mut().node_by_id_mut(*element_id) {
                         if let Some(data) = node.get_element_data_mut() {
                             data.attributes_mut().insert(key.clone(), value.clone());

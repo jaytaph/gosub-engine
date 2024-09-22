@@ -16,9 +16,7 @@ impl Default for CommentData {
 impl CommentData {
     #[must_use]
     fn new() -> Self {
-        Self {
-            value: String::new(),
-        }
+        Self { value: String::new() }
     }
 
     pub(crate) fn with_value(value: &str) -> Self {

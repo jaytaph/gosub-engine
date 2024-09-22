@@ -3,11 +3,11 @@ use crate::stylesheet::CssStylesheet;
 use crate::tokenizer::Tokenizer;
 
 use gosub_shared::byte_stream::{ByteStream, Encoding, Location};
+use gosub_shared::errors::{CssError, CssResult};
 use gosub_shared::traits::css3::CssOrigin;
 use gosub_shared::traits::Context;
 use gosub_shared::traits::ParserConfig;
 use gosub_shared::{timing_start, timing_stop};
-use gosub_shared::errors::{CssError, CssResult};
 
 pub mod ast;
 /// This CSS3 parser is heavily based on the MIT licensed CssTree parser written by
@@ -41,12 +41,7 @@ pub struct Css3<'stream> {
 
 impl<'stream> Css3<'stream> {
     /// Creates a new parser with the given byte stream so only parse() needs to be called.
-    fn new(
-        stream: &'stream mut ByteStream,
-        config: ParserConfig,
-        origin: CssOrigin,
-        source: &str,
-    ) -> Self {
+    fn new(stream: &'stream mut ByteStream, config: ParserConfig, origin: CssOrigin, source: &str) -> Self {
         Self {
             tokenizer: Tokenizer::new(stream, Location::default()),
             allow_values_in_argument_list: Vec::new(),
@@ -120,8 +115,7 @@ pub fn load_default_useragent_stylesheet() -> CssStylesheet {
     };
 
     let css_data = include_str!("../resources/useragent.css");
-    Css3::parse_str(css_data, config, CssOrigin::UserAgent, url)
-        .expect("Could not parse useragent stylesheet")
+    Css3::parse_str(css_data, config, CssOrigin::UserAgent, url).expect("Could not parse useragent stylesheet")
 }
 
 #[cfg(test)]

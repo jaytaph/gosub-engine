@@ -1,8 +1,8 @@
-use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
 use gosub_shared::errors::CssError;
+use gosub_shared::errors::CssResult;
 
 impl Css3<'_> {
     pub fn parse_combinator(&mut self) -> CssResult<Node> {
@@ -17,9 +17,7 @@ impl Css3<'_> {
             TokenType::Delim('/') => {
                 let tn1 = self.tokenizer.lookahead(1);
                 let tn2 = self.tokenizer.lookahead(2);
-                if tn1.token_type == TokenType::Ident("deep".to_string())
-                    && tn2.token_type == TokenType::Delim('/')
-                {
+                if tn1.token_type == TokenType::Ident("deep".to_string()) && tn2.token_type == TokenType::Delim('/') {
                     "/deep/".to_string()
                 } else {
                     return Err(CssError::with_location(

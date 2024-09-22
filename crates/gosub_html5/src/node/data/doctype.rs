@@ -1,6 +1,6 @@
 use core::fmt::{Debug, Formatter};
-use std::fmt;
 use gosub_shared::traits::node::DocTypeDataType;
+use std::fmt;
 
 #[derive(PartialEq, Clone)]
 /// Data structure for document nodes

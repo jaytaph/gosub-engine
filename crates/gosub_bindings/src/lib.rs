@@ -53,9 +53,7 @@ pub unsafe extern "C" fn gosub_rendertree_init(html: *const c_char) -> *mut Rend
 /// Moves an owning pointer to the tree iterator using Box::into_raw() to the C API.
 /// This pointer MUST be passed to gosub_rendertree_iterator_free() after usage for proper cleanup.
 #[no_mangle]
-pub unsafe extern "C" fn gosub_rendertree_iterator_init(
-    rendertree: *const RenderTree,
-) -> *mut TreeIterator {
+pub unsafe extern "C" fn gosub_rendertree_iterator_init(rendertree: *const RenderTree) -> *mut TreeIterator {
     let tree_iterator = Box::new(TreeIterator::new(&(*rendertree)));
     Box::into_raw(tree_iterator)
 }
@@ -68,9 +66,7 @@ pub unsafe extern "C" fn gosub_rendertree_iterator_init(
 /// on the current node is free'd before pointing to the next node. Returns a ready-only pointer
 /// to the next node.
 #[no_mangle]
-pub unsafe extern "C" fn gosub_rendertree_next_node(
-    tree_iterator: *mut TreeIterator,
-) -> *const Node {
+pub unsafe extern "C" fn gosub_rendertree_next_node(tree_iterator: *mut TreeIterator) -> *const Node {
     let next = (*tree_iterator).next();
     if let Some(next) = next {
         next.as_ptr() as *const Node

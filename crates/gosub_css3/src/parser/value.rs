@@ -1,8 +1,8 @@
-use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
 use gosub_shared::errors::CssError;
+use gosub_shared::errors::CssResult;
 
 impl Css3<'_> {
     pub fn parse_value_sequence(&mut self) -> CssResult<Vec<Node>> {
@@ -106,9 +106,7 @@ impl Css3<'_> {
                     return Ok(Some(n));
                 }
 
-                if !self.allow_values_in_argument_list.is_empty()
-                    && self.tokenizer.lookahead(0).is_delim('=')
-                {
+                if !self.allow_values_in_argument_list.is_empty() && self.tokenizer.lookahead(0).is_delim('=') {
                     self.consume_delim('=')?;
                     let t = self.consume_any()?;
                     let node = match t.token_type {
@@ -126,13 +124,9 @@ impl Css3<'_> {
                             },
                             t.location,
                         ),
-                        TokenType::Ident(default_value) => Node::new(
-                            NodeType::MSIdent {
-                                value,
-                                default_value,
-                            },
-                            t.location,
-                        ),
+                        TokenType::Ident(default_value) => {
+                            Node::new(NodeType::MSIdent { value, default_value }, t.location)
+                        }
                         _ => {
                             return Err(CssError::with_location(
                                 format!("Expected number or ident, got {:?}", t).as_str(),

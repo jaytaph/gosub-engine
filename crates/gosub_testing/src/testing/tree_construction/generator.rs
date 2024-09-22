@@ -3,9 +3,7 @@ use gosub_html5::node::{MATHML_NAMESPACE, SVG_NAMESPACE, XLINK_NAMESPACE, XMLNS_
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::Document;
-use gosub_shared::traits::node::{
-    CommentDataType, DocTypeDataType, ElementDataType, Node, NodeType, TextDataType,
-};
+use gosub_shared::traits::node::{CommentDataType, DocTypeDataType, ElementDataType, Node, NodeType, TextDataType};
 
 /// Generates a tree output that can be used for matching with the expected output
 pub struct TreeOutputGenerator<D: Document<C>, C: CssSystem> {
@@ -32,11 +30,7 @@ impl<D: Document<C>, C: CssSystem> TreeOutputGenerator<D, C> {
         // We can skip the document node, as it is always the root node (either a document node, or
         // a html node when it's a fragment)
         if indent_level > 0 {
-            output.push(format!(
-                "| {}{}",
-                "  ".repeat(indent_level - 1),
-                self.output_node(node)
-            ));
+            output.push(format!("| {}{}", "  ".repeat(indent_level - 1), self.output_node(node)));
 
             if node.type_of() == NodeType::ElementNode {
                 if let Some(element) = &node.get_element_data() {
@@ -47,12 +41,7 @@ impl<D: Document<C>, C: CssSystem> TreeOutputGenerator<D, C> {
                     sorted_attrs.sort_by(|a, b| a.0.cmp(b.0));
 
                     for attr in &sorted_attrs {
-                        output.push(format!(
-                            r#"| {}{}="{}""#,
-                            "  ".repeat(indent_level),
-                            attr.0,
-                            attr.1
-                        ));
+                        output.push(format!(r#"| {}{}="{}""#, "  ".repeat(indent_level), attr.0, attr.1));
                     }
 
                     // Template tags have an extra "content" node in the test tree ouput
@@ -111,19 +100,18 @@ impl<D: Document<C>, C: CssSystem> TreeOutputGenerator<D, C> {
                     return "<unknown>".to_owned();
                 };
 
-                let doctype_text =
-                    if data.pub_identifier().is_empty() && data.sys_identifier().is_empty() {
-                        // <!DOCTYPE html>
-                        data.name()
-                    } else {
-                        // <!DOCTYPE html "pubid" "sysid">
-                        &*format!(
-                            r#"{0} "{1}" "{2}""#,
-                            data.name(),
-                            data.pub_identifier(),
-                            data.sys_identifier()
-                        )
-                    };
+                let doctype_text = if data.pub_identifier().is_empty() && data.sys_identifier().is_empty() {
+                    // <!DOCTYPE html>
+                    data.name()
+                } else {
+                    // <!DOCTYPE html "pubid" "sysid">
+                    &*format!(
+                        r#"{0} "{1}" "{2}""#,
+                        data.name(),
+                        data.pub_identifier(),
+                        data.sys_identifier()
+                    )
+                };
 
                 format!("<!DOCTYPE {}>", doctype_text.trim())
             }

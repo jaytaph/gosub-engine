@@ -23,12 +23,7 @@ impl Css3<'_> {
     }
 
     fn check_integer(&mut self, value: &str, offset: usize, allow_sign: bool) -> CssResult<bool> {
-        let sign = value
-            .chars()
-            .nth(offset)
-            .unwrap_or(' ')
-            .to_lowercase()
-            .to_string();
+        let sign = value.chars().nth(offset).unwrap_or(' ').to_lowercase().to_string();
         let mut pos = offset;
 
         if sign == "+" || sign == "-" {
@@ -51,12 +46,7 @@ impl Css3<'_> {
     }
 
     fn expect_char(&mut self, value: &str, c: &str, offset: usize) -> CssResult<bool> {
-        let nval = value
-            .chars()
-            .nth(offset)
-            .unwrap_or(' ')
-            .to_lowercase()
-            .to_string();
+        let nval = value.chars().nth(offset).unwrap_or(' ').to_lowercase().to_string();
         if nval != c {
             return Err(CssError::with_location(
                 format!("Expected {}", c).as_str(),
@@ -100,7 +90,11 @@ impl Css3<'_> {
             }
             _ => {
                 return Err(CssError::with_location(
-                    format!("Expected +, - or number, found {:?}",  self.tokenizer.lookahead(0).token_type).as_str(),
+                    format!(
+                        "Expected +, - or number, found {:?}",
+                        self.tokenizer.lookahead(0).token_type
+                    )
+                    .as_str(),
                     self.tokenizer.current_location(),
                 ));
             }
@@ -248,8 +242,7 @@ mod test {
             stream.read_from_str($input, Some(Encoding::UTF8));
             stream.close();
 
-            let mut parser =
-                crate::Css3::new(&mut stream, ParserConfig::default(), CssOrigin::User, "");
+            let mut parser = crate::Css3::new(&mut stream, ParserConfig::default(), CssOrigin::User, "");
             let result = parser.$func().unwrap();
 
             assert_eq!(result.node_type, $expected);

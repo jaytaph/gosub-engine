@@ -145,11 +145,7 @@ fn fetch_url<P: Html5ParserT<C>, C: CssSystem>(
     let _ = stream.read_from_bytes(&fetch_response.response.body);
     fetch_response.document = <P::Document as Document<C>>::Builder::new_document(Some(parts));
 
-    match P::parse(
-        &mut stream,
-        DocumentHandle::clone(&fetch_response.document),
-        None,
-    ) {
+    match P::parse(&mut stream, DocumentHandle::clone(&fetch_response.document), None) {
         Ok(parse_errors) => {
             fetch_response.parse_errors = parse_errors;
         }
@@ -167,7 +163,7 @@ fn fetch_url<P: Html5ParserT<C>, C: CssSystem>(
 mod tests {
     use super::*;
     use gosub_css3::system::Css3System;
-    use gosub_html5::document::document::DocumentImpl;
+    use gosub_html5::doc::document::DocumentImpl;
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
@@ -177,9 +173,8 @@ mod tests {
         headers.set_str("User-Agent", USER_AGENT);
         let cookies = CookieJar::new();
 
-        let resp = fetch_url::<Html5Parser<DocumentImpl<Css3System>, Css3System>, Css3System>(
-            "GET", url, headers, cookies,
-        );
+        let resp =
+            fetch_url::<Html5Parser<DocumentImpl<Css3System>, Css3System>, Css3System>("GET", url, headers, cookies);
         assert!(resp.is_ok());
     }
 }

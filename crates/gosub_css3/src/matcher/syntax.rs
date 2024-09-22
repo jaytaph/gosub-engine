@@ -1,17 +1,15 @@
 use std::fmt::{Debug, Display, Formatter};
 
+use gosub_shared::errors::{CssError, CssResult};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_while};
-use nom::character::complete::{
-    alpha1, alphanumeric1, char, digit0, digit1, multispace0, one_of, space0,
-};
+use nom::character::complete::{alpha1, alphanumeric1, char, digit0, digit1, multispace0, one_of, space0};
 use nom::combinator::{map, map_res, opt, recognize};
 use nom::multi::{fold_many1, many0, many1, separated_list0, separated_list1};
 use nom::number::complete::float;
 use nom::sequence::{delimited, pair, preceded, separated_pair, tuple};
 use nom::Err;
 use nom::IResult;
-use gosub_shared::errors::{CssError, CssResult};
 
 use crate::matcher::syntax_matcher::CssSyntaxTree;
 use crate::stylesheet::CssValue;
@@ -267,7 +265,9 @@ impl CssSyntax {
         match p {
             Ok((input, components)) => {
                 if !input.trim().is_empty() {
-                    return Err(CssError::new(format!("Failed to parse all input (left: '{}')", input).as_str()));
+                    return Err(CssError::new(
+                        format!("Failed to parse all input (left: '{}')", input).as_str(),
+                    ));
                 }
                 Ok(CssSyntaxTree::new(vec![components]))
             }
@@ -292,10 +292,7 @@ fn parse_unit(input: &str) -> IResult<&str, SyntaxComponent> {
                 },
             ))
         } else {
-            Err(Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Alpha,
-            )))
+            Err(Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Alpha)))
         };
     }
 
@@ -348,10 +345,7 @@ fn parse_comma_separated_multiplier(input: &str) -> IResult<&str, SyntaxComponen
     ));
 
     let (input, minmax) = alt((
-        map(
-            delimited(ws(tag("#{")), range, ws(tag("}"))),
-            |(min, max)| (min, max),
-        ),
+        map(delimited(ws(tag("#{")), range, ws(tag("}"))), |(min, max)| (min, max)),
         // No range means one or more values
         map(ws(tag("#")), |_| (1, u32::MAX)),
     ))(input)?;
@@ -386,8 +380,7 @@ fn parse_multipliers(input: &str) -> IResult<&str, Vec<SyntaxComponentMultiplier
 fn parse_group(input: &str) -> IResult<&str, SyntaxComponent> {
     debug_print!("Parsing group: {}", input);
 
-    let (input, components) =
-        delimited(ws(tag("[")), parse_component_singlebar_list, ws(tag("]")))(input)?;
+    let (input, components) = delimited(ws(tag("[")), parse_component_singlebar_list, ws(tag("]")))(input)?;
 
     Ok((input, components))
 }
@@ -415,8 +408,7 @@ fn parse_component_singlebar_list(input: &str) -> IResult<&str, SyntaxComponent>
 fn parse_component_doublebar_list(input: &str) -> IResult<&str, SyntaxComponent> {
     debug_print!("Parsing component doublebar list: {}", input);
 
-    let (input, components) =
-        separated_list1(ws(tag("||")), parse_component_doubleampersand_list)(input)?;
+    let (input, components) = separated_list1(ws(tag("||")), parse_component_doubleampersand_list)(input)?;
 
     if components.len() == 1 {
         return Ok((input, components[0].clone()));
@@ -436,8 +428,7 @@ fn parse_component_doublebar_list(input: &str) -> IResult<&str, SyntaxComponent>
 fn parse_component_doubleampersand_list(input: &str) -> IResult<&str, SyntaxComponent> {
     debug_print!("Parsing component doubleampersand list: {}", input);
 
-    let (input, components) =
-        separated_list1(ws(tag("&&")), parse_component_juxtaposition_list)(input)?;
+    let (input, components) = separated_list1(ws(tag("&&")), parse_component_juxtaposition_list)(input)?;
 
     if components.len() == 1 {
         return Ok((input, components[0].clone()));
@@ -592,11 +583,7 @@ fn parse_function(input: &str) -> IResult<&str, SyntaxComponent> {
         space0,
         tuple((space0, char(')'), space0)),
     );
-    let arglist = delimited(
-        ws(tag("(")),
-        ws(parse_component_singlebar_list),
-        ws(tag(")")),
-    );
+    let arglist = delimited(ws(tag("(")), ws(parse_component_singlebar_list), ws(tag(")")));
 
     let (input, name) = parse_keyword(input)?;
     let (input, arglist) = alt((map(empty_arglist, |_| None), map(arglist, Some)))(input)?;
@@ -657,21 +644,18 @@ fn parse_infinity(input: &str) -> IResult<&str, NumberOrInfinity> {
 
 /// Parses an integer (signed or unsigned) and returns NumberOrInfinity::FiniteI64, or errors when the integer is invalid
 fn parse_signed_integer(input: &str) -> IResult<&str, NumberOrInfinity> {
-    map_res(
-        pair(opt(char('-')), digit1),
-        |(sign, digits): (Option<char>, &str)| {
-            let neg_multiplier = if sign == Some('-') { -1 } else { 1 };
-            let num = digits.parse::<i64>().map(|num| num * neg_multiplier);
-            if let Ok(num) = num {
-                Ok(NumberOrInfinity::FiniteI64(num))
-            } else {
-                Err(nom::Err::Error(nom::error::Error::new(
-                    input,
-                    nom::error::ErrorKind::Digit,
-                )))
-            }
-        },
-    )(input)
+    map_res(pair(opt(char('-')), digit1), |(sign, digits): (Option<char>, &str)| {
+        let neg_multiplier = if sign == Some('-') { -1 } else { 1 };
+        let num = digits.parse::<i64>().map(|num| num * neg_multiplier);
+        if let Ok(num) = num {
+            Ok(NumberOrInfinity::FiniteI64(num))
+        } else {
+            Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Digit,
+            )))
+        }
+    })(input)
 }
 
 fn parse_unit_range(input: &str) -> IResult<&str, NumberOrInfinity> {
@@ -697,17 +681,9 @@ fn parse_unit_range(input: &str) -> IResult<&str, NumberOrInfinity> {
 /// Parses a range for a type definition  (ie: the square bracket part of: <function [1, 10]>)
 fn datatype_range(input: &str) -> IResult<&str, RangeType> {
     let range = separated_pair(
-        opt(ws(alt((
-            parse_infinity,
-            parse_unit_range,
-            parse_signed_integer,
-        )))),
+        opt(ws(alt((parse_infinity, parse_unit_range, parse_signed_integer)))),
         tag(","),
-        opt(ws(alt((
-            parse_infinity,
-            parse_unit_range,
-            parse_signed_integer,
-        )))),
+        opt(ws(alt((parse_infinity, parse_unit_range, parse_signed_integer)))),
     );
 
     let range = map(range, |(min, max)| RangeType {
@@ -730,10 +706,9 @@ fn parse_datatype(input: &str) -> IResult<&str, SyntaxComponent> {
     let (input, (name, quoted, range)) = delimited(
         ws(tag("<")),
         alt((
-            map(
-                pair(keyword_or_function, opt(datatype_range)),
-                |(name, range)| (name, false, range),
-            ),
+            map(pair(keyword_or_function, opt(datatype_range)), |(name, range)| {
+                (name, false, range)
+            }),
             map(
                 pair(
                     delimited(ws(tag("'")), keyword_or_function, ws(tag("'"))),
@@ -784,13 +759,12 @@ fn parse_literal(input: &str) -> IResult<&str, SyntaxComponent> {
             literal: ",".to_string(),
             multipliers: vec![SyntaxComponentMultiplier::Once],
         }),
-        map(
-            delimited(tag("'"), take_while(|c| c != '\''), tag("'")),
-            |s: &str| SyntaxComponent::Literal {
+        map(delimited(tag("'"), take_while(|c| c != '\''), tag("'")), |s: &str| {
+            SyntaxComponent::Literal {
                 literal: s.to_string(),
                 multipliers: vec![SyntaxComponentMultiplier::Once],
-            },
-        ),
+            }
+        }),
     ))(input)
 }
 
@@ -1010,10 +984,7 @@ mod tests {
             parts.unwrap(),
             CssSyntaxTree::new(vec![SyntaxComponent::GenericKeyword {
                 keyword: "color".to_string(),
-                multipliers: vec![SyntaxComponentMultiplier::CommaSeparatedRepeat(
-                    1,
-                    u32::MAX as usize
-                )],
+                multipliers: vec![SyntaxComponentMultiplier::CommaSeparatedRepeat(1, u32::MAX as usize)],
             }])
         );
 
@@ -1213,10 +1184,7 @@ mod tests {
                 datatype: "foo".to_string(),
                 quoted: false,
                 range: RangeType::empty(),
-                multipliers: vec![SyntaxComponentMultiplier::CommaSeparatedRepeat(
-                    1,
-                    u32::MAX as usize
-                )],
+                multipliers: vec![SyntaxComponentMultiplier::CommaSeparatedRepeat(1, u32::MAX as usize)],
             }]
         );
     }
@@ -1397,9 +1365,7 @@ mod tests {
             }
         );
 
-        let c = CssSyntax::new("left | right || top && bottom")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("left | right || top && bottom").compile().unwrap();
         assert_eq!(
             c.components[0],
             SyntaxComponent::Group {
@@ -1438,9 +1404,7 @@ mod tests {
             }
         );
 
-        let c = CssSyntax::new("left || right | top && bottom")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("left || right | top && bottom").compile().unwrap();
         assert_eq!(
             c.components[0],
             SyntaxComponent::Group {
@@ -1479,9 +1443,7 @@ mod tests {
             }
         );
 
-        let c = CssSyntax::new("left && right || top | bottom")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("left && right || top | bottom").compile().unwrap();
         assert_eq!(
             c.components[0],
             SyntaxComponent::Group {
@@ -1520,9 +1482,7 @@ mod tests {
             }
         );
 
-        let c = CssSyntax::new("left  right || top | bottom")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("left  right || top | bottom").compile().unwrap();
         assert_eq!(
             c.components[0],
             SyntaxComponent::Group {
@@ -1561,9 +1521,7 @@ mod tests {
             }
         );
 
-        let c = CssSyntax::new("left | right || top | bottom")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("left | right || top | bottom").compile().unwrap();
         assert_eq!(
             c.components[0],
             SyntaxComponent::Group {
@@ -1596,9 +1554,7 @@ mod tests {
             }
         );
 
-        let c = CssSyntax::new("left || right | top || bottom")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("left || right | top || bottom").compile().unwrap();
         assert_eq!(
             c.components[0],
             SyntaxComponent::Group {
@@ -1795,49 +1751,31 @@ mod tests {
         // @todo: These tests should also check if the syntax is correct, not only if it can
         // compile. The output could still be wrong.
         assert!(CssSyntax::new("le, ri ,co , bt,tp").compile().is_ok());
-        assert!(CssSyntax::new("left | right | center && top")
-            .compile()
-            .is_ok());
+        assert!(CssSyntax::new("left | right | center && top").compile().is_ok());
         assert!(CssSyntax::new("left , right color()").compile().is_ok());
         assert!(CssSyntax::new("left , right color() ").compile().is_ok());
         assert!(CssSyntax::new("le, ri ,co , bt,tp").compile().is_ok());
         assert!(CssSyntax::new("left, right color()").compile().is_ok());
-        assert!(CssSyntax::new("left | right | center && top")
-            .compile()
-            .is_ok());
+        assert!(CssSyntax::new("left | right | center && top").compile().is_ok());
         assert!(CssSyntax::new("left | right | center && top <length>")
             .compile()
             .is_ok());
-        assert!(CssSyntax::new("[ [ <length-percentage>? ]]")
-            .compile()
-            .is_ok());
-        assert!(CssSyntax::new("[ [ center | [ top | bottom ]  ]]")
-            .compile()
-            .is_ok());
+        assert!(CssSyntax::new("[ [ <length-percentage>? ]]").compile().is_ok());
+        assert!(CssSyntax::new("[ [ center | [ top | bottom ]  ]]").compile().is_ok());
         assert!(CssSyntax::new("[ <length-percentage>? ]").compile().is_ok());
-        assert!(CssSyntax::new("[ center <length-percentage>? ]")
+        assert!(CssSyntax::new("[ center <length-percentage>? ]").compile().is_ok());
+        assert!(CssSyntax::new("center | [ top | bottom ] <length-percentage>")
             .compile()
             .is_ok());
-        assert!(
-            CssSyntax::new("center | [ top | bottom ] <length-percentage>")
-                .compile()
-                .is_ok()
-        );
-        assert!(
-            CssSyntax::new("[ center | [ top | bottom ] <length-percentage> ]")
-                .compile()
-                .is_ok()
-        );
-        assert!(
-            CssSyntax::new("[ center | [ top | bottom ] <length-percentage>? ]")
-                .compile()
-                .is_ok()
-        );
-        assert!(
-            CssSyntax::new("[ [ center | [ top | bottom ] <length-percentage>? ]]")
-                .compile()
-                .is_ok()
-        );
+        assert!(CssSyntax::new("[ center | [ top | bottom ] <length-percentage> ]")
+            .compile()
+            .is_ok());
+        assert!(CssSyntax::new("[ center | [ top | bottom ] <length-percentage>? ]")
+            .compile()
+            .is_ok());
+        assert!(CssSyntax::new("[ [ center | [ top | bottom ] <length-percentage>? ]]")
+            .compile()
+            .is_ok());
         assert!(CssSyntax::new("[ [ top | center | bottom | <length-percentage> ]| [ center | [ left | right ] <length-percentage>? ] && [ center | [ top | bottom ] <length-percentage>? ]]").compile().is_ok());
         assert!(CssSyntax::new("[ [ left | center | right | top | bottom | <length-percentage> ]| [ left | center | right | <length-percentage> ] [ top | center | bottom | <length-percentage> ]| [ center | [ left | right ] <length-percentage>? ] && [ center | [ top | bottom ] <length-percentage>? ]]").compile().is_ok());
     }
@@ -1956,9 +1894,7 @@ mod tests {
             }])
         );
 
-        let c = CssSyntax::new("left && right | foo || bar baz")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("left && right | foo || bar baz").compile().unwrap();
         assert_eq!(
             c,
             CssSyntaxTree::new(vec![SyntaxComponent::Group {
@@ -2007,9 +1943,7 @@ mod tests {
             }])
         );
 
-        let c = CssSyntax::new("[ left ] [ right ] [ top ]")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("[ left ] [ right ] [ top ]").compile().unwrap();
         assert_eq!(
             c,
             CssSyntaxTree::new(vec![SyntaxComponent::Group {
@@ -2121,9 +2055,7 @@ mod tests {
             }])
         );
 
-        let c = CssSyntax::new("[ [ left ] [ right ] [ top ] ] a")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("[ [ left ] [ right ] [ top ] ] a").compile().unwrap();
         assert_eq!(
             c,
             CssSyntaxTree::new(vec![SyntaxComponent::Group {
@@ -2156,9 +2088,7 @@ mod tests {
             }])
         );
 
-        let c = CssSyntax::new("[ [ left ] | [ right ] [ top ] ]")
-            .compile()
-            .unwrap();
+        let c = CssSyntax::new("[ [ left ] | [ right ] [ top ] ]").compile().unwrap();
         assert_eq!(
             c,
             CssSyntaxTree::new(vec![SyntaxComponent::Group {
@@ -2306,15 +2236,11 @@ mod tests {
                                                 components: vec![
                                                     SyntaxComponent::GenericKeyword {
                                                         keyword: "left".to_string(),
-                                                        multipliers: vec![
-                                                            SyntaxComponentMultiplier::Once
-                                                        ],
+                                                        multipliers: vec![SyntaxComponentMultiplier::Once],
                                                     },
                                                     SyntaxComponent::GenericKeyword {
                                                         keyword: "right".to_string(),
-                                                        multipliers: vec![
-                                                            SyntaxComponentMultiplier::Once
-                                                        ],
+                                                        multipliers: vec![SyntaxComponentMultiplier::Once],
                                                     },
                                                 ],
                                                 multipliers: vec![SyntaxComponentMultiplier::Once],
@@ -2326,9 +2252,7 @@ mod tests {
                                                     min: NumberOrInfinity::None,
                                                     max: NumberOrInfinity::None,
                                                 },
-                                                multipliers: vec![
-                                                    SyntaxComponentMultiplier::Optional
-                                                ],
+                                                multipliers: vec![SyntaxComponentMultiplier::Optional],
                                             },
                                         ],
                                         multipliers: vec![SyntaxComponentMultiplier::Once],
@@ -2351,15 +2275,11 @@ mod tests {
                                                 components: vec![
                                                     SyntaxComponent::GenericKeyword {
                                                         keyword: "top".to_string(),
-                                                        multipliers: vec![
-                                                            SyntaxComponentMultiplier::Once
-                                                        ],
+                                                        multipliers: vec![SyntaxComponentMultiplier::Once],
                                                     },
                                                     SyntaxComponent::GenericKeyword {
                                                         keyword: "bottom".to_string(),
-                                                        multipliers: vec![
-                                                            SyntaxComponentMultiplier::Once
-                                                        ],
+                                                        multipliers: vec![SyntaxComponentMultiplier::Once],
                                                     },
                                                 ],
                                                 multipliers: vec![SyntaxComponentMultiplier::Once],
@@ -2371,9 +2291,7 @@ mod tests {
                                                     min: NumberOrInfinity::None,
                                                     max: NumberOrInfinity::None,
                                                 },
-                                                multipliers: vec![
-                                                    SyntaxComponentMultiplier::Optional
-                                                ],
+                                                multipliers: vec![SyntaxComponentMultiplier::Optional],
                                             },
                                         ],
                                         multipliers: vec![SyntaxComponentMultiplier::Once],
@@ -2389,11 +2307,9 @@ mod tests {
             }])
         );
 
-        let c = CssSyntax::new(
-            "[ [ left+ ] | [ center? ] [ top# ]{1,3} | [ center1 ]? && [ center2 ] ]*",
-        )
-        .compile()
-        .unwrap();
+        let c = CssSyntax::new("[ [ left+ ] | [ center? ] [ top# ]{1,3} | [ center1 ]? && [ center2 ] ]*")
+            .compile()
+            .unwrap();
         assert_eq!(
             c,
             CssSyntaxTree::new(vec![SyntaxComponent::Group {

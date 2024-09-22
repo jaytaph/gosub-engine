@@ -1,11 +1,11 @@
 use crate::node::{Node as CssNode, NodeType};
 use crate::stylesheet::{
-    AttributeSelector, Combinator, CssDeclaration, CssRule, CssSelector,
-    CssSelectorPart, CssStylesheet, CssValue, MatcherType,
+    AttributeSelector, Combinator, CssDeclaration, CssRule, CssSelector, CssSelectorPart, CssStylesheet, CssValue,
+    MatcherType,
 };
-use log::warn;
 use gosub_shared::errors::{CssError, CssResult};
-use gosub_shared::traits::css3::{ CssOrigin};
+use gosub_shared::traits::css3::CssOrigin;
+use log::warn;
 
 /*
 
@@ -60,11 +60,7 @@ vs
 */
 
 /// Converts a CSS AST to a CSS stylesheet structure
-pub fn convert_ast_to_stylesheet(
-    css_ast: &CssNode,
-    origin: CssOrigin,
-    url: &str,
-) -> CssResult<CssStylesheet> {
+pub fn convert_ast_to_stylesheet(css_ast: &CssNode, origin: CssOrigin, url: &str) -> CssResult<CssStylesheet> {
     if !css_ast.is_stylesheet() {
         return Err(CssError::new("CSS AST must start with a stylesheet node"));
     }
@@ -92,9 +88,7 @@ pub fn convert_ast_to_stylesheet(
                 continue;
             }
 
-            let mut selector = CssSelector {
-                parts: vec![vec![]],
-            };
+            let mut selector = CssSelector { parts: vec![vec![]] };
             for node in node.as_selector_list().iter() {
                 if !node.is_selector() {
                     continue;
@@ -118,18 +112,12 @@ pub fn convert_ast_to_stylesheet(
                             CssSelectorPart::Combinator(combinator)
                         }
                         NodeType::IdSelector { value } => CssSelectorPart::Id(value.clone()),
-                        NodeType::TypeSelector { value, .. } if value == "*" => {
-                            CssSelectorPart::Universal
-                        }
-                        NodeType::PseudoClassSelector { value, .. } => {
-                            CssSelectorPart::PseudoClass(value.to_string())
-                        }
+                        NodeType::TypeSelector { value, .. } if value == "*" => CssSelectorPart::Universal,
+                        NodeType::PseudoClassSelector { value, .. } => CssSelectorPart::PseudoClass(value.to_string()),
                         NodeType::PseudoElementSelector { value, .. } => {
                             CssSelectorPart::PseudoElement(value.to_string())
                         }
-                        NodeType::TypeSelector { value, .. } => {
-                            CssSelectorPart::Type(value.clone())
-                        }
+                        NodeType::TypeSelector { value, .. } => CssSelectorPart::Type(value.clone()),
                         NodeType::AttributeSelector {
                             name,
                             value,
@@ -171,7 +159,9 @@ pub fn convert_ast_to_stylesheet(
                             continue;
                         }
                         _ => {
-                            return Err(CssError::new(format!("Unsupported selector part: {:?}", node.node_type).as_str()));
+                            return Err(CssError::new(
+                                format!("Unsupported selector part: {:?}", node.node_type).as_str(),
+                            ));
                         }
                     };
                     if let Some(x) = selector.parts.last_mut() {
@@ -224,9 +214,9 @@ pub fn convert_ast_to_stylesheet(
 
 #[cfg(test)]
 mod tests {
-    use gosub_shared::traits::ParserConfig;
     use super::*;
     use crate::Css3;
+    use gosub_shared::traits::ParserConfig;
 
     #[test]
     fn convert_font_family() {
@@ -243,8 +233,9 @@ mod tests {
             "#,
             ParserConfig::default(),
             CssOrigin::User,
-            "test.css"
-        ).unwrap();
+            "test.css",
+        )
+        .unwrap();
 
         dbg!(&stylesheet);
     }
@@ -258,48 +249,25 @@ mod tests {
             "#,
             ParserConfig::default(),
             CssOrigin::User,
-            "test.css"
-        ).unwrap();
+            "test.css",
+        )
+        .unwrap();
 
         assert_eq!(
-            stylesheet.rules
-                .first()
-                .unwrap()
-                .declarations
-                .first()
-                .unwrap()
-                .property,
+            stylesheet.rules.first().unwrap().declarations.first().unwrap().property,
             "color"
         );
         assert_eq!(
-            stylesheet.rules
-                .first()
-                .unwrap()
-                .declarations
-                .first()
-                .unwrap()
-                .value,
+            stylesheet.rules.first().unwrap().declarations.first().unwrap().value,
             vec![CssValue::String("red".into())]
         );
 
         assert_eq!(
-            stylesheet.rules
-                .get(1)
-                .unwrap()
-                .declarations
-                .first()
-                .unwrap()
-                .property,
+            stylesheet.rules.get(1).unwrap().declarations.first().unwrap().property,
             "border"
         );
         assert_eq!(
-            stylesheet.rules
-                .get(1)
-                .unwrap()
-                .declarations
-                .first()
-                .unwrap()
-                .value,
+            stylesheet.rules.get(1).unwrap().declarations.first().unwrap().value,
             vec![
                 CssValue::Unit(1.0, "px".into()),
                 CssValue::String("solid".into()),

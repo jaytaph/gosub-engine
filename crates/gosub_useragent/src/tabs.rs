@@ -59,11 +59,7 @@ impl<
         self.tabs.get_mut(self.active.0)
     }
 
-    pub(crate) fn from_url<P: Html5Parser<C, Document = Doc>>(
-        url: Url,
-        layouter: L,
-        debug: bool,
-    ) -> Result<Self> {
+    pub(crate) fn from_url<P: Html5Parser<C, Document = Doc>>(url: Url, layouter: L, debug: bool) -> Result<Self> {
         let tab = Tab::from_url::<P>(url, layouter, debug)?;
 
         Ok(Self::new(tab))
@@ -120,11 +116,7 @@ impl<
         }
     }
 
-    pub fn from_url<P: Html5Parser<C, Document = Doc>>(
-        url: Url,
-        layouter: L,
-        debug: bool,
-    ) -> Result<Self> {
+    pub fn from_url<P: Html5Parser<C, Document = Doc>>(url: Url, layouter: L, debug: bool) -> Result<Self> {
         let data = D::from_url::<P>(url.clone(), layouter, debug)?;
 
         Ok(Self {

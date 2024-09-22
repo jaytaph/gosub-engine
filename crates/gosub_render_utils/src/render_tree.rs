@@ -1,4 +1,4 @@
-use gosub_html5::document::document::TreeIterator;
+use gosub_html5::doc::document::TreeIterator;
 use gosub_render_backend::layout::{HasTextLayout, Layout, LayoutTree, Layouter, TextLayout};
 use gosub_render_backend::{layout, Size};
 use gosub_shared::document::DocumentHandle;
@@ -14,9 +14,9 @@ use std::fmt::{Debug, Formatter};
 mod desc;
 
 const INLINE_ELEMENTS: [&str; 31] = [
-    "a", "abbr", "acronym", "b", "bdo", "big", "br", "button", "cite", "code", "dfn", "em", "i",
-    "img", "input", "kbd", "label", "map", "object", "q", "samp", "script", "select", "small",
-    "span", "strong", "sub", "sup", "textarea", "tt", "var",
+    "a", "abbr", "acronym", "b", "bdo", "big", "br", "button", "cite", "code", "dfn", "em", "i", "img", "input", "kbd",
+    "label", "map", "object", "q", "samp", "script", "select", "small", "span", "strong", "sub", "sup", "textarea",
+    "tt", "var",
 ];
 
 /// Map of all declared values for all nodes in the document
@@ -146,10 +146,7 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
 
     /// Returns the children of the given node
     pub fn child_count(&self, id: NodeId) -> usize {
-        self.nodes
-            .get(&id)
-            .map(|node| node.children.len())
-            .unwrap_or(0)
+        self.nodes.get(&id).map(|node| node.children.len()).unwrap_or(0)
     }
 
     /// Inserts a new node into the render tree, note that you are responsible for the node id
@@ -238,8 +235,7 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
 
             let node = doc.node_by_id(current_node_id).unwrap();
 
-            let Some(properties) =
-                C::properties_from_node(node, doc.stylesheets(), handle.clone(), current_node_id)
+            let Some(properties) = C::properties_from_node(node, doc.stylesheets(), handle.clone(), current_node_id)
             else {
                 //we need to remove it  from the parent in the render tree and from the document
 
@@ -381,8 +377,7 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
                             continue;
                         };
 
-                        if let Some(pos) = old_parent.children.iter().position(|id| *id == child_id)
-                        {
+                        if let Some(pos) = old_parent.children.iter().position(|id| *id == child_id) {
                             old_parent.children[pos] = id;
                         }
                     }
@@ -476,9 +471,7 @@ pub enum ControlFlow<T> {
 }
 
 impl<L: Layouter> RenderNodeData<L> {
-    pub fn from_node_data<N: DocumentNode<C>, C: CssSystem>(
-        node: NodeData<C, N>,
-    ) -> ControlFlow<Self> {
+    pub fn from_node_data<N: DocumentNode<C>, C: CssSystem>(node: NodeData<C, N>) -> ControlFlow<Self> {
         ControlFlow::Ok(match node {
             NodeData::Element(_) => RenderNodeData::Element,
             NodeData::Text(data) => {
@@ -559,20 +552,14 @@ impl<L: Layouter, C: CssSystem> RenderTreeNode<L, C> {
         }
 
         if let Some(d) = self.properties.get("display").and_then(|prop| {
-            let Some(val) = prop.as_string() else {
-                return None;
-            };
+            let val = prop.as_string()?;
 
             // const NON_INLINE_DISPLAYS: [&str; 6] = ["block", "flex", "grid", "table", "list-item", "none"];
             // if NON_INLINE_DISPLAYS.contains(&val.as_str()) {
             //     return Some(false);
             // } //TODO: somehow this causes problems with the inline elements
 
-            if val == "inline"
-                || val == "inline-block"
-                || val == "inline-table"
-                || val == "inline-flex"
-            {
+            if val == "inline" || val == "inline-block" || val == "inline-table" || val == "inline-flex" {
                 return Some(true);
             }
 

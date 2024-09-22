@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use gosub_shared::traits::css3::CssSystem;
 use url::Url;
 
-use crate::document::document::DocumentImpl;
+use crate::doc::document::DocumentImpl;
 use crate::node::HTML_NAMESPACE;
 use crate::DocumentHandle;
 use gosub_shared::traits::document::{Document, DocumentType};
@@ -35,24 +35,16 @@ impl<C: CssSystem> gosub_shared::traits::document::DocumentBuilder<C> for Docume
             HashMap::new(),
             context_node.location(),
         );
-        let fragment_doc = <Self::Document as Document<C>>::new(
-            DocumentType::HTML,
-            None,
-            Some(fragment_root_node),
-        );
+        let fragment_doc = <Self::Document as Document<C>>::new(DocumentType::HTML, None, Some(fragment_root_node));
         let mut fragment_handle = DocumentHandle::create(fragment_doc);
 
         let context_doc_handle = context_node.handle();
         match context_doc_handle.get().quirks_mode() {
             QuirksMode::Quirks => {
-                fragment_handle
-                    .get_mut()
-                    .set_quirks_mode(QuirksMode::Quirks);
+                fragment_handle.get_mut().set_quirks_mode(QuirksMode::Quirks);
             }
             QuirksMode::LimitedQuirks => {
-                fragment_handle
-                    .get_mut()
-                    .set_quirks_mode(QuirksMode::LimitedQuirks);
+                fragment_handle.get_mut().set_quirks_mode(QuirksMode::LimitedQuirks);
             }
             _ => {}
         }

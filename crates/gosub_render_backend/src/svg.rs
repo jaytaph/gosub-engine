@@ -12,12 +12,11 @@ pub trait SvgRenderer<B: RenderBackend> {
     fn new() -> Self;
 
     fn parse_external(data: String) -> Result<Self::SvgDocument>;
-    fn parse_internal<D: Document<C>, C: CssSystem>(tree: DocumentHandle<D, C>, id: NodeId) -> Result<Self::SvgDocument>;
+    fn parse_internal<D: Document<C>, C: CssSystem>(
+        tree: DocumentHandle<D, C>,
+        id: NodeId,
+    ) -> Result<Self::SvgDocument>;
 
     fn render(&mut self, doc: &Self::SvgDocument) -> Result<ImageBuffer<B>>;
-    fn render_with_size(
-        &mut self,
-        doc: &Self::SvgDocument,
-        size: Size<u32>,
-    ) -> Result<ImageBuffer<B>>;
+    fn render_with_size(&mut self, doc: &Self::SvgDocument, size: Size<u32>) -> Result<ImageBuffer<B>>;
 }

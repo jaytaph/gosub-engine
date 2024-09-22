@@ -19,9 +19,8 @@ pub trait DocumentBuilder<C: CssSystem> {
     type Document: Document<C>;
 
     fn new_document(url: Option<Url>) -> DocumentHandle<Self::Document, C>;
-    fn new_document_fragment(
-        context_node: &<Self::Document as Document<C>>::Node,
-    ) -> DocumentHandle<Self::Document, C>;
+    fn new_document_fragment(context_node: &<Self::Document as Document<C>>::Node)
+        -> DocumentHandle<Self::Document, C>;
 }
 
 pub trait DocumentFragment<C: CssSystem>: Sized {
@@ -89,19 +88,10 @@ pub trait Document<C: CssSystem>: Sized {
     /// Register a new node
     fn register_node(&mut self, node: Self::Node) -> NodeId;
     /// Register a new node at a specific position
-    fn register_node_at(
-        &mut self,
-        node: Self::Node,
-        parent_id: NodeId,
-        position: Option<usize>,
-    ) -> NodeId;
+    fn register_node_at(&mut self, node: Self::Node, parent_id: NodeId, position: Option<usize>) -> NodeId;
 
     /// Node creation methods. The root node is needed in order to fetch the document handle (it can't be created from the document itself)
-    fn new_document_node(
-        handle: DocumentHandle<Self, C>,
-        quirks_mode: QuirksMode,
-        location: Location,
-    ) -> Self::Node;
+    fn new_document_node(handle: DocumentHandle<Self, C>, quirks_mode: QuirksMode, location: Location) -> Self::Node;
     fn new_doctype_node(
         handle: DocumentHandle<Self, C>,
         name: &str,
@@ -109,16 +99,8 @@ pub trait Document<C: CssSystem>: Sized {
         system_id: Option<&str>,
         location: Location,
     ) -> Self::Node;
-    fn new_comment_node(
-        handle: DocumentHandle<Self, C>,
-        comment: &str,
-        location: Location,
-    ) -> Self::Node;
-    fn new_text_node(
-        handle: DocumentHandle<Self, C>,
-        value: &str,
-        location: Location,
-    ) -> Self::Node;
+    fn new_comment_node(handle: DocumentHandle<Self, C>, comment: &str, location: Location) -> Self::Node;
+    fn new_text_node(handle: DocumentHandle<Self, C>, value: &str, location: Location) -> Self::Node;
     fn new_element_node(
         handle: DocumentHandle<Self, C>,
         name: &str,

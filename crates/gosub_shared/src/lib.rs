@@ -6,9 +6,9 @@
 extern crate core;
 
 pub mod byte_stream;
-pub mod timing;
-pub mod types;
-pub mod node;
-pub mod traits;
 pub mod document;
 pub mod errors;
+pub mod node;
+pub mod timing;
+pub mod traits;
+pub mod types;

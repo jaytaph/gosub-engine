@@ -100,10 +100,7 @@ pub fn parse_align_c(node: &mut impl Node, name: &str) -> Option<AlignContent> {
     }
 }
 
-pub fn parse_tracking_sizing_function(
-    node: &mut impl Node,
-    name: &str,
-) -> Vec<TrackSizingFunction> {
+pub fn parse_tracking_sizing_function(node: &mut impl Node, name: &str) -> Vec<TrackSizingFunction> {
     let Some(display) = node.get_property(name) else {
         return Vec::new();
     };

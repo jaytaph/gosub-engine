@@ -36,12 +36,7 @@ pub trait Layouter: Sized + Clone {
 
     const COLLAPSE_INLINE: bool;
 
-    fn layout<LT: LayoutTree<Self>>(
-        &self,
-        tree: &mut LT,
-        root: LT::NodeId,
-        space: SizeU32,
-    ) -> Result<()>;
+    fn layout<LT: LayoutTree<Self>>(&self, tree: &mut LT, root: LT::NodeId, space: SizeU32) -> Result<()>;
 }
 
 pub trait Layout: Default {
@@ -79,12 +74,7 @@ pub trait Layout: Default {
         let pos = self.rel_pos();
         let content = self.content();
         let size = self.scrollbar();
-        Rect::new(
-            pos.x,
-            pos.y,
-            content.width + size.width,
-            content.height + size.height,
-        )
+        Rect::new(pos.x, pos.y, content.width + size.width, content.height + size.height)
     }
 
     fn border(&self) -> Rect;

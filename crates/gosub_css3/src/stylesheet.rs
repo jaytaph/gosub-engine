@@ -1,10 +1,10 @@
 use core::fmt::Debug;
 use gosub_shared::byte_stream::Location;
-use gosub_shared::traits::css3::CssOrigin;
+use gosub_shared::errors::CssError;
 use gosub_shared::errors::CssResult;
+use gosub_shared::traits::css3::CssOrigin;
 use std::cmp::Ordering;
 use std::fmt::Display;
-use gosub_shared::errors::CssError;
 
 use crate::colors::RgbColor;
 
@@ -460,13 +460,10 @@ impl CssValue {
                 Ok(CssValue::String(value))
             }
             crate::node::NodeType::Operator(_) => Ok(CssValue::None),
-            crate::node::NodeType::Calc { .. } => {
-                Ok(CssValue::Function("calc".to_string(), vec![]))
+            crate::node::NodeType::Calc { .. } => Ok(CssValue::Function("calc".to_string(), vec![])),
+            crate::node::NodeType::Url { url } => {
+                Ok(CssValue::Function("url".to_string(), vec![CssValue::String(url)]))
             }
-            crate::node::NodeType::Url { url } => Ok(CssValue::Function(
-                "url".to_string(),
-                vec![CssValue::String(url)],
-            )),
             crate::node::NodeType::Function { name, arguments } => {
                 let mut list = vec![];
                 for node in arguments.iter() {
@@ -477,7 +474,9 @@ impl CssValue {
                 }
                 Ok(CssValue::Function(name, list))
             }
-            _ => Err(CssError::new(format!("Cannot convert node to CssValue: {:?}", node).as_str())),
+            _ => Err(CssError::new(
+                format!("Cannot convert node to CssValue: {:?}", node).as_str(),
+            )),
         }
     }
 
@@ -575,7 +574,7 @@ impl gosub_shared::traits::css3::CssValue for CssValue {
 
     fn as_list(&self) -> Option<Vec<Self>> {
         if let CssValue::List(list) = &self {
-            Some(list.iter().cloned().collect())
+            Some(list.to_vec())
         } else {
             None
         }

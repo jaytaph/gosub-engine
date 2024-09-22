@@ -1,17 +1,17 @@
 use core::fmt::{Debug, Formatter};
-use std::fmt;
 use gosub_shared::traits::node::{DocumentDataType, QuirksMode};
+use std::fmt;
 
 #[derive(PartialEq, Clone)]
 /// Data structure for document nodes
 pub struct DocumentData {
-    quirks_mode: QuirksMode
+    quirks_mode: QuirksMode,
 }
 
 impl Default for DocumentData {
     fn default() -> Self {
-        Self{
-            quirks_mode: QuirksMode::NoQuirks
+        Self {
+            quirks_mode: QuirksMode::NoQuirks,
         }
     }
 }
@@ -26,9 +26,7 @@ impl Debug for DocumentData {
 impl DocumentData {
     #[must_use]
     pub(crate) fn new(quirks_mode: QuirksMode) -> Self {
-        Self{
-            quirks_mode
-        }
+        Self { quirks_mode }
     }
 }
 

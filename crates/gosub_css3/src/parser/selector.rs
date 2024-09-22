@@ -1,8 +1,8 @@
-use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
 use gosub_shared::errors::CssError;
+use gosub_shared::errors::CssResult;
 
 impl Css3<'_> {
     fn parse_attribute_operator(&mut self) -> CssResult<Node> {
@@ -19,9 +19,10 @@ impl Css3<'_> {
             _ => {
                 self.tokenizer.reconsume();
 
-                return Err(
-                    CssError::with_location(format!("Expected attribute operator, got {:?}", c).as_str(), loc),
-                );
+                return Err(CssError::with_location(
+                    format!("Expected attribute operator, got {:?}", c).as_str(),
+                    loc,
+                ));
             }
         }
 
@@ -300,18 +301,11 @@ impl Css3<'_> {
 
                 TokenType::Number(value) => Node::new(NodeType::Number { value }, t.location),
 
-                TokenType::Percentage(value) => {
-                    Node::new(NodeType::Percentage { value }, t.location)
-                }
+                TokenType::Percentage(value) => Node::new(NodeType::Percentage { value }, t.location),
 
-                TokenType::Dimension { value, unit } => {
-                    Node::new(NodeType::Dimension { value, unit }, t.location)
-                }
+                TokenType::Dimension { value, unit } => Node::new(NodeType::Dimension { value, unit }, t.location),
 
-                TokenType::Delim('+')
-                | TokenType::Delim('>')
-                | TokenType::Delim('~')
-                | TokenType::Delim('/') => {
+                TokenType::Delim('+') | TokenType::Delim('>') | TokenType::Delim('~') | TokenType::Delim('/') => {
                     // Dont add descendant combinator since we are now adding another one
                     space = false;
 
@@ -348,12 +342,7 @@ impl Css3<'_> {
 
             if space {
                 // Detected a space previously, so we need to emit a descendant combinator
-                let node = Node::new(
-                    NodeType::Combinator {
-                        value: " ".to_string(),
-                    },
-                    whitespace_location,
-                );
+                let node = Node::new(NodeType::Combinator { value: " ".to_string() }, whitespace_location);
                 // insert before the last added node
                 children.push(node);
                 space = false;

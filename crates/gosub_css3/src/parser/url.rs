@@ -1,8 +1,8 @@
-use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::tokenizer::TokenType;
 use crate::Css3;
 use gosub_shared::errors::CssError;
+use gosub_shared::errors::CssResult;
 
 impl Css3<'_> {
     pub fn parse_url(&mut self) -> CssResult<Node> {
@@ -38,7 +38,7 @@ impl Css3<'_> {
 #[cfg(test)]
 mod tests {
     use crate::walker::Walker;
-    use crate::{ParserConfig, CssOrigin};
+    use crate::{CssOrigin, ParserConfig};
     use gosub_shared::byte_stream::{ByteStream, Encoding};
 
     macro_rules! test {

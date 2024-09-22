@@ -169,12 +169,7 @@ where
                 _ => return Err(Error::invalid_value(Unexpected::Str(kind), &"DOCTYPE")),
             },
 
-            _ => {
-                return Err(Error::invalid_length(
-                    values.len(),
-                    &"an array of length 2, 3, 4 or 5",
-                ))
-            }
+            _ => return Err(Error::invalid_length(values.len(), &"an array of length 2, 3, 4 or 5")),
         };
 
         output.push(token);
@@ -287,10 +282,7 @@ impl TestSpec {
             if actual.message == expected.code
                 && (actual.location.line != expected.line || actual.location.column != expected.col)
             {
-                panic!(
-                    "[{}]: wanted {:?}, got {:?}",
-                    self.description, expected, actual
-                );
+                panic!("[{}]: wanted {:?}, got {:?}", self.description, expected, actual);
             }
         }
 
@@ -340,9 +332,7 @@ impl TestSpec {
                 location: *location,
             },
 
-            Token::Eof { location } => Token::Eof {
-                location: *location,
-            },
+            Token::Eof { location } => Token::Eof { location: *location },
 
             Token::StartTag {
                 name,
@@ -356,10 +346,7 @@ impl TestSpec {
                 location: *location,
             },
 
-            Token::Text {
-                text: value,
-                location,
-            } => Token::Text {
+            Token::Text { text: value, location } => Token::Text {
                 text: escape(value),
                 location: *location,
             },
@@ -392,9 +379,7 @@ pub fn from_utf16_lossy(input: &str) -> String {
         let n = u16::from_str_radix(&cap[1], 16).unwrap();
         // There are UTF-16 characters that the following will not decode into UTF-8, so we might
         // be dropping characters when a DecodeUtf16Error error is encountered.
-        std::char::decode_utf16([n])
-            .filter_map(|r| r.ok())
-            .collect::<String>()
+        std::char::decode_utf16([n]).filter_map(|r| r.ok()).collect::<String>()
     })
     .to_string()
 }

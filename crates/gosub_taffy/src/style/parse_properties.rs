@@ -3,8 +3,8 @@ use taffy::prelude::*;
 use taffy::{Overflow, Point};
 
 use crate::style::parse::{
-    parse_align_c, parse_align_i, parse_dimension, parse_grid_auto, parse_grid_placement,
-    parse_len, parse_len_auto, parse_text_dim, parse_tracking_sizing_function,
+    parse_align_c, parse_align_i, parse_dimension, parse_grid_auto, parse_grid_placement, parse_len, parse_len_auto,
+    parse_text_dim, parse_tracking_sizing_function,
 };
 use gosub_render_backend::layout::Node;
 use gosub_shared::traits::css3::CssProperty;

@@ -59,19 +59,14 @@ impl<
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: CustomEvent) {
         match event {
             CustomEvent::OpenWindow(url) => {
-                let mut window = match Window::new::<P>(
-                    event_loop,
-                    &mut self.backend,
-                    self.layouter.clone(),
-                    url,
-                    self.debug,
-                ) {
-                    Ok(window) => window,
-                    Err(e) => {
-                        eprintln!("Error opening window: {e:?}");
-                        return;
-                    }
-                };
+                let mut window =
+                    match Window::new::<P>(event_loop, &mut self.backend, self.layouter.clone(), url, self.debug) {
+                        Ok(window) => window,
+                        Err(e) => {
+                            eprintln!("Error opening window: {e:?}");
+                            return;
+                        }
+                    };
 
                 if let Err(e) = window.resumed(&mut self.backend) {
                     eprintln!("Error resuming window: {e:?}");
@@ -127,12 +122,7 @@ impl<
         }
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        window_id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
         if let Some(window) = self.windows.get_mut(&window_id) {
             if let Err(e) = window.event(event_loop, &mut self.backend, event) {
                 eprintln!("Error handling window event: {e:?}");
@@ -203,10 +193,7 @@ impl<
             self.initialize()?;
         }
 
-        let event_loop = self
-            .event_loop
-            .take()
-            .ok_or(anyhow!("No event loop; unreachable!"))?;
+        let event_loop = self.event_loop.take().ok_or(anyhow!("No event loop; unreachable!"))?;
 
         let proxy = self.proxy()?;
 

@@ -3,11 +3,11 @@ use std::sync::LazyLock;
 
 use log::warn;
 
-use crate::stylesheet::CssValue;
 use crate::matcher::shorthands::{FixList, Shorthands};
 use crate::matcher::syntax::GroupCombinators::Juxtaposition;
 use crate::matcher::syntax::{CssSyntax, SyntaxComponent};
 use crate::matcher::syntax_matcher::CssSyntaxTree;
+use crate::stylesheet::CssValue;
 
 /// List of elements that are built-in data types in the CSS specification. These will be handled
 /// by the syntax matcher as built-in types.
@@ -238,23 +238,16 @@ impl CssDefinitions {
     }
 
     /// Resolve a syntax component
-    pub fn resolve_component(
-        &mut self,
-        component: &SyntaxComponent,
-        prop_name: &str,
-    ) -> SyntaxComponent {
+    pub fn resolve_component(&mut self, component: &SyntaxComponent, prop_name: &str) -> SyntaxComponent {
         match component {
             SyntaxComponent::Definition {
-                datatype,
-                multipliers,
-                ..
+                datatype, multipliers, ..
             } => {
                 // First step: Resolve by looking the definition up in the syntax defintions.
                 if let Some(syntax_element) = self.syntax.get(datatype) {
                     let mut syntax_element = syntax_element.clone();
                     if !syntax_element.resolved {
-                        syntax_element.syntax =
-                            self.resolve_syntax(&syntax_element.syntax, prop_name);
+                        syntax_element.syntax = self.resolve_syntax(&syntax_element.syntax, prop_name);
                         syntax_element.resolved = true;
                         self.syntax.insert(datatype.clone(), syntax_element.clone());
                     }
@@ -346,21 +339,18 @@ impl CssDefinitions {
     }
 }
 
-pub static CSS_DEFINITIONS: LazyLock<CssDefinitions, fn() -> CssDefinitions> =
-    LazyLock::new(pars_definition_files);
+pub static CSS_DEFINITIONS: LazyLock<CssDefinitions, fn() -> CssDefinitions> = LazyLock::new(pars_definition_files);
 
 /// Parses the internal CSS definition file
 fn pars_definition_files() -> CssDefinitions {
     // parse all syntax, so we can use them in the properties
     let contents = include_str!("../../resources/definitions/definitions_values.json");
-    let json: serde_json::Value =
-        serde_json::from_str(contents).expect("JSON was not well-formatted");
+    let json: serde_json::Value = serde_json::from_str(contents).expect("JSON was not well-formatted");
     let syntax = parse_syntax_file(json);
 
     // Parse property definitions
     let contents = include_str!("../../resources/definitions/definitions_properties.json");
-    let json: serde_json::Value =
-        serde_json::from_str(contents).expect("JSON was not well-formatted");
+    let json: serde_json::Value = serde_json::from_str(contents).expect("JSON was not well-formatted");
     let properties = parse_property_file(json);
 
     // Create definition structure, and resolve all definitions
@@ -501,8 +491,8 @@ fn parse_property_file(json: serde_json::Value) -> HashMap<String, PropertyDefin
 
 #[cfg(test)]
 mod tests {
-    use crate::colors::RgbColor;
     use super::*;
+    use crate::colors::RgbColor;
 
     macro_rules! assert_false {
         ($e:expr) => {
@@ -563,9 +553,7 @@ mod tests {
             .matches(&[str!("solid"), CssValue::Color(RgbColor::from("black")),]));
         assert_true!(prop.clone().matches(&[str!("solid")]));
         assert_false!(prop.clone().matches(&[str!("not-solid")]));
-        assert_false!(prop
-            .clone()
-            .matches(&[str!("solid"), str!("solid"), unit!(1.0, "px"),]));
+        assert_false!(prop.clone().matches(&[str!("solid"), str!("solid"), unit!(1.0, "px"),]));
     }
 
     #[test]
@@ -576,9 +564,7 @@ mod tests {
             PropertyDefinition {
                 name: "color".to_string(),
                 computed: vec![],
-                syntax: CssSyntax::new("color()")
-                    .compile()
-                    .expect("Could not compile syntax"),
+                syntax: CssSyntax::new("color()").compile().expect("Could not compile syntax"),
                 inherited: false,
                 initial_value: None,
                 resolved: false,
@@ -601,9 +587,7 @@ mod tests {
                     "border-bottom-style".to_string(),
                     "border-left-style".to_string(),
                 ],
-                syntax: CssSyntax::new("")
-                    .compile()
-                    .expect("Could not compile syntax"),
+                syntax: CssSyntax::new("").compile().expect("Could not compile syntax"),
                 inherited: false,
                 initial_value: Some(str!("thick".to_string())),
                 resolved: false,
@@ -666,9 +650,7 @@ mod tests {
         assert_true!(def.clone().matches(&[str!("Menu")]));
 
         assert_true!(def.clone().matches(&[str!("blue")]));
-        assert_true!(def
-            .clone()
-            .matches(&[CssValue::Color(RgbColor::from("#ff0000"))]));
+        assert_true!(def.clone().matches(&[CssValue::Color(RgbColor::from("#ff0000"))]));
         assert_true!(def.clone().matches(&[str!("rebeccapurple")]));
 
         assert_false!(def.clone().matches(&[str!("thiscolordoesnotexist")]));
@@ -697,12 +679,9 @@ mod tests {
         assert_true!(def.clone().matches(&[str!("left"), unit!(10.0, "px"),]));
 
         // background-position: left 10px top 20px;
-        assert_true!(def.clone().matches(&[
-            str!("left"),
-            unit!(10.0, "px"),
-            str!("top"),
-            unit!(20.0, "px"),
-        ]));
+        assert_true!(def
+            .clone()
+            .matches(&[str!("left"), unit!(10.0, "px"), str!("top"), unit!(20.0, "px"),]));
 
         // background-position: right 15% bottom 5%;
         assert_true!(def.clone().matches(&[
@@ -724,17 +703,12 @@ mod tests {
         assert_true!(def.clone().matches(&[CssValue::Percentage(75.0),]));
 
         // background-position: top 10px center;
-        assert_true!(def
-            .clone()
-            .matches(&[str!("top"), unit!(10.0, "px"), str!("center"),]));
+        assert_true!(def.clone().matches(&[str!("top"), unit!(10.0, "px"), str!("center"),]));
 
         // background-position: bottom 20px right 30px;
-        assert_true!(def.clone().matches(&[
-            str!("bottom"),
-            unit!(20.0, "px"),
-            str!("right"),
-            unit!(30.0, "px"),
-        ]));
+        assert_true!(def
+            .clone()
+            .matches(&[str!("bottom"), unit!(20.0, "px"), str!("right"), unit!(30.0, "px"),]));
 
         // background-position: 20% 80%;
         assert_true!(def
@@ -755,9 +729,7 @@ mod tests {
         ]));
 
         // background-position: center top 35px;
-        assert_true!(def
-            .clone()
-            .matches(&[str!("center"), str!("top"), unit!(35.0, "px"),]));
+        assert_true!(def.clone().matches(&[str!("center"), str!("top"), unit!(35.0, "px"),]));
 
         // background-position: left 45% bottom 25%;
         assert_true!(def.clone().matches(&[
@@ -882,11 +854,8 @@ mod tests {
             .clone()
             .matches(&[unit!(1.0, "px"), unit!(2.0, "px"), unit!(3.0, "px")]));
 
-        assert!(def.clone().matches(&[
-            unit!(1.0, "px"),
-            unit!(2.0, "px"),
-            unit!(3.0, "px"),
-            unit!(4.0, "px"),
-        ]));
+        assert!(def
+            .clone()
+            .matches(&[unit!(1.0, "px"), unit!(2.0, "px"), unit!(3.0, "px"), unit!(4.0, "px"),]));
     }
 }

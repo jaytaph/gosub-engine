@@ -9,11 +9,11 @@ mod scope;
 mod starting_style;
 mod supports;
 
-use gosub_shared::errors::{CssError, CssResult};
 use crate::node::{Node, NodeType};
 use crate::parser::block::BlockParseMode;
 use crate::tokenizer::TokenType;
 use crate::Css3;
+use gosub_shared::errors::{CssError, CssResult};
 
 impl Css3<'_> {
     fn declaration_block_at_rule(&mut self) -> BlockParseMode {
@@ -76,11 +76,11 @@ impl Css3<'_> {
         self.consume_whitespace_comments();
 
         let t = self.tokenizer.lookahead(0);
-        if !self.tokenizer.eof()
-            && t.token_type != TokenType::Semicolon
-            && t.token_type != TokenType::LCurly
-        {
-            return Err(CssError::with_location("Expected semicolon or left curly brace", t.location));
+        if !self.tokenizer.eof() && t.token_type != TokenType::Semicolon && t.token_type != TokenType::LCurly {
+            return Err(CssError::with_location(
+                "Expected semicolon or left curly brace",
+                t.location,
+            ));
         }
 
         Ok(node)

@@ -10,9 +10,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use crate::matcher::property_definitions::get_css_definitions;
-use crate::stylesheet::{
-    Combinator, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity,
-};
+use crate::stylesheet::{Combinator, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity};
 
 // Matches a complete selector (all parts) against the given node(id)
 pub(crate) fn match_selector<D: Document<C>, C: CssSystem>(
@@ -60,13 +58,7 @@ fn match_selector_parts<D: Document<C>, C: CssSystem>(
             return false;
         }
 
-        if !match_selector_part(
-            part,
-            current_node,
-            &*binding,
-            &mut next_current_node,
-            &mut parts,
-        ) {
+        if !match_selector_part(part, current_node, &*binding, &mut next_current_node, &mut parts) {
             return false;
         }
 
@@ -101,11 +93,7 @@ fn match_selector_part<'a, D: Document<C>, C: CssSystem>(
             if !current_node.is_element_node() {
                 return false;
             }
-            current_node
-                .get_element_data()
-                .unwrap()
-                .classes()
-                .contains(name)
+            current_node.get_element_data().unwrap().classes().contains(name)
         }
         CssSelectorPart::Id(name) => {
             if !current_node.is_element_node() {
@@ -156,9 +144,7 @@ fn match_selector_part<'a, D: Document<C>, C: CssSystem>(
                 }
                 MatcherType::Includes => {
                     // Contains word
-                    wanted_attr_value
-                        .split_whitespace()
-                        .any(|s| s == got_attr_value)
+                    wanted_attr_value.split_whitespace().any(|s| s == got_attr_value)
                 }
                 MatcherType::DashMatch => {
                     // Exact value or value followed by a hyphen
@@ -315,10 +301,7 @@ fn match_selector_part<'a, D: Document<C>, C: CssSystem>(
                         return false;
                     };
 
-                    current_node
-                        .get_element_data()
-                        .unwrap()
-                        .is_namespace(namespace)
+                    current_node.get_element_data().unwrap().is_namespace(namespace)
                 }
                 Combinator::Column => {
                     //TODO
@@ -535,8 +518,7 @@ impl CssProperty {
     // // Returns the initial value for the property, if any
     fn get_initial_value(&self) -> Option<CssValue> {
         let defs = get_css_definitions();
-        defs.find_property(&self.name)
-            .map(|def| def.initial_value())
+        defs.find_property(&self.name).map(|def| def.initial_value())
     }
 }
 
@@ -583,9 +565,7 @@ impl gosub_shared::traits::css3::CssProperty for CssProperty {
     }
 
     fn parse_color(&self) -> Option<(f32, f32, f32, f32)> {
-        self.actual
-            .to_color()
-            .map(|color| (color.r, color.g, color.b, color.a))
+        self.actual.to_color().map(|color| (color.r, color.g, color.b, color.a))
     }
 
     fn as_number(&self) -> Option<f32> {
@@ -598,7 +578,7 @@ impl gosub_shared::traits::css3::CssProperty for CssProperty {
 
     fn as_list(&self) -> Option<Vec<Self::Value>> {
         if let CssValue::List(list) = &self.actual {
-            Some(list.iter().cloned().collect())
+            Some(list.to_vec())
         } else {
             None
         }

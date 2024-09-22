@@ -17,6 +17,8 @@ use result::TestResult;
 use result::{ResultStatus, TreeLineResult};
 use std::collections::HashMap;
 
+type ParseResult<T> = Result<(T, Vec<ParseError>)>;
+
 /// Holds a single parser test
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct Test {
@@ -93,7 +95,7 @@ impl Harness {
     fn do_parse<P: Html5Parser<C>, C: CssSystem>(
         &mut self,
         scripting_enabled: bool,
-    ) -> Result<(DocumentHandle<P::Document, C>, Vec<ParseError>)> {
+    ) -> ParseResult<DocumentHandle<P::Document, C>> {
         let options = <P::Options as ParserOptions>::new(scripting_enabled);
         let mut stream = ByteStream::new(
             Encoding::UTF8,
@@ -106,16 +108,14 @@ impl Harness {
         stream.read_from_str(self.test.spec_data(), None);
         stream.close();
 
-        let (document, parse_errors) =
-            if let Some(fragment) = self.test.spec.document_fragment.clone() {
-                self.parse_fragment::<P, C>(fragment, stream, options, Location::default())?
-            } else {
-                let document = <P::Document as Document<C>>::Builder::new_document(None);
-                let parser_errors =
-                    P::parse(&mut stream, DocumentHandle::clone(&document), Some(options))?;
+        let (document, parse_errors) = if let Some(fragment) = self.test.spec.document_fragment.clone() {
+            self.parse_fragment::<P, C>(fragment, stream, options, Location::default())?
+        } else {
+            let document = <P::Document as Document<C>>::Builder::new_document(None);
+            let parser_errors = P::parse(&mut stream, DocumentHandle::clone(&document), Some(options))?;
 
-                (document, parser_errors)
-            };
+            (document, parser_errors)
+        };
 
         Ok((document, parse_errors))
     }
@@ -126,21 +126,15 @@ impl Harness {
         mut stream: ByteStream,
         options: P::Options,
         start_location: Location,
-    ) -> Result<(DocumentHandle<P::Document, C>, Vec<ParseError>)> {
+    ) -> ParseResult<DocumentHandle<P::Document, C>> {
         // First, create a (fake) main document that contains only the fragment as node
         let main_document = <P::Document as Document<C>>::Builder::new_document(None);
 
         let mut main_document = main_document.clone();
         let (element, namespace) = if fragment.starts_with("svg ") {
-            (
-                fragment.strip_prefix("svg ").unwrap().to_string(),
-                SVG_NAMESPACE,
-            )
+            (fragment.strip_prefix("svg ").unwrap().to_string(), SVG_NAMESPACE)
         } else if fragment.starts_with("math ") {
-            (
-                fragment.strip_prefix("math ").unwrap().to_string(),
-                MATHML_NAMESPACE,
-            )
+            (fragment.strip_prefix("math ").unwrap().to_string(), MATHML_NAMESPACE)
         } else {
             (fragment, HTML_NAMESPACE)
         };

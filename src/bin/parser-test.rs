@@ -1,5 +1,5 @@
 use gosub_css3::system::Css3System;
-use gosub_html5::document::document::DocumentImpl;
+use gosub_html5::doc::document::DocumentImpl;
 use gosub_html5::parser::Html5Parser;
 use gosub_testing::testing::tree_construction::fixture::read_fixtures;
 use gosub_testing::testing::tree_construction::result::ResultStatus;
@@ -47,11 +47,7 @@ fn main() {
         println!(
             "\
     🏁 Tests completed: Ran {} tests, {} assertions, {} succeeded, {} failed ({} position failures)\n",
-            results.tests,
-            results.assertions,
-            results.succeeded,
-            results.failed,
-            results.failed_position
+            results.tests, results.assertions, results.succeeded, results.failed, results.failed_position
         );
     }
 
@@ -66,10 +62,7 @@ fn main() {
 
 fn run_test(test_idx: usize, test: Test, all_results: &mut TotalTestResults) {
     #[cfg(all(feature = "debug_parser_verbose", test))]
-    println!(
-        "🧪 Running test #{test_idx}: {}:{}",
-        test.file_path, test.line
-    );
+    println!("🧪 Running test #{test_idx}: {}:{}", test.file_path, test.line);
 
     all_results.tests += 1;
 
@@ -150,10 +143,7 @@ fn run_test(test_idx: usize, test: Test, all_results: &mut TotalTestResults) {
                 #[cfg(all(feature = "debug_parser", test))]
                 println!(
                     "❌ ({}:{}) {} (wanted: {})",
-                    entry.actual.line,
-                    entry.actual.col,
-                    entry.actual.message,
-                    entry.expected.message
+                    entry.actual.line, entry.actual.col, entry.actual.message, entry.expected.message
                 );
             }
             ResultStatus::IncorrectPosition => {

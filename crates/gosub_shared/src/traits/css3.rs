@@ -26,12 +26,7 @@ pub trait CssSystem: Clone {
     type Property: CssProperty;
 
     /// Parses a string into a CSS3 stylesheet
-    fn parse_str(
-        str: &str,
-        config: ParserConfig,
-        origin: CssOrigin,
-        source_url: &str,
-    ) -> CssResult<Self::Stylesheet>;
+    fn parse_str(str: &str, config: ParserConfig, origin: CssOrigin, source_url: &str) -> CssResult<Self::Stylesheet>;
 
     /// Returns the properties of a node
     /// If `None` is returned, the node is not renderable
@@ -58,14 +53,13 @@ pub trait CssPropertyMap: Default + Debug {
 
     fn get_mut(&mut self, name: &str) -> Option<&mut Self::Property>;
 
+    fn make_dirty(&mut self);
+
     fn iter(&self) -> impl Iterator<Item = (&str, &Self::Property)> + '_;
 
     fn iter_mut(&mut self) -> impl Iterator<Item = (&str, &mut Self::Property)> + '_;
 
-    fn make_dirty(&mut self);
-
     fn make_clean(&mut self);
-
     fn is_dirty(&self) -> bool;
 }
 pub trait CssProperty: Debug + Sized {

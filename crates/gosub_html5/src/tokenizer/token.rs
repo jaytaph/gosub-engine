@@ -55,10 +55,7 @@ impl Token {
             if value.chars().any(|ch| ch == '\0') {
                 found += 1;
             }
-            if value
-                .chars()
-                .any(|ch| !ch.is_ascii_whitespace() && ch != '\0')
-            {
+            if value.chars().any(|ch| !ch.is_ascii_whitespace() && ch != '\0') {
                 found += 1;
             }
             found > 1
@@ -182,9 +179,7 @@ impl std::fmt::Display for Token {
                 write!(f, "{result}")
             }
             Token::EndTag {
-                name,
-                is_self_closing,
-                ..
+                name, is_self_closing, ..
             } => write!(f, "</{}{}>", name, if *is_self_closing { "/" } else { "" }),
             Token::Eof { .. } => write!(f, "EOF"),
         }
@@ -239,10 +234,7 @@ mod tests {
             sys_identifier: Some("bar".to_string()),
             location: Location::default(),
         };
-        assert_eq!(
-            format!("{token}"),
-            r#"<!DOCTYPE html PUBLIC "foo" SYSTEM "bar" />"#
-        );
+        assert_eq!(format!("{token}"), r#"<!DOCTYPE html PUBLIC "foo" SYSTEM "bar" />"#);
     }
 
     #[test]

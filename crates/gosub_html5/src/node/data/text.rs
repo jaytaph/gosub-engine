@@ -17,9 +17,7 @@ impl Default for TextData {
 impl TextData {
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            value: String::new(),
-        }
+        Self { value: String::new() }
     }
 
     pub fn with_value(value: &str) -> Self {

@@ -101,22 +101,14 @@ impl PositionTree {
                             // top left
                             Ordering::Less => {
                                 if (e.x + radi.0) > x && (e.y + radi.0) > y {
-                                    return is_point_in_circle(
-                                        (e.x + radi.0, e.y + radi.0),
-                                        radi.0,
-                                        (x, y),
-                                    );
+                                    return is_point_in_circle((e.x + radi.0, e.y + radi.0), radi.0, (x, y));
                                 }
                                 false
                             }
                             // top right
                             Ordering::Greater => {
                                 if (e.x + e.width - radi.1) < x && (e.y + radi.1) < y {
-                                    return is_point_in_circle(
-                                        (e.x + radi.1, e.y + radi.1),
-                                        radi.1,
-                                        (x, y),
-                                    );
+                                    return is_point_in_circle((e.x + radi.1, e.y + radi.1), radi.1, (x, y));
                                 }
 
                                 false
@@ -129,22 +121,14 @@ impl PositionTree {
                             // bottom left
                             Ordering::Less => {
                                 if (e.x + radi.2) > x && (e.y + e.height - radi.2) < y {
-                                    return is_point_in_circle(
-                                        (e.x + radi.2, e.y + e.height - radi.2),
-                                        radi.2,
-                                        (x, y),
-                                    );
+                                    return is_point_in_circle((e.x + radi.2, e.y + e.height - radi.2), radi.2, (x, y));
                                 }
                                 false
                             }
                             // bottom right
                             Ordering::Greater => {
                                 if (e.x + e.width - radi.3) < x && (e.y + e.height - radi.3) < y {
-                                    return is_point_in_circle(
-                                        (e.x + radi.3, e.y + radi.3),
-                                        radi.3,
-                                        (x, y),
-                                    );
+                                    return is_point_in_circle((e.x + radi.3, e.y + radi.3), radi.3, (x, y));
                                 }
                                 false
                             }

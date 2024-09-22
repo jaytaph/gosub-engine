@@ -1,8 +1,8 @@
-use gosub_shared::errors::CssResult;
 use crate::node::{Node, NodeType};
 use crate::parser::block::BlockParseMode;
 use crate::tokenizer::TokenType;
 use crate::Css3;
+use gosub_shared::errors::CssResult;
 
 impl Css3<'_> {
     // Either the rule parsing succeeds as a whole, or not. When not a valid rule is found, we
@@ -50,7 +50,7 @@ impl Css3<'_> {
 #[cfg(test)]
 mod tests {
     use crate::walker::Walker;
-    use crate::{ParserConfig, CssOrigin};
+    use crate::{CssOrigin, ParserConfig};
     use gosub_shared::byte_stream::{ByteStream, Encoding};
 
     macro_rules! test {

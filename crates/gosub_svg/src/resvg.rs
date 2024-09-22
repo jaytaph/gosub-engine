@@ -39,11 +39,7 @@ impl<B: RenderBackend> SvgRenderer<B> for Resvg {
         self.render_with_size(doc, size)
     }
 
-    fn render_with_size(
-        &mut self,
-        doc: &Self::SvgDocument,
-        size: Size<u32>,
-    ) -> Result<ImageBuffer<B>> {
+    fn render_with_size(&mut self, doc: &Self::SvgDocument, size: Size<u32>) -> Result<ImageBuffer<B>> {
         let img: B::Image = Self::render_to_image::<B>(self, doc, size)?;
 
         Ok(ImageBuffer::Image(img))
@@ -51,19 +47,10 @@ impl<B: RenderBackend> SvgRenderer<B> for Resvg {
 }
 
 impl Resvg {
-    pub fn render_to_image<B: RenderBackend>(
-        &mut self,
-        doc: &SVGDocument,
-        size: Size<u32>,
-    ) -> Result<B::Image> {
-        let mut pixmap = Pixmap::new(size.width, size.height)
-            .ok_or_else(|| anyhow!("Failed to create pixmap"))?;
+    pub fn render_to_image<B: RenderBackend>(&mut self, doc: &SVGDocument, size: Size<u32>) -> Result<B::Image> {
+        let mut pixmap = Pixmap::new(size.width, size.height).ok_or_else(|| anyhow!("Failed to create pixmap"))?;
 
-        resvg::render(
-            &doc.tree,
-            tiny_skia::Transform::default(),
-            &mut pixmap.as_mut(),
-        );
+        resvg::render(&doc.tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
 
         Ok(tiny_skia_pixmap_to_img::<B>(pixmap))
     }

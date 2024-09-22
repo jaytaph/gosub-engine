@@ -21,12 +21,7 @@ impl<
         C: CssSystem,
     > Window<'a, D, B, L, LT, Doc, C>
 {
-    pub fn event(
-        &mut self,
-        el: &ActiveEventLoop,
-        backend: &mut B,
-        event: WindowEvent,
-    ) -> Result<()> {
+    pub fn event(&mut self, el: &ActiveEventLoop, backend: &mut B, event: WindowEvent) -> Result<()> {
         let WindowState::Active {
             surface: active_window_data,
         } = &mut self.state
@@ -71,10 +66,7 @@ impl<
                     return Ok(());
                 };
 
-                if tab
-                    .data
-                    .mouse_move(backend, position.x as FP, position.y as FP)
-                {
+                if tab.data.mouse_move(backend, position.x as FP, position.y as FP) {
                     self.window.request_redraw();
                 }
             }

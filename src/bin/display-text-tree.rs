@@ -1,10 +1,10 @@
+use gosub_css3::system::Css3System;
 use gosub_html5::parser::Html5Parser;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
 use gosub_shared::types::Result;
 use std::process::exit;
-use gosub_css3::system::Css3System;
 
-use gosub_html5::document::document::DocumentImpl;
+use gosub_html5::doc::document::DocumentImpl;
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
@@ -32,8 +32,10 @@ fn main() -> Result<()> {
     stream.read_from_str(&html, Some(Encoding::UTF8));
     stream.close();
 
-    let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> = <gosub_html5::document::builder::DocumentBuilder as DocumentBuilder<Css3System>>::new_document(None);
-    let parse_errors = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None)?;
+    let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
+        <gosub_html5::doc::builder::DocumentBuilder as DocumentBuilder<Css3System>>::new_document(None);
+    let parse_errors =
+        Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None)?;
 
     for e in parse_errors {
         println!("Parse Error: {}", e.message);
@@ -44,7 +46,10 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn display_node<D: Document<C>, C: CssSystem>(doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System>, node_id: NodeId) {
+fn display_node<D: Document<C>, C: CssSystem>(
+    doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System>,
+    node_id: NodeId,
+) {
     let binding = doc_handle.get();
     let node = binding.node_by_id(node_id).unwrap();
     if node.is_text_node() {

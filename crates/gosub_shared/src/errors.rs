@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use crate::byte_stream::Location;
+use std::fmt::{Display, Formatter};
 
 /// Parser error that defines an error (message) on the given position
 #[derive(Clone, Debug, PartialEq)]

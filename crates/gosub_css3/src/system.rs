@@ -1,12 +1,12 @@
 use crate::matcher::styling::{match_selector, CssProperties, CssProperty, DeclarationProperty};
 use crate::Css3;
 use gosub_shared::document::DocumentHandle;
+use gosub_shared::errors::CssResult;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::{CssOrigin, CssSystem};
 use gosub_shared::traits::document::Document;
 use gosub_shared::traits::node::{ElementDataType, Node, TextDataType};
 use gosub_shared::traits::ParserConfig;
-use gosub_shared::errors::CssResult;
 use log::warn;
 
 use crate::functions::attr::resolve_attr;
@@ -26,12 +26,7 @@ impl CssSystem for Css3System {
 
     type Property = CssProperty;
 
-    fn parse_str(
-        str: &str,
-        config: ParserConfig,
-        origin: CssOrigin,
-        url: &str,
-    ) -> CssResult<Self::Stylesheet> {
+    fn parse_str(str: &str, config: ParserConfig, origin: CssOrigin, url: &str) -> CssResult<Self::Stylesheet> {
         Css3::parse_str(str, config, origin, url)
     }
 
@@ -54,8 +49,7 @@ impl CssSystem for Css3System {
         for sheet in sheets {
             for rule in &sheet.rules {
                 for selector in rule.selectors().iter() {
-                    let (matched, specificity) =
-                        match_selector(DocumentHandle::clone(&handle), id, selector);
+                    let (matched, specificity) = match_selector(DocumentHandle::clone(&handle), id, selector);
 
                     if !matched {
                         continue;
@@ -64,13 +58,9 @@ impl CssSystem for Css3System {
                     // Selector matched, so we add all declared values to the map
                     for declaration in rule.declarations().iter() {
                         // Step 1: find the property in our CSS definition list
-                        let Some(definition) = definitions.find_property(&declaration.property)
-                        else {
+                        let Some(definition) = definitions.find_property(&declaration.property) else {
                             // If not found, we skip this declaration
-                            warn!(
-                                "Definition is not found for property {:?}",
-                                declaration.property
-                            );
+                            warn!("Definition is not found for property {:?}", declaration.property);
                             continue;
                         };
 
@@ -187,9 +177,7 @@ pub fn add_property_to_map(
         specificity,
     };
 
-    if let std::collections::hash_map::Entry::Vacant(e) =
-        css_map_entry.properties.entry(property_name.clone())
-    {
+    if let std::collections::hash_map::Entry::Vacant(e) = css_map_entry.properties.entry(property_name.clone()) {
         // Generate new property in the css map
         let mut entry = CssProperty::new(property_name.as_str());
         entry.declared.push(declaration);

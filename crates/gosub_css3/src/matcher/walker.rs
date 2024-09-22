@@ -6,9 +6,7 @@ pub struct MatchWalker {
 
 impl MatchWalker {
     pub fn new(tree: &CssSyntaxTree) -> Self {
-        Self {
-            tree: tree.clone()
-        }
+        Self { tree: tree.clone() }
     }
 
     // pub fn walk(&self) {

@@ -1,5 +1,5 @@
-use crate::document::document::DocumentImpl;
-use crate::document::fragment::DocumentFragmentImpl;
+use crate::doc::document::DocumentImpl;
+use crate::doc::fragment::DocumentFragmentImpl;
 use crate::node::elements::{
     FORMATTING_HTML_ELEMENTS, SPECIAL_HTML_ELEMENTS, SPECIAL_MATHML_ELEMENTS, SPECIAL_SVG_ELEMENTS,
 };
@@ -207,8 +207,7 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
     fn is_mathml_integration_point(&self) -> bool {
         let namespace = self.namespace.clone().unwrap_or_default();
 
-        namespace == MATHML_NAMESPACE
-            && ["mi", "mo", "mn", "ms", "mtext"].contains(&self.name.as_str())
+        namespace == MATHML_NAMESPACE && ["mi", "mo", "mn", "ms", "mtext"].contains(&self.name.as_str())
     }
 
     // fn set_attributes(&mut self, attributes: &HashMap<String, String>) {
@@ -233,8 +232,7 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
                     return false;
                 }
 
-                namespace == SVG_NAMESPACE
-                    && ["foreignObject", "desc", "title"].contains(&self.name.as_str())
+                namespace == SVG_NAMESPACE && ["foreignObject", "desc", "title"].contains(&self.name.as_str())
             }
             None => false,
         }
@@ -242,19 +240,13 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
 
     /// Returns true if the given node is "special" node based on the namespace and name
     fn is_special(&self) -> bool {
-        if self.namespace == Some(HTML_NAMESPACE.into())
-            && SPECIAL_HTML_ELEMENTS.contains(&self.name())
-        {
+        if self.namespace == Some(HTML_NAMESPACE.into()) && SPECIAL_HTML_ELEMENTS.contains(&self.name()) {
             return true;
         }
-        if self.namespace == Some(MATHML_NAMESPACE.into())
-            && SPECIAL_MATHML_ELEMENTS.contains(&self.name())
-        {
+        if self.namespace == Some(MATHML_NAMESPACE.into()) && SPECIAL_MATHML_ELEMENTS.contains(&self.name()) {
             return true;
         }
-        if self.namespace == Some(SVG_NAMESPACE.into())
-            && SPECIAL_SVG_ELEMENTS.contains(&self.name())
-        {
+        if self.namespace == Some(SVG_NAMESPACE.into()) && SPECIAL_SVG_ELEMENTS.contains(&self.name()) {
             return true;
         }
 
@@ -273,8 +265,7 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
 
     /// Returns true if the given node is a "formatting" node
     fn is_formatting(&self) -> bool {
-        self.namespace == Some(HTML_NAMESPACE.into())
-            && FORMATTING_HTML_ELEMENTS.contains(&self.name.as_str())
+        self.namespace == Some(HTML_NAMESPACE.into()) && FORMATTING_HTML_ELEMENTS.contains(&self.name.as_str())
     }
 
     fn set_template_contents(&mut self, template_contents: Self::DocumentFragment) {

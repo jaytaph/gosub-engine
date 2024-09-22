@@ -56,11 +56,7 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
         NodeDesc {
             id: node.id.into(),
             name,
-            children: node
-                .children
-                .iter()
-                .map(|child| self.desc_node(*child))
-                .collect(),
+            children: node.children.iter().map(|child| self.desc_node(*child)).collect(),
             attributes,
             properties: node
                 .properties

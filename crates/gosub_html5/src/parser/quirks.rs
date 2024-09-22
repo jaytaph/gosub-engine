@@ -1,16 +1,15 @@
+use crate::parser::Html5Parser;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::{Document, DocumentFragment};
 use gosub_shared::traits::node::{ElementDataType, Node, QuirksMode};
-use crate::parser::Html5Parser;
-
-
 
 impl<'chars, D, C> Html5Parser<'chars, D, C>
-    where
-        C: CssSystem,
-        D: Document<C>,
-        <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document=D>,
-        <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C>>::DocumentFragment: DocumentFragment<C, Document=D>,
+where
+    C: CssSystem,
+    D: Document<C>,
+    <<D as Document<C>>::Node as Node<C>>::ElementData: ElementDataType<C, Document = D>,
+    <<<D as Document<C>>::Node as Node<C>>::ElementData as ElementDataType<C>>::DocumentFragment:
+        DocumentFragment<C, Document = D>,
 {
     // returns the correct quirk mode for the given doctype
     pub(crate) fn identify_quirks_mode(
@@ -144,8 +143,7 @@ static QUIRKS_PUB_IDENTIFIER_PREFIX_MISSING_SYS: &[&str] = &[
     "-//w3c//dtd html 4.01 transitional//",
 ];
 
-static QUIRKS_SYS_IDENTIFIER_EQ: &[&str] =
-    &["http://www.ibm.com/data/dtd/v11/ibmxhtml1-transitional.dtd"];
+static QUIRKS_SYS_IDENTIFIER_EQ: &[&str] = &["http://www.ibm.com/data/dtd/v11/ibmxhtml1-transitional.dtd"];
 
 static LIMITED_QUIRKS_PUB_IDENTIFIER_PREFIX: &[&str] = &[
     "-//w3c//dtd xhtml 1.0 frameset//",

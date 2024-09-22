@@ -1,6 +1,6 @@
-use std::collections::hash_map::Entry;
-use gosub_shared::traits::css3::CssOrigin;
 use crate::stylesheet::{CssValue, Specificity};
+use gosub_shared::traits::css3::CssOrigin;
+use std::collections::hash_map::Entry;
 
 use crate::matcher::property_definitions::CssDefinitions;
 use crate::matcher::styling::{CssProperties, CssProperty, DeclarationProperty};
@@ -28,9 +28,7 @@ impl SyntaxComponent {
     pub fn has_property_syntax(&self, prop: &str, path: &mut Vec<usize>) -> bool {
         match self {
             SyntaxComponent::Property { property, .. } => prop == property,
-            SyntaxComponent::Definition {
-                datatype, quoted, ..
-            } if *quoted => prop == datatype,
+            SyntaxComponent::Definition { datatype, quoted, .. } if *quoted => prop == datatype,
             SyntaxComponent::Group { components, .. } => {
                 for (i, component) in components.iter().enumerate() {
                     path.push(i);
@@ -218,11 +216,7 @@ impl<'a> ShorthandResolver<'a> {
             }
 
             if !complete.is_empty() {
-                let idx = self
-                    .fix_list
-                    .multipliers
-                    .iter_mut()
-                    .find(|m| m.0 == self.name);
+                let idx = self.fix_list.multipliers.iter_mut().find(|m| m.0 == self.name);
 
                 if let Some(idx) = idx {
                     let Some(items) = self.multiplier.get_names(complete, idx.1) else {
@@ -431,12 +425,7 @@ impl CssDefinitions {
         }
     }
 
-    pub fn resolve_shorthands(
-        &self,
-        computed: &[String],
-        syntax: &CssSyntaxTree,
-        name: &str,
-    ) -> Option<Shorthands> {
+    pub fn resolve_shorthands(&self, computed: &[String], syntax: &CssSyntaxTree, name: &str) -> Option<Shorthands> {
         if computed.len() <= 1 || syntax.components.is_empty() {
             return None;
         }
@@ -548,9 +537,7 @@ impl CssDefinitions {
             match component {
                 SyntaxComponent::Definition { datatype, .. } => {
                     if let Some(d) = self.syntax.get(datatype) {
-                        if let Some(mut shorthands) =
-                            self.resolve_shorthands(computed, &d.syntax, name)
-                        {
+                        if let Some(mut shorthands) = self.resolve_shorthands(computed, &d.syntax, name) {
                             shorthands.multiplier = Multiplier::None;
 
                             return Some(shorthands);
@@ -559,9 +546,7 @@ impl CssDefinitions {
 
                     if let Some(p) = self.properties.get(datatype) {
                         //currently properties get parsed as definitions
-                        if let Some(mut shorthands) =
-                            self.resolve_shorthands(computed, &p.syntax, name)
-                        {
+                        if let Some(mut shorthands) = self.resolve_shorthands(computed, &p.syntax, name) {
                             shorthands.multiplier = Multiplier::None;
 
                             return Some(shorthands);
@@ -571,9 +556,7 @@ impl CssDefinitions {
 
                 SyntaxComponent::Property { property, .. } => {
                     if let Some(d) = self.properties.get(property) {
-                        if let Some(mut shorthands) =
-                            self.resolve_shorthands(computed, &d.syntax, name)
-                        {
+                        if let Some(mut shorthands) = self.resolve_shorthands(computed, &d.syntax, name) {
                             shorthands.multiplier = Multiplier::None;
 
                             return Some(shorthands);
@@ -605,8 +588,8 @@ impl CssDefinitions {
 mod tests {
     use crate::colors::RgbColor;
     use crate::matcher::property_definitions::get_css_definitions;
-    use crate::matcher::shorthands::FixList;
     use crate::matcher::shorthands::CssValue;
+    use crate::matcher::shorthands::FixList;
 
     macro_rules! str {
         ($s:expr) => {
@@ -665,10 +648,9 @@ mod tests {
         );
 
         fix_list = FixList::new();
-        assert!(prop.clone().matches_and_shorthands(
-            &[unit!(1.0, "px"), unit!(2.0, "px"), unit!(3.0, "px"),],
-            &mut fix_list,
-        ));
+        assert!(prop
+            .clone()
+            .matches_and_shorthands(&[unit!(1.0, "px"), unit!(2.0, "px"), unit!(3.0, "px"),], &mut fix_list,));
 
         assert_eq!(
             fix_list,
@@ -685,12 +667,7 @@ mod tests {
 
         fix_list = FixList::new();
         assert!(prop.clone().matches_and_shorthands(
-            &[
-                unit!(1.0, "px"),
-                unit!(2.0, "px"),
-                unit!(3.0, "px"),
-                unit!(4.0, "px"),
-            ],
+            &[unit!(1.0, "px"), unit!(2.0, "px"), unit!(3.0, "px"), unit!(4.0, "px"),],
             &mut fix_list,
         ));
 
@@ -736,10 +713,7 @@ mod tests {
         fix_list = FixList::new();
 
         assert!(prop.clone().matches_and_shorthands(
-            &[
-                str!("solid"),
-                CssValue::Color(RgbColor::new(0.0, 0.0, 0.0, 0.0))
-            ],
+            &[str!("solid"), CssValue::Color(RgbColor::new(0.0, 0.0, 0.0, 0.0))],
             &mut fix_list,
         ));
 

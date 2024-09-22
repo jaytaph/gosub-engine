@@ -2,12 +2,12 @@ use crate::DocumentHandle;
 use core::fmt;
 use core::fmt::Debug;
 
+use crate::doc::document::DocumentImpl;
+use crate::node::arena::NodeArena;
+use crate::node::nodeimpl::NodeImpl;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::DocumentFragment;
-use crate::document::document::DocumentImpl;
-use crate::node::arena::NodeArena;
-use crate::node::node::NodeImpl;
 
 /// Defines a document fragment which can be attached to for instance a <template> element
 #[derive(PartialEq)]

@@ -67,10 +67,7 @@ pub(crate) fn load_html_rendertree<L: Layouter, P: Html5Parser<C>, C: CssSystem>
         // Fetch the html from the url
         let response = ureq::get(url.as_ref()).call()?;
         if response.status() != 200 {
-            bail!(format!(
-                "Could not get url. Status code {}",
-                response.status()
-            ));
+            bail!(format!("Could not get url. Status code {}", response.status()));
         }
         response.into_string()?
     } else if url.scheme() == "file" {

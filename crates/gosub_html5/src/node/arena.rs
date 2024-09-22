@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use std::marker::PhantomData;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::node::Node;
+use std::collections::HashMap;
+use std::marker::PhantomData;
 
 /// The node arena is the single source for nodes in a document (or fragment).
 #[derive(Debug, Clone)]
@@ -12,10 +12,10 @@ pub struct NodeArena<N: Node<C>, C: CssSystem> {
     /// Next node ID to use
     next_id: NodeId,
 
-    _marker: PhantomData<C>
+    _marker: PhantomData<C>,
 }
 
-impl<C: CssSystem, N: Node<C>>NodeArena<N, C> {
+impl<C: CssSystem, N: Node<C>> NodeArena<N, C> {
     pub fn node_count(&self) -> usize {
         self.nodes.len()
     }
@@ -24,7 +24,7 @@ impl<C: CssSystem, N: Node<C>>NodeArena<N, C> {
 impl<C: CssSystem, N: Node<C>> PartialEq for NodeArena<N, C> {
     fn eq(&self, other: &Self) -> bool {
         if self.next_id != other.next_id {
-            return false
+            return false;
         }
 
         self.nodes == other.nodes
@@ -89,18 +89,13 @@ mod tests {
     use super::*;
     use crate::node::HTML_NAMESPACE;
     use gosub_shared::byte_stream::Location;
+    use gosub_shared::traits::document::Document;
 
     #[test]
     fn register_node() {
         let mut doc = Document::shared(None);
 
-        let node = Node::new_element(
-            &doc,
-            "test",
-            HashMap::new(),
-            HTML_NAMESPACE,
-            Location::default(),
-        );
+        let node = Node::new_element(&doc, "test", HashMap::new(), HTML_NAMESPACE, Location::default());
         let mut document = doc.get_mut();
         let id = document.arena.register_node(node);
 
@@ -114,13 +109,7 @@ mod tests {
     fn register_node_twice() {
         let mut doc = Document::shared(None);
 
-        let node = Node::new_element(
-            &doc,
-            "test",
-            HashMap::new(),
-            HTML_NAMESPACE,
-            Location::default(),
-        );
+        let node = Node::new_element(&doc, "test", HashMap::new(), HTML_NAMESPACE, Location::default());
         let mut document = doc.get_mut();
         document.arena.register_node(node);
 
@@ -131,13 +120,7 @@ mod tests {
     #[test]
     fn get_node() {
         let mut doc = Document::shared(None);
-        let node = Node::new_element(
-            &doc,
-            "test",
-            HashMap::new(),
-            HTML_NAMESPACE,
-            Location::default(),
-        );
+        let node = Node::new_element(&doc, "test", HashMap::new(), HTML_NAMESPACE, Location::default());
 
         let mut document = doc.get_mut();
         let id = document.arena.register_node(node);
@@ -149,13 +132,7 @@ mod tests {
     #[test]
     fn get_node_mut() {
         let mut doc = Document::shared(None);
-        let node = Node::new_element(
-            &doc,
-            "test",
-            HashMap::new(),
-            HTML_NAMESPACE,
-            Location::default(),
-        );
+        let node = Node::new_element(&doc, "test", HashMap::new(), HTML_NAMESPACE, Location::default());
 
         let mut document = doc.get_mut();
 
@@ -169,20 +146,8 @@ mod tests {
     fn register_node_through_document() {
         let mut doc = Document::shared(None);
 
-        let parent = Node::new_element(
-            &doc,
-            "parent",
-            HashMap::new(),
-            HTML_NAMESPACE,
-            Location::default(),
-        );
-        let child = Node::new_element(
-            &doc,
-            "child",
-            HashMap::new(),
-            HTML_NAMESPACE,
-            Location::default(),
-        );
+        let parent = Node::new_element(&doc, "parent", HashMap::new(), HTML_NAMESPACE, Location::default());
+        let child = Node::new_element(&doc, "child", HashMap::new(), HTML_NAMESPACE, Location::default());
 
         let mut document = doc.get_mut();
         let parent_id = document.arena.register_node(parent);
