@@ -5,8 +5,8 @@ use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::{CssProperty, CssPropertyMap, CssSystem};
 use gosub_shared::traits::document::Document;
+use gosub_shared::traits::node::NodeData;
 use gosub_shared::traits::node::{ElementDataType, Node as DocumentNode, TextDataType};
-use gosub_shared::traits::node::{NodeData};
 use gosub_shared::types::Result;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -79,12 +79,14 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> LayoutTree<L> for RenderTree<L, 
     }
 
     fn style_dirty(&self, id: Self::NodeId) -> bool {
-        self.get_node(id).map(|node| node.css_dirty).unwrap_or(true)
+        self.get_node(id)
+            .map(|node| node.properties.is_dirty())
+            .unwrap_or(true)
     }
 
     fn clean_style(&mut self, id: Self::NodeId) {
         if let Some(node) = self.get_node_mut(id) {
-            node.css_dirty = false;
+            node.properties.make_clean();
         }
     }
 
@@ -109,7 +111,6 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
             RenderTreeNode {
                 id: NodeId::root(),
                 properties: C::PropertyMap::default(),
-                css_dirty: true,
                 children: Vec::new(),
                 parent: None,
                 name: String::from("root"),
@@ -276,7 +277,6 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
                 name, // We might be able to move node into render_tree_node
                 namespace,
                 data: render_data,
-                css_dirty: true,
                 cache: L::Cache::default(),
                 layout: L::Layout::default(),
             };
@@ -357,7 +357,6 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
                     let wrapper_node = RenderTreeNode {
                         id: self.next_id,
                         properties: C::PropertyMap::default(),
-                        css_dirty: true,
                         children: vec![child_id],
                         parent: Some(node_id),
                         name: "#anonymous".to_string(),
@@ -515,7 +514,6 @@ fn pre_transform_text(text: String) -> String {
 pub struct RenderTreeNode<L: Layouter, C: CssSystem> {
     pub id: NodeId,
     pub properties: C::PropertyMap,
-    pub css_dirty: bool,
     pub children: Vec<NodeId>,
     pub parent: Option<NodeId>,
     pub name: String,
@@ -530,7 +528,6 @@ impl<L: Layouter, C: CssSystem> Debug for RenderTreeNode<L, C> {
         f.debug_struct("RenderTreeNode")
             .field("id", &self.id)
             .field("properties", &self.properties)
-            .field("css_dirty", &self.css_dirty)
             .field("children", &self.children)
             .field("parent", &self.parent)
             .field("name", &self.name)

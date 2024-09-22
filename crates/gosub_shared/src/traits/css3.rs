@@ -1,10 +1,9 @@
 use crate::document::DocumentHandle;
+use crate::errors::CssResult;
 use crate::node::NodeId;
 use crate::traits::document::Document;
 use crate::traits::ParserConfig;
 use std::fmt::Debug;
-use crate::errors::CssResult;
-
 
 /// Defines the origin of the stylesheet (or declaration)
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -59,13 +58,15 @@ pub trait CssPropertyMap: Default + Debug {
 
     fn get_mut(&mut self, name: &str) -> Option<&mut Self::Property>;
 
-    fn make_dirty(&mut self);
-
     fn iter(&self) -> impl Iterator<Item = (&str, &Self::Property)> + '_;
 
     fn iter_mut(&mut self) -> impl Iterator<Item = (&str, &mut Self::Property)> + '_;
 
+    fn make_dirty(&mut self);
+
     fn make_clean(&mut self);
+
+    fn is_dirty(&self) -> bool;
 }
 pub trait CssProperty: Debug + Sized {
     type Value: CssValue;

@@ -614,6 +614,7 @@ impl gosub_shared::traits::css3::CssProperty for CssProperty {
 #[derive(Debug)]
 pub struct CssProperties {
     pub properties: HashMap<String, CssProperty>,
+    pub dirty: bool,
 }
 
 impl Default for CssProperties {
@@ -626,6 +627,7 @@ impl CssProperties {
     pub fn new() -> Self {
         Self {
             properties: HashMap::new(),
+            dirty: true,
         }
     }
 
@@ -637,28 +639,32 @@ impl CssProperties {
 impl CssPropertyMap for CssProperties {
     type Property = CssProperty;
 
-    fn get(&self, _name: &str) -> Option<&Self::Property> {
-        todo!()
+    fn get(&self, name: &str) -> Option<&Self::Property> {
+        self.properties.get(name)
     }
 
-    fn get_mut(&mut self, _name: &str) -> Option<&mut Self::Property> {
-        todo!()
-    }
-
-    fn make_dirty(&mut self) {
-        todo!()
+    fn get_mut(&mut self, name: &str) -> Option<&mut Self::Property> {
+        self.properties.get_mut(name)
     }
 
     fn iter(&self) -> impl Iterator<Item = (&str, &Self::Property)> + '_ {
-        Vec::new().into_iter()
+        self.properties.iter().map(|(k, v)| (k.as_str(), v))
     }
 
     fn iter_mut(&mut self) -> impl Iterator<Item = (&str, &mut Self::Property)> + '_ {
-        Vec::new().into_iter()
+        self.properties.iter_mut().map(|(k, v)| (k.as_str(), v))
+    }
+
+    fn make_dirty(&mut self) {
+        self.dirty = true;
     }
 
     fn make_clean(&mut self) {
-        todo!()
+        self.dirty = false;
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty
     }
 }
 
