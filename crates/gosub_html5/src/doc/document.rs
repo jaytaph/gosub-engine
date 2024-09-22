@@ -66,7 +66,7 @@ impl<C: CssSystem> Default for DocumentImpl<C> {
 impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     type Node = NodeImpl<C>;
     type Fragment = DocumentFragmentImpl<C>;
-    type Builder = DocumentBuilder;
+    type Builder = DocumentBuilderImpl;
 
     /// Creates a new document without a doc handle
     #[must_use]
@@ -528,6 +528,8 @@ impl<D: Document<C>, C: CssSystem> Iterator for TreeIterator<D, C> {
     }
 }
 
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -542,39 +544,41 @@ mod tests {
     use gosub_css3::system::Css3System;
     use gosub_shared::traits::node::ElementDataType;
 
+    type Document = DocumentImpl<Css3System>;
+
     #[test]
     fn relocate() {
         let mut doc_handle = DocumentBuilderImpl::new_document(None);
 
-        let parent_node = DocumentImpl::new_element_node(
+        let parent_node = Document::new_element_node(
             doc_handle.clone(),
             "parent",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        let node1 = DocumentImpl::new_element_node(
+        let node1 = Document::new_element_node(
             doc_handle.clone(),
             "div1",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        let node2 = DocumentImpl::new_element_node(
+        let node2 = Document::new_element_node(
             doc_handle.clone(),
             "div2",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        let node3 = DocumentImpl::new_element_node(
+        let node3 = Document::new_element_node(
             doc_handle.clone(),
             "div3",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        let node3_1 = DocumentImpl::new_element_node(
+        let node3_1 = Document::new_element_node(
             doc_handle.clone(),
             "div3_1",
             Some(HTML_NAMESPACE),
