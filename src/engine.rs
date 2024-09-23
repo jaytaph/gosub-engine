@@ -164,6 +164,7 @@ mod tests {
     use super::*;
     use gosub_css3::system::Css3System;
     use gosub_html5::doc::document::DocumentImpl;
+    use gosub_html5::parser::Html5Parser;
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]

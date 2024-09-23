@@ -1,6 +1,10 @@
-use gosub_html5::parser::document::{Document, DocumentBuilder};
+use gosub_css3::system::Css3System;
+use gosub_html5::doc::builder::DocumentBuilder as DocumentBuilderImpl;
+use gosub_html5::doc::document::DocumentImpl;
 use gosub_html5::parser::Html5Parser;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::traits::document::DocumentBuilder;
 
 fn main() {
     // Creates an input stream
@@ -9,9 +13,11 @@ fn main() {
     stream.close();
 
     // Initialize a document and feed it together with the stream to the html5 parser
-    let document = DocumentBuilder::new_document(None);
-    let _ = Html5Parser::parse_document(&mut stream, Document::clone(&document), None);
+    let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
+        DocumentBuilderImpl::new_document(None);
+
+    let _ = Html5Parser::parse_document(&mut stream, doc_handle.clone(), None);
 
     // document now contains the html5 node tree
-    println!("Generated tree: \n\n {}", document);
+    println!("Generated tree: \n\n {}", doc_handle.get());
 }
