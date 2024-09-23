@@ -255,6 +255,14 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
 
     fn add_attribute(&mut self, name: &str, value: &str) {
         self.attributes.insert(name.into(), value.into());
+
+        // Classes are treated as a special attribute
+        if name == "class" {
+            self.classes = ElementClass::new();
+            for class in value.split_whitespace() {
+                self.classes.add(class);
+            }
+        }
     }
 
     fn add_class(&mut self, class_name: &str) {
