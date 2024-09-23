@@ -5,11 +5,12 @@ use crate::node::data::document::DocumentData;
 use crate::node::data::element::ElementData;
 use crate::node::data::text::TextData;
 use core::fmt::Debug;
+use std::collections::HashMap;
 use gosub_shared::byte_stream::Location;
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
-use gosub_shared::traits::node::{Node, NodeData, NodeType};
+use gosub_shared::traits::node::{Node, NodeData, NodeType, QuirksMode};
 
 /// Implementation of the NodeDataType trait
 #[derive(Debug, Clone, PartialEq)]
@@ -218,88 +219,72 @@ impl<C: CssSystem> NodeImpl<C> {
         }
     }
 
-    // /// Create a new document node
-    // #[must_use]
-    // pub fn new_document(document: DocumentHandle<DocumentImpl>, location: Location, quirks_mode: QuirksMode) -> Self {
-    //     Self::new(document, location, &NodeDataTypeInternal::Document(DocumentData::new(quirks_mode)))
-    // }
-    //
-    // #[must_use]
-    // pub fn new_doctype(
-    //     document: DocumentHandle<DocumentImpl>,
-    //     location: Location,
-    //     name: &str,
-    //     pub_identifier: &str,
-    //     sys_identifier: &str,
-    // ) -> Self {
-    //     Self::new(
-    //         document,
-    //         location,
-    //         &NodeDataTypeInternal::DocType(DocTypeData::new(name, pub_identifier, sys_identifier)),
-    //     )
-    // }
-    //
-    // /// Create a new element node with the given name and attributes and namespace
-    // #[must_use]
-    // pub fn new_element(
-    //     document: DocumentHandle<DocumentImpl>,
-    //     location: Location,
-    //     name: &str,
-    //     namespace: Option<&str>,
-    //     attributes: HashMap<String, String>,
-    // ) -> Self {
-    //     Self::new(
-    //         document,
-    //         location,
-    //         &NodeDataTypeInternal::Element(ElementData::new(
-    //             name,
-    //             namespace,
-    //             attributes,
-    //             Default::default(),
-    //         ))
-    //     )
-    // }
-    //
-    // /// Creates a new comment node
-    // #[must_use]
-    // pub fn new_comment(document: DocumentHandle<DocumentImpl>, location: Location, value: &str) -> Self {
-    //     Self::new(
-    //         document.clone(),
-    //         location,
-    //         &NodeDataTypeInternal::Comment(CommentData::with_value(value)),
-    //     )
-    // }
-    //
-    // /// Creates a new text node
-    // #[must_use]
-    // pub fn new_text(document: DocumentHandle<DocumentImpl>, location: Location, value: &str) -> Self {
-    //     Self::new(
-    //         document.clone(),
-    //         location,
-    //         &NodeDataTypeInternal::Text(TextData::with_value(value)),
-    //     )
-    // }
+    /// Create a new document node
+    #[must_use]
+    pub fn new_document(document: DocumentHandle<DocumentImpl<C>, C>, location: Location, quirks_mode: QuirksMode) -> Self {
+        Self::new(document, location, &NodeDataTypeInternal::Document(DocumentData::new(quirks_mode)))
+    }
+
+    #[must_use]
+    pub fn new_doctype(
+        document: DocumentHandle<DocumentImpl<C>, C>,
+        location: Location,
+        name: &str,
+        pub_identifier: &str,
+        sys_identifier: &str,
+    ) -> Self {
+        Self::new(
+            document,
+            location,
+            &NodeDataTypeInternal::DocType(DocTypeData::new(name, pub_identifier, sys_identifier)),
+        )
+    }
+
+    /// Create a new element node with the given name and attributes and namespace
+    #[must_use]
+    pub fn new_element(
+        document: DocumentHandle<DocumentImpl<C>, C>,
+        location: Location,
+        name: &str,
+        namespace: Option<&str>,
+        attributes: HashMap<String, String>,
+    ) -> Self {
+        Self::new(
+            document,
+            location,
+            &NodeDataTypeInternal::Element(ElementData::new(
+                name,
+                namespace,
+                attributes,
+                Default::default(),
+            ))
+        )
+    }
+
+    /// Creates a new comment node
+    #[must_use]
+    pub fn new_comment(document: DocumentHandle<DocumentImpl<C>, C>, location: Location, value: &str) -> Self {
+        Self::new(
+            document.clone(),
+            location,
+            &NodeDataTypeInternal::Comment(CommentData::with_value(value)),
+        )
+    }
+
+    /// Creates a new text node
+    #[must_use]
+    pub fn new_text(document: DocumentHandle<DocumentImpl<C>, C>, location: Location, value: &str) -> Self {
+        Self::new(
+            document.clone(),
+            location,
+            &NodeDataTypeInternal::Text(TextData::with_value(value)),
+        )
+    }
 
     /// Returns true if this node is registered into an arena
     pub fn is_registered(&self) -> bool {
         self.is_registered
     }
-
-    // pub fn is_text(&self) -> bool {
-    //     if let NodeDataTypeInternal::Text(_) = *self.data.borrow() {
-    //         return true;
-    //     }
-    //
-    //     false
-    // }
-    //
-    // pub fn as_text(&self) -> &TextData {
-    //     if let NodeDataTypeInternal::Text(text) = &self.data {
-    //         return text;
-    //     }
-    //
-    //     panic!("Node is not a text");
-    // }
 }
 
 #[cfg(test)]
@@ -311,18 +296,16 @@ mod tests {
     use crate::node::HTML_NAMESPACE;
     use crate::node::MATHML_NAMESPACE;
     use crate::node::SVG_NAMESPACE;
-    use gosub_shared::traits::document::Document;
+    use gosub_shared::traits::document::{Document, DocumentType};
     use std::collections::HashMap;
 
     #[test]
     fn new_document() {
-        let document = Document::shared(None);
-        let node = Node::new_document(&document, Location::default());
+        let document = Document::new(DocumentType::HTML, None, None);
+        let node = NodeImpl::new_document(document.clone(), Location::default(), QuirksMode::NoQuirks);
         assert_eq!(node.id, NodeId::default());
         assert_eq!(node.parent, None);
         assert!(node.children.is_empty());
-        assert_eq!(node.name, "".to_string());
-        assert_eq!(node.namespace, None);
         match &node.data {
             NodeData::Document(_) => (),
             _ => panic!(),
@@ -333,36 +316,36 @@ mod tests {
     fn new_element() {
         let mut attributes = HashMap::new();
         attributes.insert("id".to_string(), "test".to_string());
+
         let document = Document::shared(None);
-        let node = Node::new_element(
-            &document,
-            "div",
-            attributes.clone(),
-            HTML_NAMESPACE,
+        let node = NodeImpl::new_element(
+            document.clone(),
             Location::default(),
+            "div",
+            Some(HTML_NAMESPACE),
+            attributes.clone(),
         );
         assert_eq!(node.id, NodeId::default());
         assert_eq!(node.parent, None);
         assert!(node.children.is_empty());
-        assert_eq!(node.name, "div".to_string());
-        assert_eq!(node.namespace, Some(HTML_NAMESPACE.into()));
-        let NodeData::Element(element) = &node.data else {
-            panic!()
-        };
-        assert_eq!(element.name(), "div");
-        assert!(element.attributes().contains_key("id"));
-        assert_eq!(element.attributes().get("id").unwrap(), "test");
+
+        match &node.data {
+            NodeData::Element(data) => {
+                assert_eq!(data.name(), "div");
+                assert!(data.attributes().contains_key("id"));
+                assert_eq!(data.attributes().get("id").unwrap(), "test");
+            }
+            _ => panic!(),
+        }
     }
 
     #[test]
     fn new_comment() {
-        let document = Document::shared(None);
-        let node = Node::new_comment(&document, Location::default(), "test");
+        let document = Document::new(DocumentType::HTML, None, None);
+        let node = Node::new_comment(document.clone(), Location::default(), "test");
         assert_eq!(node.id, NodeId::default());
         assert_eq!(node.parent, None);
         assert!(node.children.is_empty());
-        assert_eq!(node.name, "".to_string());
-        assert_eq!(node.namespace, None);
         let NodeData::Comment(CommentData { value, .. }) = &node.data else {
             panic!()
         };
@@ -371,13 +354,11 @@ mod tests {
 
     #[test]
     fn new_text() {
-        let document = Document::shared(None);
-        let node = Node::new_text(&document, Location::default(), "test");
+        let document = Document::new(DocumentType::HTML, None, None);
+        let node = Node::new_text(document.clone(), Location::default(), "test");
         assert_eq!(node.id, NodeId::default());
         assert_eq!(node.parent, None);
         assert!(node.children.is_empty());
-        assert_eq!(node.name, "".to_string());
-        assert_eq!(node.namespace, None);
         let NodeData::Text(TextData { value }) = &node.data else {
             panic!()
         };
@@ -388,72 +369,112 @@ mod tests {
     fn is_special() {
         let mut attributes = HashMap::new();
         attributes.insert("id".to_string(), "test".to_string());
-        let document = Document::shared(None);
-        let node = Node::new_element(&document, "div", attributes, HTML_NAMESPACE, Location::default());
+        let document = Document::new(DocumentType::HTML, None, None);
+        let node = NodeImpl::new_element(
+            document.clone(),
+            Location::default(),
+            "div",
+            Some(HTML_NAMESPACE),
+            attributes,
+        );
         assert!(node.is_special());
     }
 
     #[test]
     fn type_of() {
-        let document = Document::shared(None);
-        let node = Node::new_document(&document, Location::default());
+        let document = Document::new(DocumentType::HTML, None, None);
+        let node = NodeImpl::new_document(document.clone(), Location::default(), QuirksMode::NoQuirks);
         assert_eq!(node.type_of(), NodeType::DocumentNode);
-        let node = Node::new_text(&document, Location::default(), "test");
+        let node = NodeImpl::new_text(document.clone(), Location::default(), "test");
         assert_eq!(node.type_of(), NodeType::TextNode);
-        let node = Node::new_comment(&document, Location::default(), "test");
+        let node = NodeImpl::new_comment_node(document.clone(), Location::default(), "test");
         assert_eq!(node.type_of(), NodeType::CommentNode);
         let mut attributes = HashMap::new();
         attributes.insert("id".to_string(), "test".to_string());
-        let node = Node::new_element(&document, "div", attributes, HTML_NAMESPACE, Location::default());
+        let node = NodeImpl::new_element(
+            document.clone(),
+            Location::default(),
+            "div",
+            Some(HTML_NAMESPACE),
+            attributes,
+        );
         assert_eq!(node.type_of(), NodeType::ElementNode);
     }
 
     #[test]
     fn special_html_elements() {
-        let document = Document::shared(None);
+        let document = Document::new(DocumentType::HTML, None, None);
 
         for element in SPECIAL_HTML_ELEMENTS.iter() {
             let mut attributes = HashMap::new();
             attributes.insert("id".to_string(), "test".to_string());
-            let node = Node::new_element(&document, element, attributes, HTML_NAMESPACE, Location::default());
+            let node = NodeImpl::new_element(
+                document.clone(),
+                Location::default(),
+                element,
+                Some(HTML_NAMESPACE),
+                attributes,
+            );
             assert!(node.is_special());
         }
     }
 
     #[test]
     fn special_mathml_elements() {
-        let document = Document::shared(None);
+        let document = Document::new(DocumentType::HTML, None, None);
+
         for element in SPECIAL_MATHML_ELEMENTS.iter() {
             let mut attributes = HashMap::new();
             attributes.insert("id".to_string(), "test".to_string());
-            let node = Node::new_element(&document, element, attributes, MATHML_NAMESPACE, Location::default());
+            let node = NodeImpl::new_element(
+                document.clone(),
+                Location::default(),
+                element,
+                Some(MATHML_NAMESPACE),
+                attributes.clone(),
+            );
+
             assert!(node.is_special());
         }
     }
 
     #[test]
     fn special_svg_elements() {
-        let document = Document::shared(None);
+        let document = Document::new(DocumentType::HTML, None, None);
+
         for element in SPECIAL_SVG_ELEMENTS.iter() {
             let mut attributes = HashMap::new();
             attributes.insert("id".to_string(), "test".to_string());
-            let node = Node::new_element(&document, element, attributes, SVG_NAMESPACE, Location::default());
+            let node = NodeImpl::new_element(
+                document.clone(),
+                Location::default(),
+                element,
+                Some(SVG_NAMESPACE),
+                attributes,
+            );
             assert!(node.is_special());
         }
     }
 
     #[test]
     fn type_of_node() {
-        let document = Document::shared(None);
-        let node = Node::new_document(&document, Location::default());
+        let document = Document::new(DocumentType::HTML, None, None);
+
+        let node = NodeImpl::new_document(document.clone(), Location::default(), QuirksMode::NoQuirks);
         assert_eq!(node.type_of(), NodeType::DocumentNode);
-        let node = Node::new_text(&document, Location::default(), "test");
+        let node = NodeImpl::new_text(document.clone(), Location::default(), "test");
         assert_eq!(node.type_of(), NodeType::TextNode);
-        let node = Node::new_comment(&document, Location::default(), "test");
+        let node = NodeImpl::new_comment(document.clone(), Location::default(), "test");
         assert_eq!(node.type_of(), NodeType::CommentNode);
         let mut attributes = HashMap::new();
         attributes.insert("id".to_string(), "test".to_string());
-        let node = Node::new_element(&document, "div", attributes, HTML_NAMESPACE, Location::default());
+        let node = NodeImpl::new_element(
+            document.clone(),
+            Location::default(),
+            "div",
+            attributes,
+            Some(HTML_NAMESPACE),
+        );
         assert_eq!(node.type_of(), NodeType::ElementNode);
     }
 }

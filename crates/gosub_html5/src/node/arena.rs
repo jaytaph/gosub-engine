@@ -90,12 +90,14 @@ mod tests {
     use crate::node::HTML_NAMESPACE;
     use gosub_shared::byte_stream::Location;
     use gosub_shared::traits::document::Document;
+    use gosub_shared::traits::document::DocumentType;
+    use crate::node::nodeimpl::NodeImpl;
+    use gosub_shared::document::DocumentHandle;
 
     #[test]
     fn register_node() {
-        let mut doc = Document::shared(None);
-
-        let node = Node::new_element(&doc, "test", HashMap::new(), HTML_NAMESPACE, Location::default());
+        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
+        let node = NodeImpl::new_element(doc.clone(), Location::default(), "test", Some(HTML_NAMESPACE), HashMap::new());
         let mut document = doc.get_mut();
         let id = document.arena.register_node(node);
 
@@ -107,20 +109,20 @@ mod tests {
     #[test]
     #[should_panic]
     fn register_node_twice() {
-        let mut doc = Document::shared(None);
+        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
+        let node = NodeImpl::new_element(doc.clone(), Location::default(), "test", Some(HTML_NAMESPACE), HashMap::new());
 
-        let node = Node::new_element(&doc, "test", HashMap::new(), HTML_NAMESPACE, Location::default());
         let mut document = doc.get_mut();
         document.arena.register_node(node);
 
-        let node = document.get_node_by_id(NodeId(0)).unwrap().to_owned();
+        let node = document.node_by_id(NodeId(0)).unwrap().to_owned();
         document.arena.register_node(node);
     }
 
     #[test]
     fn get_node() {
-        let mut doc = Document::shared(None);
-        let node = Node::new_element(&doc, "test", HashMap::new(), HTML_NAMESPACE, Location::default());
+        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
+        let node = NodeImpl::new_element(doc.clone(), Location::default(), "test", Some(HTML_NAMESPACE), HashMap::new());
 
         let mut document = doc.get_mut();
         let id = document.arena.register_node(node);
@@ -131,11 +133,10 @@ mod tests {
 
     #[test]
     fn get_node_mut() {
-        let mut doc = Document::shared(None);
-        let node = Node::new_element(&doc, "test", HashMap::new(), HTML_NAMESPACE, Location::default());
+        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
+        let node = NodeImpl::new_element(doc.clone(), Location::default(), "test", Some(HTML_NAMESPACE), HashMap::new());
 
         let mut document = doc.get_mut();
-
         let node_id = document.arena.register_node(node);
         let node = document.arena.get_node_mut(node_id);
         assert!(node.is_some());
@@ -144,21 +145,21 @@ mod tests {
 
     #[test]
     fn register_node_through_document() {
-        let mut doc = Document::shared(None);
+        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
 
-        let parent = Node::new_element(&doc, "parent", HashMap::new(), HTML_NAMESPACE, Location::default());
-        let child = Node::new_element(&doc, "child", HashMap::new(), HTML_NAMESPACE, Location::default());
+        let parent = NodeImpl::new_element(doc.clone(), Location::default(), "parent", Some(HTML_NAMESPACE), HashMap::new());
+        let child = NodeImpl::new_element(doc.clone(), Location::default(), "child", Some(HTML_NAMESPACE), HashMap::new());
 
         let mut document = doc.get_mut();
         let parent_id = document.arena.register_node(parent);
         let child_id = document.add_node(child, parent_id, None);
 
-        let parent = document.get_node_by_id(parent_id);
+        let parent = document.node_by_id(parent_id).unwrap();
         assert!(parent.is_some());
         assert_eq!(parent.unwrap().children.len(), 1);
         assert_eq!(parent.unwrap().children[0], child_id);
 
-        let child = document.get_node_by_id(child_id);
+        let child = document.node_by_id(child_id);
         assert!(child.is_some());
         assert_eq!(child.unwrap().parent, Some(parent_id));
     }

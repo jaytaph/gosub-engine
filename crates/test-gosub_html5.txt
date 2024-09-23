@@ -1,63 +1,4 @@
-error[E0433]: failed to resolve: could not find `macos_render_tree` in `gosub_rendering`
- --> crates/gosub_bindings/src/wrapper/node.rs:1:22
-  |
-1 | use gosub_rendering::macos_render_tree::properties::{Position, Rectangle};
-  |                      ^^^^^^^^^^^^^^^^^ could not find `macos_render_tree` in `gosub_rendering`
-
-error[E0433]: failed to resolve: could not find `macos_render_tree` in `gosub_rendering`
- --> crates/gosub_bindings/src/wrapper/node.rs:2:22
-  |
-2 | use gosub_rendering::macos_render_tree::{text::TextNode, Node};
-  |                      ^^^^^^^^^^^^^^^^^ could not find `macos_render_tree` in `gosub_rendering`
-
-error[E0433]: failed to resolve: could not find `macos_render_tree` in `gosub_rendering`
- --> crates/gosub_bindings/src/wrapper/text.rs:1:22
-  |
-1 | use gosub_rendering::macos_render_tree::text::TextNode;
-  |                      ^^^^^^^^^^^^^^^^^ could not find `macos_render_tree` in `gosub_rendering`
-
-error[E0432]: unresolved import `gosub_rendering::macos_render_tree`
- --> crates/gosub_bindings/src/wrapper/node.rs:2:22
-  |
-2 | use gosub_rendering::macos_render_tree::{text::TextNode, Node};
-  |                      ^^^^^^^^^^^^^^^^^ could not find `macos_render_tree` in `gosub_rendering`
-
-error[E0432]: unresolved import `gosub_html5::parser::document`
- --> crates/gosub_bindings/src/lib.rs:7:26
-  |
-7 | use gosub_html5::parser::document::{Document, DocumentBuilder};
-  |                          ^^^^^^^^ could not find `document` in `parser`
-
-error[E0432]: unresolved import `gosub_rendering::macos_render_tree`
- --> crates/gosub_bindings/src/lib.rs:9:22
-  |
-9 | use gosub_rendering::macos_render_tree::{Node, NodeType, RenderTree, TreeIterator};
-  |                      ^^^^^^^^^^^^^^^^^ could not find `macos_render_tree` in `gosub_rendering`
-
-Some errors have detailed explanations: E0432, E0433.
-For more information about an error, try `rustc --explain E0432`.
-error: could not compile `gosub_bindings` (lib test) due to 6 previous errors
-
-running 5 tests
-.....
-test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 96 tests
-..............................................................i........................ 87/96
-.........
-test result: ok. 95 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.15s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
+   Compiling gosub_html5 v0.1.0 (/home/jthijssen/code/gosub/engine/crates/gosub_html5)
 error[E0425]: cannot find value `document` in this scope
    --> crates/gosub_html5/src/doc/document.rs:922:19
     |
@@ -1883,7 +1824,7 @@ error[E0308]: arguments to this function are incorrect
      |                                                                     unexpected argument of type `&'static str`
      |
 note: associated function defined here
-    --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/document.rs:104:8
+    --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/document.rs:104:8
      |
 104  |     fn new_element_node(
      |        ^^^^^^^^^^^^^^^^
@@ -1934,7 +1875,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -1977,7 +1918,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2003,7 +1944,7 @@ error[E0423]: cannot initialize a tuple struct which contains private fields
     |                                            ^^^^^^
     |
 note: constructor is not visible here due to private fields
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/node.rs:5:19
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/node.rs:5:19
     |
 5   | pub struct NodeId(usize);
     |                   ^^^^^ private field
@@ -2036,7 +1977,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2079,7 +2020,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2122,7 +2063,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                      ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2148,7 +2089,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                     ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2191,7 +2132,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2234,7 +2175,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2283,7 +2224,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2326,7 +2267,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2369,7 +2310,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2412,7 +2353,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2438,7 +2379,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2464,7 +2405,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2490,7 +2431,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2533,7 +2474,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                        ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2576,7 +2517,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                        ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2619,7 +2560,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                        ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2662,7 +2603,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2688,7 +2629,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2714,7 +2655,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2740,7 +2681,7 @@ error[E0038]: the trait `gosub_shared::traits::node::Node` cannot be made into a
     |                    ^^^^ `gosub_shared::traits::node::Node` cannot be made into an object
     |
 note: for a trait to be "object safe" it needs to allow building a vtable to allow the call to be resolvable dynamically; for more information visit <https://doc.rust-lang.org/reference/items/traits.html#object-safety>
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_shared/src/traits/node.rs:104:39
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_shared/src/traits/node.rs:104:39
     |
 104 | pub trait Node<C: CssSystem>: Clone + PartialEq {
     |                                       ^^^^^^^^^ the trait cannot be made into an object because it uses `Self` as a type parameter
@@ -2862,7 +2803,7 @@ error[E0283]: type annotations needed
               gosub_html5::parser::Html5Parser<'_, D, C>
               parser::Html5Parser<'_, D, C>
 note: required by a bound in `Harness::run_test`
-   --> /home/jthijssen/code/gosub/gosub-engine/crates/gosub_testing/src/testing/tree_construction.rs:80:24
+   --> /home/jthijssen/code/gosub/engine/crates/gosub_testing/src/testing/tree_construction.rs:80:24
     |
 80  |     pub fn run_test<P: Html5Parser<C>, C: CssSystem>(
     |                        ^^^^^^^^^^^^^^ required by this bound in `Harness::run_test`
@@ -5208,149 +5149,5 @@ warning: unused variable: `element2`
 
 Some errors have detailed explanations: E0038, E0277, E0282, E0283, E0308, E0382, E0423, E0425, E0599...
 For more information about an error, try `rustc --explain E0038`.
+warning: `gosub_html5` (lib test) generated 4 warnings
 error: could not compile `gosub_html5` (lib test) due to 344 previous errors; 4 warnings emitted
-
-running 4 tests
-....
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 7 tests
-.......
-test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-error: package ID specification `gosub_render_utils` did not match any packages
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 11 tests
-...........
-test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-error[E0432]: unresolved import `resvg`
- --> crates/gosub_svg/src/lib.rs:1:7
-  |
-1 | use ::resvg::usvg;
-  |       ^^^^^ could not find `resvg` in the list of imported crates
-
-For more information about this error, try `rustc --explain E0432`.
-error: could not compile `gosub_svg` (lib) due to 1 previous error
-error: could not compile `gosub_svg` (lib test) due to 1 previous error
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 26 tests
-..........................
-test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 37 tests
-.....................................
-test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 2 tests
-..
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-

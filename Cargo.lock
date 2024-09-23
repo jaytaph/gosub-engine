@@ -1578,15 +1578,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gosub_bindings"
-version = "0.1.0"
-dependencies = [
- "gosub_html5",
- "gosub_rendering",
- "gosub_shared",
-]
-
-[[package]]
 name = "gosub_config"
 version = "0.1.0"
 dependencies = [

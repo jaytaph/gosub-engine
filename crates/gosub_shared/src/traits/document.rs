@@ -43,8 +43,8 @@ pub trait Document<C: CssSystem>: Sized {
     // /// Creates a new document with an optional document root node
     // fn new_with_handle(document_type: DocumentType, url: Option<Url>, location: &Location, root_node: Option<&Self::Node>) -> DocumentHandle<Self>;
 
-    /// Returns the document handle for this document
-    fn handle(&self) -> DocumentHandle<Self, C>;
+    // /// Returns the document handle for this document
+    // fn handle(&self) -> DocumentHandle<Self, C>;
 
     /// Location of the document (URL, file path, etc.)
     fn url(&self) -> Option<Url>;

@@ -6,6 +6,8 @@ use gosub_shared::byte_stream::Location;
 use gosub_shared::node::NodeId;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::node::{ElementDataType, Node};
+use crate::parser::tree_builder::TreeBuilder;
+use gosub_shared::types::Result;
 
 /// Enum of tasks that can be performed to add or
 /// update nodes in the tree.
@@ -35,6 +37,7 @@ pub enum DocumentTask {
         key: String,
         value: String,
         element_id: NodeId,
+        location: Location,
     },
 }
 
@@ -58,7 +61,7 @@ pub struct DocumentTaskQueue<D: Document<C>, C: CssSystem> {
     #[allow(dead_code)]
     next_node_id: NodeId,
     /// Reference to the document to commit changes to
-    pub(crate) document: DocumentHandle<D, C>,
+    pub(crate) doc_handle: DocumentHandle<D, C>,
     /// List of tasks to commit upon flush() which is cleared after execution finishes.
     // IMPLEMENTATION NOTE: using a vec here since I'm assuming we are
     // executing all tasks at once. If we need to support stopping task
@@ -72,8 +75,7 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
         self.tasks.is_empty()
     }
 
-    #[allow(dead_code)]
-    fn flush(&mut self) -> Vec<String> {
+    pub fn flush(&mut self) -> Vec<String> {
         let errors = Vec::new();
         for current_task in &self.tasks {
             match current_task {
@@ -85,27 +87,27 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     location,
                 } => {
                     let node =
-                        D::new_element_node(self.document.clone(), name, Some(namespace), HashMap::new(), *location);
-                    self.document.get_mut().register_node_at(node, *parent_id, *position);
+                        D::new_element_node(self.doc_handle.clone(), name, Some(namespace), HashMap::new(), *location);
+                    self.doc_handle.get_mut().register_node_at(node, *parent_id, *position);
                 }
                 DocumentTask::CreateText {
                     content,
                     parent_id,
                     location,
                 } => {
-                    let node = D::new_text_node(self.document.clone(), content, *location);
-                    self.document.get_mut().register_node_at(node, *parent_id, None);
+                    let node = D::new_text_node(self.doc_handle.clone(), content, *location);
+                    self.doc_handle.get_mut().register_node_at(node, *parent_id, None);
                 }
                 DocumentTask::CreateComment {
                     content,
                     parent_id,
                     location,
                 } => {
-                    let node = D::new_comment_node(self.document.clone(), content, *location);
-                    self.document.get_mut().register_node_at(node, *parent_id, None);
+                    let node = D::new_comment_node(self.doc_handle.clone(), content, *location);
+                    self.doc_handle.get_mut().register_node_at(node, *parent_id, None);
                 }
-                DocumentTask::InsertAttribute { key, value, element_id } => {
-                    if let Some(node) = self.document.get_mut().node_by_id_mut(*element_id) {
+                DocumentTask::InsertAttribute { key, value, element_id, .. } => {
+                    if let Some(node) = self.doc_handle.get_mut().node_by_id_mut(*element_id) {
                         if let Some(data) = node.get_element_data_mut() {
                             data.attributes_mut().insert(key.clone(), value.clone());
                             // let mut attributes = node.get_element_data().unwrap().attributes().clone();
@@ -121,3 +123,83 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
         errors
     }
 }
+
+// See tree_builder.rs for method comments
+impl<D: Document<C>, C: CssSystem> TreeBuilder for DocumentTaskQueue<D, C> {
+    fn create_element(
+        &mut self,
+        name: &str,
+        parent_id: NodeId,
+        position: Option<usize>,
+        namespace: &str,
+        location: Location,
+    ) -> NodeId {
+        let element = DocumentTask::CreateElement {
+            name: name.to_owned(),
+            parent_id,
+            position,
+            namespace: namespace.to_owned(),
+            location,
+        };
+        let new_id = self.next_node_id;
+        self.next_node_id = self.next_node_id.next();
+        self.tasks.push(element);
+
+        new_id
+    }
+
+    fn create_text(&mut self, content: &str, parent_id: NodeId, location: Location) -> NodeId {
+        let text = DocumentTask::CreateText {
+            content: content.to_owned(),
+            parent_id,
+            location,
+        };
+        let new_id = self.next_node_id;
+        self.next_node_id = self.next_node_id.next();
+        self.tasks.push(text);
+
+        new_id
+    }
+
+    fn create_comment(&mut self, content: &str, parent_id: NodeId, location: Location) -> NodeId {
+        let comment = DocumentTask::CreateComment {
+            content: content.to_owned(),
+            parent_id,
+            location,
+        };
+        let new_id = self.next_node_id;
+        self.next_node_id = self.next_node_id.next();
+        self.tasks.push(comment);
+
+        new_id
+    }
+
+    fn insert_attribute(
+        &mut self,
+        key: &str,
+        value: &str,
+        element_id: NodeId,
+        location: Location,
+    ) -> Result<()> {
+        let attribute = DocumentTask::InsertAttribute {
+            key: key.to_owned(),
+            value: value.to_owned(),
+            element_id,
+            location,
+        };
+        self.tasks.push(attribute);
+        Ok(())
+    }
+}
+
+impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
+    pub fn new(doc_handle: DocumentHandle<D, C>) -> Self {
+        let next_node_id = doc_handle.get().peek_next_id();
+        Self {
+            next_node_id,
+            doc_handle: doc_handle.clone(),
+            tasks: Vec::new(),
+        }
+    }
+}
+

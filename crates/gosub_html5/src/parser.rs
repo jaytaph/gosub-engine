@@ -75,15 +75,6 @@ macro_rules! get_node_by_id {
     };
 }
 
-// macro_rules! get_node_by_id_mut {
-//     ($doc_handle:expr, $id:expr) => {
-//         $doc_handle
-//             .get_mut()
-//             .get_node_by_id_mut($id)
-//             .expect("Node not found")
-//     };
-// }
-
 macro_rules! get_element_data {
     ($node:expr) => {
         $node.get_element_data().expect("Node is not an element node")
@@ -4270,29 +4261,30 @@ where
 
 #[cfg(test)]
 mod test {
+    use gosub_css3::system::Css3System;
     use super::*;
     use crate::node::nodeimpl::NodeDataTypeInternal;
+    use crate::node::data::element::ElementData;
     use crate::node::nodeimpl::NodeImpl;
     use gosub_shared::byte_stream::Encoding;
+    use crate::doc::document::DocumentImpl;
 
     macro_rules! node_create {
         ($self:expr, $name:expr) => {{
-            let node = NodeImpl::new_element(
-                &$self.document,
-                $name,
-                HashMap::new(),
-                HTML_NAMESPACE,
+            let node = NodeImpl::new(
+                $self.document.clone(),
                 Location::default(),
+                &NodeDataTypeInternal::Element(ElementData::new($name, Some(HTML_NAMESPACE), HashMap::new(), Default::default())),
             );
-            let node_id = $self.document.get_mut().add_node(node, NodeId::root(), None);
+            let node_id = $self.document.clone().get_mut().register_node_at(node, NodeId::root(), None);
             $self.open_elements.push(node_id);
         }};
     }
 
     #[test]
     fn is_in_scope() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         node_create!(parser, "html");
         node_create!(parser, "div");
@@ -4306,8 +4298,8 @@ mod test {
 
     #[test]
     fn is_in_scope_empty_stack() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         parser.open_elements.clear();
         assert!(!parser.is_in_scope("p", HTML_NAMESPACE, Scope::Regular));
@@ -4334,8 +4326,8 @@ mod test {
 
     #[test]
     fn is_in_scope_1() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         node_create!(parser, "html");
         node_create!(parser, "div");
@@ -4372,8 +4364,9 @@ mod test {
 
     #[test]
     fn is_in_scope_2() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
+
 
         node_create!(parser, "html");
         node_create!(parser, "body");
@@ -4410,8 +4403,8 @@ mod test {
 
     #[test]
     fn is_in_scope_4() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         node_create!(parser, "html");
         node_create!(parser, "body");
@@ -4431,8 +4424,8 @@ mod test {
 
     #[test]
     fn is_in_scope_5() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         node_create!(parser, "html");
         node_create!(parser, "body");
@@ -4451,8 +4444,8 @@ mod test {
 
     #[test]
     fn is_in_scope_6() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         node_create!(parser, "html");
         node_create!(parser, "body");
@@ -4471,8 +4464,8 @@ mod test {
 
     #[test]
     fn is_in_scope_7() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         node_create!(parser, "html");
         node_create!(parser, "body");
@@ -4490,8 +4483,8 @@ mod test {
 
     #[test]
     fn is_in_scope_8() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         node_create!(parser, "html");
         node_create!(parser, "body");
@@ -4512,10 +4505,10 @@ mod test {
         stream.read_from_str("<p><b>bold<i>bold and italic</b>italic</i></p>", Some(Encoding::UTF8));
         stream.close();
 
-        let document = DocumentBuilder::new_document(None);
-        let _ = Html5Parser::parse_document(&mut stream, Document::clone(&document), None);
+        let doc_handle = DocumentBuilder::new_document(None);
+        let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
-        println!("{}", document);
+        println!("{}", doc_handle.get());
     }
 
     #[test]
@@ -4524,13 +4517,13 @@ mod test {
         stream.read_from_str("<div class=\"one two three\"></div>", Some(Encoding::UTF8));
         stream.close();
 
-        let document = DocumentBuilder::new_document(None);
-        let _ = Html5Parser::parse_document(&mut stream, Document::clone(&document), None);
+        let doc_handle = DocumentBuilder::new_document(None);
+        let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
-        let binding = document.get();
+        let binding = doc_handle.get();
 
         // document -> html -> head -> body -> div
-        let div = binding.get_node_by_id(4usize.into()).unwrap();
+        let div = binding.node_by_id(4usize.into()).unwrap();
 
         let NodeDataTypeInternal::Element(element) = &div.data else {
             panic!()
@@ -4553,13 +4546,13 @@ mod test {
         stream.read_from_str("<div class=\" one    two     three   \"></div>", Some(Encoding::UTF8));
         stream.close();
 
-        let document = DocumentBuilder::new_document(None);
-        let _ = Html5Parser::parse_document(&mut stream, Document::clone(&document), None);
+        let doc_handle = DocumentBuilder::new_document(None);
+        let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
-        let binding = document.get();
+        let binding = doc_handle.get();
 
         // document -> html -> head -> body -> div
-        let div = binding.get_node_by_id(4usize.into()).unwrap();
+        let div = binding.node_by_id(4usize.into()).unwrap();
 
         let NodeDataTypeInternal::Element(element) = &div.data else {
             panic!()
@@ -4586,11 +4579,11 @@ mod test {
         );
         stream.close();
 
-        let document = DocumentBuilder::new_document(None);
-        let _ = Html5Parser::parse_document(&mut stream, Document::clone(&document), None);
+        let doc_handle = DocumentBuilder::new_document(None);
+        let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
-        assert!(document.get().get_node_by_named_id("my id").is_none());
-        assert!(document.get().get_node_by_named_id("").is_none());
+        assert!(doc_handle.get().get_node_by_named_id("my id").is_none());
+        assert!(doc_handle.get().get_node_by_named_id("").is_none());
     }
 
     #[test]
@@ -4603,11 +4596,11 @@ mod test {
         );
         stream.close();
 
-        let document = DocumentBuilder::new_document(None);
-        let _ = Html5Parser::parse_document(&mut stream, Document::clone(&document), None);
+        let doc_handle = DocumentBuilder::new_document(None);
+        let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
         // we are expecting the div (ID: 4) and p would be ignored
-        let doc_read = document.get();
+        let doc_read = doc_handle.get();
         let div = doc_read.get_node_by_named_id("myid").unwrap();
         assert_eq!(div.id, NodeId::from(4usize));
         assert_eq!(div.name, "div");
