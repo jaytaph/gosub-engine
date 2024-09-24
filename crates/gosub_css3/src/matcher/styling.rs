@@ -8,6 +8,7 @@ use gosub_shared::traits::node::Node;
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use gosub_shared::traits::node::ClassList;
 
 use crate::matcher::property_definitions::get_css_definitions;
 use crate::stylesheet::{Combinator, CssSelector, CssSelectorPart, CssValue, MatcherType, Specificity};
@@ -93,7 +94,7 @@ fn match_selector_part<'a, D: Document<C>, C: CssSystem>(
             if !current_node.is_element_node() {
                 return false;
             }
-            current_node.get_element_data().unwrap().classes().contains(name)
+            current_node.get_element_data().unwrap().classlist().contains(name)
         }
         CssSelectorPart::Id(name) => {
             if !current_node.is_element_node() {

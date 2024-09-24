@@ -4268,6 +4268,8 @@ mod test {
     use crate::node::nodeimpl::NodeImpl;
     use gosub_shared::byte_stream::Encoding;
     use crate::doc::document::DocumentImpl;
+    use gosub_shared::traits::node::ClassList;
+    use crate::doc::builder::DocumentBuilderImpl;
 
     macro_rules! node_create {
         ($self:expr, $name:expr) => {{
@@ -4310,8 +4312,8 @@ mod test {
 
     #[test]
     fn is_in_scope_non_existing_node() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         node_create!(parser, "html");
         node_create!(parser, "div");
@@ -4384,8 +4386,8 @@ mod test {
 
     #[test]
     fn is_in_scope_3() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let mut parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let mut parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         node_create!(parser, "html");
         node_create!(parser, "body");
@@ -4505,7 +4507,7 @@ mod test {
         stream.read_from_str("<p><b>bold<i>bold and italic</b>italic</i></p>", Some(Encoding::UTF8));
         stream.close();
 
-        let doc_handle = DocumentBuilder::new_document(None);
+        let doc_handle = DocumentBuilderImpl::new_document(None);
         let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
         println!("{}", doc_handle.get());
@@ -4517,7 +4519,7 @@ mod test {
         stream.read_from_str("<div class=\"one two three\"></div>", Some(Encoding::UTF8));
         stream.close();
 
-        let doc_handle = DocumentBuilder::new_document(None);
+        let doc_handle = DocumentBuilderImpl::new_document(None);
         let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
         let binding = doc_handle.get();
@@ -4529,15 +4531,15 @@ mod test {
             panic!()
         };
 
-        assert_eq!(element.classes().len(), 3);
+        assert_eq!(element.classlist().len(), 3);
 
-        assert!(element.classes().contains("one"));
-        assert!(element.classes().contains("two"));
-        assert!(element.classes().contains("three"));
+        assert!(element.classlist().contains("one"));
+        assert!(element.classlist().contains("two"));
+        assert!(element.classlist().contains("three"));
 
-        assert!(element.classes().is_active("one"));
-        assert!(element.classes().is_active("two"));
-        assert!(element.classes().is_active("three"));
+        assert!(element.classlist().is_active("one"));
+        assert!(element.classlist().is_active("two"));
+        assert!(element.classlist().is_active("three"));
     }
 
     #[test]
@@ -4546,7 +4548,7 @@ mod test {
         stream.read_from_str("<div class=\" one    two     three   \"></div>", Some(Encoding::UTF8));
         stream.close();
 
-        let doc_handle = DocumentBuilder::new_document(None);
+        let doc_handle = DocumentBuilderImpl::new_document(None);
         let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
         let binding = doc_handle.get();
@@ -4558,15 +4560,15 @@ mod test {
             panic!()
         };
 
-        assert_eq!(element.classes().len(), 3);
+        assert_eq!(element.classlist().len(), 3);
 
-        assert!(element.classes().contains("one"));
-        assert!(element.classes().contains("two"));
-        assert!(element.classes().contains("three"));
+        assert!(element.classlist().contains("one"));
+        assert!(element.classlist().contains("two"));
+        assert!(element.classlist().contains("three"));
 
-        assert!(element.classes().is_active("one"));
-        assert!(element.classes().is_active("two"));
-        assert!(element.classes().is_active("three"));
+        assert!(element.classlist().is_active("one"));
+        assert!(element.classlist().is_active("two"));
+        assert!(element.classlist().is_active("three"));
     }
 
     #[test]
@@ -4579,7 +4581,7 @@ mod test {
         );
         stream.close();
 
-        let doc_handle = DocumentBuilder::new_document(None);
+        let doc_handle = DocumentBuilderImpl::new_document(None);
         let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
         assert!(doc_handle.get().get_node_by_named_id("my id").is_none());
@@ -4596,7 +4598,7 @@ mod test {
         );
         stream.close();
 
-        let doc_handle = DocumentBuilder::new_document(None);
+        let doc_handle = DocumentBuilderImpl::new_document(None);
         let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
         // we are expecting the div (ID: 4) and p would be ignored

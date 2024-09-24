@@ -157,14 +157,16 @@ static LIMITED_QUIRKS_PUB_IDENTIFIER_PREFIX_NOT_MISSING_SYS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
+    use gosub_css3::system::Css3System;
     use crate::parser::Html5Parser;
     use crate::parser::QuirksMode;
     use gosub_shared::byte_stream::{ByteStream, Encoding, Location};
+    use crate::doc::document::DocumentImpl;
 
     #[test]
     fn test_quirks_mode() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         assert_eq!(
             parser.identify_quirks_mode(&None, None, None, false),
@@ -249,8 +251,8 @@ mod tests {
 
     #[test]
     fn test_quirks_mode_force() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         assert_eq!(
             parser.identify_quirks_mode(&Some("html".to_string()), None, None, true),
@@ -323,8 +325,8 @@ mod tests {
 
     #[test]
     fn test_quirks_mode_sys() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         assert_eq!(
             parser.identify_quirks_mode(
@@ -348,8 +350,8 @@ mod tests {
 
     #[test]
     fn test_quirks_mode_sys_missing() {
-        let stream = &mut ByteStream::new(Encoding::UTF8, None);
-        let parser = Html5Parser::new_parser(stream, Location::default());
+        let mut stream = &mut ByteStream::new(Encoding::UTF8, None);
+        let parser = Html5Parser::<DocumentImpl<Css3System>, Css3System>::new_parser(&mut stream, Location::default());
 
         assert_eq!(
             parser.identify_quirks_mode(

@@ -93,7 +93,7 @@ mod tests {
     use gosub_shared::traits::document::Document;
 
 
-    use crate::doc::builder::DocumentBuilder as DocumentBuilderImpl;
+    use crate::doc::builder::DocumentBuilderImpl;
     use gosub_shared::traits::document::DocumentBuilder;
 
     use crate::node::HTML_NAMESPACE;

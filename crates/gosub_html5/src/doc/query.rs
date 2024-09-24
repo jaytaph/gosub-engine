@@ -7,6 +7,7 @@ use crate::doc::document::TreeIterator;
 use crate::errors::Error;
 use crate::parser::query::{Condition, Query, SearchType};
 use gosub_shared::traits::node::ElementDataType;
+use gosub_shared::traits::node::ClassList;
 
 pub struct DocumentQuery<D: Document<C>, C: CssSystem> {
     _phantom: std::marker::PhantomData<(D, C)>,
@@ -82,7 +83,7 @@ impl<D: Document<C>, C: CssSystem> DocumentQuery<D, C> {
                 false
             }
             Condition::ContainsClass(class_name) => {
-                return current_node_data.classes().contains(class_name);
+                return current_node_data.classlist().contains(class_name);
             }
             Condition::ContainsAttribute(attribute) => {
                 return current_node_data.attributes().contains_key(attribute);

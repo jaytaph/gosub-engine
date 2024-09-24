@@ -6,13 +6,13 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use url::Url;
 
-use crate::doc::builder::DocumentBuilder as DocumentBuilderImpl;
+use crate::doc::builder::DocumentBuilderImpl;
 use crate::doc::fragment::DocumentFragmentImpl;
 use crate::node::arena::NodeArena;
 use crate::node::data::comment::CommentData;
 use crate::node::data::doctype::DocTypeData;
 use crate::node::data::document::DocumentData;
-use crate::node::data::element::{ElementClass, ElementData};
+use crate::node::data::element::{ClassListImpl, ElementData};
 use crate::node::data::text::TextData;
 use crate::node::nodeimpl::{NodeDataTypeInternal, NodeImpl};
 use crate::node::visitor::Visitor;
@@ -300,7 +300,7 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         NodeImpl::new(
             handle.clone(),
             location,
-            &NodeDataTypeInternal::Element(ElementData::new(name, namespace, attributes, ElementClass::default())),
+            &NodeDataTypeInternal::Element(ElementData::new(name, namespace, attributes, ClassListImpl::default())),
         )
     }
 
@@ -459,6 +459,7 @@ fn internal_visit<C: CssSystem>(
         let child = binding.node_by_id(*child_id).unwrap();
         internal_visit(handle.clone(), child, visitor);
     }
+    drop(binding);
 
     // Leave node
     visitor.document_leave(node);
@@ -516,7 +517,7 @@ mod tests {
     use crate::doc::query::DocumentQuery;
     use crate::parser::query::Query;
     use super::*;
-    use crate::doc::builder::DocumentBuilder as DocumentBuilderImpl;
+    use crate::doc::builder::DocumentBuilderImpl;
     use gosub_css3::system::Css3System;
     use crate::doc::task_queue::DocumentTaskQueue;
     use crate::node::HTML_NAMESPACE;
@@ -524,6 +525,7 @@ mod tests {
     use gosub_shared::traits::document::DocumentBuilder;
     use gosub_shared::traits::node::ElementDataType;
     use gosub_shared::traits::node::NodeType;
+    use gosub_shared::traits::node::ClassList;
     use std::collections::HashMap;
     use crate::parser::tree_builder::TreeBuilder;
 
@@ -900,6 +902,7 @@ mod tests {
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
         }
+        drop(binding);
 
         // DOM should now have all our nodes
         assert_eq!(doc_handle.get().node_count(), 6);
@@ -970,10 +973,12 @@ mod tests {
         );
         let node_id = doc_handle.get_mut().register_node_at(node, NodeId::root(), None);
 
-        let node = doc_handle.get_mut().node_by_id_mut(node_id).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(node_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("key", "value");
         }
+        drop(binding);
 
         let doc_read = doc_handle.get();
         let Some(data)= doc_read.node_by_id(node_id).unwrap().get_element_data() else {
@@ -1013,43 +1018,46 @@ mod tests {
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let node = doc_handle.get_mut().node_by_id_mut(div_id).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(div_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one two three");
         }
+        drop(binding);
 
-        let doc_read = doc_handle.get();
-        let NodeDataTypeInternal::Element(element_data) = &doc_read.node_by_id(div_id).unwrap().data else {
+        let binding = doc_handle.get();
+        let NodeDataTypeInternal::Element(element_data) = &binding.node_by_id(div_id).unwrap().data else {
             panic!()
         };
-        assert!(element_data.classes().contains(&"one".into()));
-        assert!(element_data.classes().contains(&"two".into()));
-        assert!(element_data.classes().contains(&"three".into()));
+        assert!(element_data.classlist().contains("one"));
+        assert!(element_data.classlist().contains("two"));
+        assert!(element_data.classlist().contains("three"));
     }
 
     #[test]
     fn task_queue_insert_class_attribute() {
-        let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+        let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
+            DocumentBuilderImpl::new_document(None);
 
         let mut task_queue = DocumentTaskQueue::new(doc_handle.clone());
         let div_id = task_queue.create_element("div", NodeId::root(), None, HTML_NAMESPACE, Location::default());
         let _ = task_queue.insert_attribute("class", "one two three", div_id, Location::default());
         let errors = task_queue.flush();
         assert!(errors.is_empty());
-        let doc_read = doc_handle.get();
-        let NodeDataTypeInternal::Element(element) = &doc_handle.get().node_by_id(div_id).unwrap().data else {
+
+        let binding = doc_handle.get();
+        let NodeDataTypeInternal::Element(element) = &binding.node_by_id(div_id).unwrap().data else {
             panic!()
         };
-        assert!(element.classes().contains(&"one".into()));
-        assert!(element.classes().contains(&"two".into()));
-        assert!(element.classes().contains(&"three".into()));
+        assert!(element.classlist().contains("one"));
+        assert!(element.classlist().contains("two"));
+        assert!(element.classlist().contains("three"));
     }
 
     #[test]
     fn uninitialized_query() {
-        let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+        let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
+            DocumentBuilderImpl::new_document(None);
 
         let query = Query::new();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query);
@@ -1073,7 +1081,7 @@ mod tests {
         //     <p>
         // <p>
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1100,7 +1108,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1109,7 +1117,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1154,7 +1162,7 @@ mod tests {
         //     <p>
         // <p>
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1190,7 +1198,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id_2 = doc_handle.get_mut().register_node_at(p_node, div_id, None);
+        let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1235,7 +1243,7 @@ mod tests {
         //     <p>
         // <p>
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1262,7 +1270,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let p_node_2 = Document::new_element_node(
             doc_handle.clone(),
@@ -1271,13 +1279,14 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id_2 = doc_handle.get_mut().register_node_at(p_node, div_id, None);
+        let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
-
-        let mut node = doc_handle.get_mut().node_by_id_mut(div_id).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(div_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
         }
+        drop(binding);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1295,7 +1304,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1304,7 +1313,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, NodeId::root(), None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, NodeId::root(), None);
 
         let query = Query::new().equals_id("myid").find_first();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query).unwrap();
@@ -1322,7 +1331,7 @@ mod tests {
         //     <p class="two three">
         // <p class="three">
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1351,10 +1360,12 @@ mod tests {
         );
         let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one two");
         }
+        drop(binding);
 
         let p_node_2 = Document::new_element_node(
             doc_handle.clone(),
@@ -1363,13 +1374,15 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(div_id).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(div_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one");
             data.add_attribute("id", "myid");
         }
+        drop(binding);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1389,10 +1402,12 @@ mod tests {
         );
         let p_id_3 = doc_handle.get_mut().register_node_at(p_node_3, div_id_3, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id_3).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "two_tree");
         }
+        drop(binding);
 
         let p_node_4 = Document::new_element_node(
             doc_handle.clone(),
@@ -1403,10 +1418,12 @@ mod tests {
         );
         let p_id_4 = doc_handle.get_mut().register_node_at(p_node_4, NodeId::root(), None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id_4).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id_4).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "three");
         }
+        drop(binding);
 
         let query = Query::new().contains_class("two").find_first();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query).unwrap();
@@ -1424,7 +1441,7 @@ mod tests {
         //     <p class="two three">
         // <p class="three">
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1453,10 +1470,12 @@ mod tests {
         );
         let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one two");
         }
+        drop(binding);
 
         let p_node_2 = Document::new_element_node(
             doc_handle.clone(),
@@ -1467,11 +1486,13 @@ mod tests {
         );
         let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id_2).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one");
             data.add_attribute("id", "myid");
         }
+        drop(binding);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1491,10 +1512,12 @@ mod tests {
         );
         let p_id_3 = doc_handle.get_mut().register_node_at(p_node_3, div_id_3, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id_3).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "two three");
         }
+        drop(binding);
 
         let p_node_4 = Document::new_element_node(
             doc_handle.clone(),
@@ -1505,10 +1528,12 @@ mod tests {
         );
         let p_id_4 = doc_handle.get_mut().register_node_at(p_node_4, NodeId::root(), None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id_4).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id_4).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "three");
         }
+        drop(binding);
 
         let query = Query::new().contains_class("two").find_all();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query).unwrap();
@@ -1526,7 +1551,7 @@ mod tests {
         //     <p>
         // <p title="yo" style="cat">
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1546,11 +1571,13 @@ mod tests {
         );
         let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(div_id_2).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(div_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
             data.add_attribute("style", "somestyle");
         }
+        drop(binding);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1561,10 +1588,12 @@ mod tests {
         );
         let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("title", "key");
         }
+        drop(binding);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1573,7 +1602,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1584,11 +1613,13 @@ mod tests {
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(div_id_3).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(div_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("style", "otherstyle");
             data.add_attribute("id", "otherid");
         }
+        drop(binding);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1597,7 +1628,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node_4 = Document::new_element_node(
             doc_handle.clone(),
@@ -1608,11 +1639,13 @@ mod tests {
         );
         let p_id_4 = doc_handle.get_mut().register_node_at(p_node_4, NodeId::root(), None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id_4).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id_4).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("title", "yo");
             data.add_attribute("style", "cat");
         }
+        drop(binding);
 
         let query = Query::new().contains_attribute("style").find_first();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query).unwrap();
@@ -1630,7 +1663,7 @@ mod tests {
         //     <p>
         // <p title="yo" style="cat">
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1650,11 +1683,13 @@ mod tests {
         );
         let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(div_id_2).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(div_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
             data.add_attribute("style", "somestyle");
         }
+        drop(binding);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1665,10 +1700,12 @@ mod tests {
         );
         let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("title", "key");
         }
+        drop(binding);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1677,7 +1714,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1688,11 +1725,13 @@ mod tests {
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(div_id_3).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(div_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("style", "otherstyle");
             data.add_attribute("id", "otherid");
         }
+        drop(binding);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1701,22 +1740,24 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
-        let p_id_4 = Document::new_element_node(
+        let p_node_4 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        doc_handle.get_mut().register_node_at(p_id_4, NodeId::root(), None);
+        let p_id_4 = doc_handle.get_mut().register_node_at(p_node_4, NodeId::root(), None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id_4).unwrap();
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id_4).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("title", "yo");
             data.add_attribute("style", "cat");
         }
+        drop(binding);
 
         let query = Query::new().contains_attribute("style").find_all();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query).unwrap();
@@ -1734,7 +1775,7 @@ mod tests {
         //     <p>
         // <p>
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1761,7 +1802,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1770,7 +1811,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1788,7 +1829,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1797,8 +1838,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, NodeId::root(), None);
-
+        let _ = doc_handle.get_mut().register_node_at(p_node, NodeId::root(), None);
 
         let query = Query::new().contains_child_tag("p").find_first();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query).unwrap();
@@ -1816,7 +1856,7 @@ mod tests {
         //     <p>
         // <p>
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1843,7 +1883,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1852,7 +1892,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1870,7 +1910,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1879,7 +1919,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, NodeId::root(), None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, NodeId::root(), None);
 
         let query = Query::new().contains_child_tag("p").find_all();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query).unwrap();
@@ -1897,7 +1937,7 @@ mod tests {
         //     <p>
         // <p>
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1978,7 +2018,7 @@ mod tests {
         //     <p>
         // <p>
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         let div_node = Document::new_element_node(
             doc_handle.clone(),
@@ -2052,7 +2092,7 @@ mod tests {
     #[test]
     fn tree_iterator() {
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
         // <div>
         //     <div>
@@ -2137,16 +2177,16 @@ mod tests {
     #[test]
     fn tree_iterator_mutation() {
         let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-            DocumentBuilder::<Css3System>::new_document(None);
+            DocumentBuilderImpl::new_document(None);
 
-        let div_id = Document::new_element_node(
+        let div_node = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        doc_handle.get_mut().register_node_at(div_id, NodeId::root(), None);
+        let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
         let mut tree_iterator = TreeIterator::new(doc_handle.clone());
         let mut current_node_id;
@@ -2155,13 +2195,15 @@ mod tests {
         assert_eq!(current_node_id.unwrap(), NodeId::root());
 
         // we mutate the tree while the iterator is still "open"
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div_1",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default()
         );
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, NodeId::root(), None);
+
         current_node_id = tree_iterator.next();
         assert_eq!(current_node_id.unwrap(), div_id);
 

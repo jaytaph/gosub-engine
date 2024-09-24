@@ -2,7 +2,7 @@
 //!
 //! The parser's job is to take a stream of bytes and turn it into a DOM tree. The parser is
 //! implemented as a state machine and runs in the current thread.
-use crate::doc::builder::DocumentBuilder;
+use crate::doc::builder::DocumentBuilderImpl;
 use crate::doc::document::DocumentImpl;
 use crate::parser::Html5Parser;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
@@ -25,7 +25,7 @@ pub fn html_compile<C: CssSystem>(html: &str) -> DocumentHandle<DocumentImpl<C>,
     stream.read_from_str(html, Some(Encoding::UTF8));
     stream.close();
 
-    let doc_handle = DocumentBuilder::new_document(None);
+    let doc_handle = DocumentBuilderImpl::new_document(None);
     let _ = Html5Parser::parse_document(&mut stream, doc_handle.clone(), None);
 
     doc_handle

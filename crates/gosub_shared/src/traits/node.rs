@@ -1,3 +1,4 @@
+use std::collections::hash_map::IntoIter;
 use crate::byte_stream::Location;
 use crate::document::DocumentHandle;
 use crate::node::NodeId;
@@ -63,26 +64,62 @@ pub trait CommentDataType {
     fn value(&self) -> &str;
 }
 
+pub trait ClassList {
+    /// Returns true when the classlist contains the given class name
+    fn contains(&self, class_name: &str) -> bool;
+    /// Adds a class to the classlist
+    fn add(&mut self, class_name: &str);
+    /// Removes a class from the classlist
+    fn remove(&mut self, class_name: &str);
+    /// Toggles a class active/inactive in the classlist
+    fn toggle(&mut self, class_name: &str);
+    /// Replaces a class in the classlist
+    fn replace(&mut self, old_class_name: &str, new_class_name: &str);
+    /// Returns the number of classes in the classlist
+    fn length(&self) -> usize;
+    /// Returns the classes as a vector
+    fn as_vec(&self) -> Vec<String>;
+    /// Returns true if the classlist is empty
+    fn is_active(&self, class_name: &str) -> bool;
+    /// Returns the active classes of the classlist
+    fn active_classes(&self) -> Vec<String>;
+    /// Returns the active classes of the classlist as a string
+    fn len(&self) -> usize;
+    /// Returns true if the classlist is empty
+    fn is_empty(&self) -> bool;
+    /// Sets the active state of a class
+    fn set_active(&mut self, name: &str, is_active: bool);
+    fn iter(&self) -> IntoIter<String, bool>;
+}
+
 pub trait ElementDataType<C: CssSystem> {
     type Document: Document<C>;
     type DocumentFragment: DocumentFragment<C>;
 
     /// Returns the name of the element
     fn name(&self) -> &str;
+
     /// Returns the namespace
     fn namespace(&self) -> &str;
     /// Returns true if the namespace matches the element
     fn is_namespace(&self, namespace: &str) -> bool;
+
     /// Returns the classes of the element
-    fn classes(&self) -> Vec<String>;
+    fn classlist(&self) -> &impl ClassList;
+    fn classlist_mut(&mut self) -> &mut impl ClassList;
     /// Returns the active classes of the element
-    fn active_classes(&self) -> Vec<String>;
+    fn active_class_names(&self) -> Vec<String>;
+
     /// Returns the given attribute (or None when not found)
     fn attribute(&self, name: &str) -> Option<&String>;
     /// Returns all attributes of the element
     fn attributes(&self) -> &HashMap<String, String>;
     /// Returns mutable attributes of the element
     fn attributes_mut(&mut self) -> &mut HashMap<String, String>;
+    /// Add attribute
+    fn add_attribute(&mut self, name: &str, value: &str);
+    /// Add a class to the element
+    fn add_class(&mut self, class: &str);
 
     fn matches_tag_and_attrs_without_order(&self, other_data: &Self) -> bool;
     fn is_mathml_integration_point(&self) -> bool;
@@ -90,9 +127,7 @@ pub trait ElementDataType<C: CssSystem> {
 
     /// Returns true if this is a "special" element node
     fn is_special(&self) -> bool;
-    fn add_attribute(&mut self, name: &str, value: &str);
-    /// Add a class to the element
-    fn add_class(&mut self, class: &str);
+
     // Return the template document of the element
     fn template_contents(&self) -> Option<&Self::DocumentFragment>;
     /// Returns true if the given node is a "formatting" node

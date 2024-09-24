@@ -8,11 +8,12 @@ use crate::node::HTML_NAMESPACE;
 use crate::DocumentHandle;
 use gosub_shared::traits::document::{Document, DocumentType};
 use gosub_shared::traits::node::{Node, QuirksMode};
+use gosub_shared::traits::document::DocumentBuilder;
 
 /// This struct will be used to create a fully initialized document or document fragment
-pub struct DocumentBuilder {}
+pub struct DocumentBuilderImpl {}
 
-impl<C: CssSystem> gosub_shared::traits::document::DocumentBuilder<C> for DocumentBuilder {
+impl<C: CssSystem> DocumentBuilder<C> for DocumentBuilderImpl {
     type Document = DocumentImpl<C>;
 
     /// Creates a new document with a document root node

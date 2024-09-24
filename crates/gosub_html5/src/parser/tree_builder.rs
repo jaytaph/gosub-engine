@@ -33,6 +33,9 @@ mod tests {
     use gosub_testing::testing::tree_construction::fixture::{fixture_root_path, read_fixture_from_path};
     use gosub_testing::testing::tree_construction::Harness;
     use test_case::test_case;
+    use gosub_css3::system::Css3System;
+    use crate::doc::document::DocumentImpl;
+    use crate::parser::Html5Parser;
 
     const DISABLED_CASES: &[&str] = &[
         // tests18.dat
@@ -109,7 +112,7 @@ mod tests {
             // for each test, run it with and without scripting enabled based on the test file
             for &scripting_enabled in test.script_modes() {
                 let result = harness
-                    .run_test(test.clone(), scripting_enabled)
+                    .run_test::<Html5Parser<DocumentImpl<Css3System>, Css3System>, Css3System>(test.clone(), scripting_enabled)
                     .expect("problem parsing");
 
                 println!(
