@@ -4603,6 +4603,6 @@ mod test {
         let doc_read = doc_handle.get();
         let div = doc_read.get_node_by_named_id("myid").unwrap();
         assert_eq!(div.id, NodeId::from(4usize));
-        assert_eq!(div.name, "div");
+        assert_eq!(div.get_element_data().unwrap().name(), "div");
     }
 }

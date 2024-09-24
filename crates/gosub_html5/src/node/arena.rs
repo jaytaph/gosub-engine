@@ -87,79 +87,125 @@ impl<N: Node<C>, C: CssSystem> Default for NodeArena<N, C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::HTML_NAMESPACE;
+    use gosub_css3::system::Css3System;
     use gosub_shared::byte_stream::Location;
+    use crate::doc::document::DocumentImpl;
     use gosub_shared::traits::document::Document;
-    use gosub_shared::traits::document::DocumentType;
-    use crate::node::nodeimpl::NodeImpl;
-    use gosub_shared::document::DocumentHandle;
+
+
+    use crate::doc::builder::DocumentBuilder as DocumentBuilderImpl;
+    use gosub_shared::traits::document::DocumentBuilder;
+
+    use crate::node::HTML_NAMESPACE;
 
     #[test]
     fn register_node() {
-        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
-        let node = NodeImpl::new_element(doc.clone(), Location::default(), "test", Some(HTML_NAMESPACE), HashMap::new());
-        let mut document = doc.get_mut();
-        let id = document.arena.register_node(node);
+        let mut doc_handle = DocumentBuilderImpl::new_document(None);
 
-        assert_eq!(document.arena.nodes.len(), 1);
-        assert_eq!(document.arena.next_id, 1usize.into());
+        let node = DocumentImpl::<Css3System>::new_element_node(
+            doc_handle.clone(),
+            "test",
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
+            Location::default(),
+        );
+
+        let id = doc_handle.get_mut().arena.register_node(node);
+
+        let binding = doc_handle.get();
+        assert_eq!(binding.arena.nodes.len(), 1);
+        assert_eq!(binding.arena.next_id, 1usize.into());
         assert_eq!(id, NodeId::default());
     }
 
     #[test]
     #[should_panic]
     fn register_node_twice() {
-        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
-        let node = NodeImpl::new_element(doc.clone(), Location::default(), "test", Some(HTML_NAMESPACE), HashMap::new());
+        let mut doc_handle = DocumentBuilderImpl::new_document(None);
 
-        let mut document = doc.get_mut();
-        document.arena.register_node(node);
+        let node = DocumentImpl::<Css3System>::new_element_node(
+            doc_handle.clone(),
+            "test",
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
+            Location::default(),
+        );
 
-        let node = document.node_by_id(NodeId(0)).unwrap().to_owned();
-        document.arena.register_node(node);
+        doc_handle.get_mut().arena.register_node(node);
+
+        let node = doc_handle.get_mut().node_by_id(NodeId::root()).unwrap().to_owned();
+        doc_handle.get_mut().arena.register_node(node);
     }
 
     #[test]
     fn get_node() {
-        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
-        let node = NodeImpl::new_element(doc.clone(), Location::default(), "test", Some(HTML_NAMESPACE), HashMap::new());
+        let mut doc_handle = DocumentBuilderImpl::new_document(None);
 
-        let mut document = doc.get_mut();
-        let id = document.arena.register_node(node);
-        let node = document.arena.get_node(id);
+        let node = DocumentImpl::<Css3System>::new_element_node(
+            doc_handle.clone(),
+            "test",
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
+            Location::default(),
+        );
+
+        let id = doc_handle.get_mut().arena.register_node(node);
+
+        let binding = doc_handle.get();
+        let node = binding.arena.node(id);
         assert!(node.is_some());
-        assert_eq!(node.unwrap().name, "test");
+        assert_eq!(node.unwrap().get_element_data().unwrap().name, "test");
     }
 
     #[test]
     fn get_node_mut() {
-        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
-        let node = NodeImpl::new_element(doc.clone(), Location::default(), "test", Some(HTML_NAMESPACE), HashMap::new());
+        let mut doc_handle = DocumentBuilderImpl::new_document(None);
 
-        let mut document = doc.get_mut();
-        let node_id = document.arena.register_node(node);
-        let node = document.arena.get_node_mut(node_id);
+        let node = DocumentImpl::<Css3System>::new_element_node(
+            doc_handle.clone(),
+            "test",
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
+            Location::default(),
+        );
+
+        let node_id = doc_handle.get_mut().arena.register_node(node);
+
+        let binding = doc_handle.get();
+        let node = binding.arena.node(node_id);
         assert!(node.is_some());
-        assert_eq!(node.unwrap().name, "test");
+        assert_eq!(node.unwrap().get_element_data().unwrap().name, "test");
     }
 
     #[test]
     fn register_node_through_document() {
-        let doc = DocumentHandle::create(Document::new(DocumentType::HTML, None, None));
+        let mut doc_handle = DocumentBuilderImpl::new_document(None);
 
-        let parent = NodeImpl::new_element(doc.clone(), Location::default(), "parent", Some(HTML_NAMESPACE), HashMap::new());
-        let child = NodeImpl::new_element(doc.clone(), Location::default(), "child", Some(HTML_NAMESPACE), HashMap::new());
+        let parent = DocumentImpl::<Css3System>::new_element_node(
+            doc_handle.clone(),
+            "parent",
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
+            Location::default(),
+        );
+        let child = DocumentImpl::<Css3System>::new_element_node(
+            doc_handle.clone(),
+            "child",
+            Some(HTML_NAMESPACE),
+            HashMap::new(),
+            Location::default(),
+        );
 
-        let mut document = doc.get_mut();
-        let parent_id = document.arena.register_node(parent);
-        let child_id = document.add_node(child, parent_id, None);
+        let parent_id = doc_handle.get_mut().arena.register_node(parent);
+        let child_id = doc_handle.get_mut().register_node_at(child, parent_id, None);
 
-        let parent = document.node_by_id(parent_id).unwrap();
+        let binding = doc_handle.get();
+        let parent = binding.node_by_id(parent_id);
         assert!(parent.is_some());
-        assert_eq!(parent.unwrap().children.len(), 1);
-        assert_eq!(parent.unwrap().children[0], child_id);
+        assert_eq!(parent.unwrap().children().len(), 1);
+        assert_eq!(parent.unwrap().children()[0], child_id);
 
-        let child = document.node_by_id(child_id);
+        let child = binding.node_by_id(child_id);
         assert!(child.is_some());
         assert_eq!(child.unwrap().parent, Some(parent_id));
     }

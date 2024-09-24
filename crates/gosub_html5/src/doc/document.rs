@@ -514,12 +514,12 @@ impl<D: Document<C>, C: CssSystem> Iterator for TreeIterator<D, C> {
 #[cfg(test)]
 mod tests {
     use crate::doc::query::DocumentQuery;
-use crate::parser::query::Query;
-use super::*;
+    use crate::parser::query::Query;
+    use super::*;
     use crate::doc::builder::DocumentBuilder as DocumentBuilderImpl;
+    use gosub_css3::system::Css3System;
     use crate::doc::task_queue::DocumentTaskQueue;
     use crate::node::HTML_NAMESPACE;
-    use gosub_css3::system::Css3System;
     use gosub_shared::byte_stream::Location;
     use gosub_shared::traits::document::DocumentBuilder;
     use gosub_shared::traits::node::ElementDataType;
@@ -651,14 +651,14 @@ use super::*;
         // when div_1's ID changes, "myid" should be removed from the DOM
         {
             let mut binding = doc_handle.get_mut();
-            let mut div_1 = binding.node_by_id_mut(div1_id).unwrap();
-            if let Some(mut data) = div_1.get_element_data_mut() {
+            let div_1 = binding.node_by_id_mut(div1_id).unwrap();
+            if let Some(data) = div_1.get_element_data_mut() {
                 data.add_attribute("id", "newid");
             }
         }
 
         assert!(doc_handle.get().get_node_by_named_id("myid").is_none());
-        assert_eq!(doc_handle.get().get_node_by_named_id("newid").unwrap().id, div_1.id());
+        assert_eq!(doc_handle.get().get_node_by_named_id("newid").unwrap().id, div1_id);
     }
 
     #[test]
@@ -687,12 +687,12 @@ use super::*;
         let get_node1 = binding.node_by_id(NodeId::from(1usize)).unwrap();
         let get_node2 = binding.node_by_id(NodeId::from(2usize)).unwrap();
 
-        let NodeDataTypeInternal::Element(element1) = &get_node1.data else {
+        let NodeDataTypeInternal::Element(_) = &get_node1.data else {
             panic!()
         };
         assert_eq!(get_node1.id(), NodeId::from(1usize));
 
-        let NodeDataTypeInternal::Element(element2) = &get_node2.data else {
+        let NodeDataTypeInternal::Element(_) = &get_node2.data else {
             panic!()
         };
         assert_eq!(get_node2.id(), NodeId::from(2usize));
@@ -700,7 +700,7 @@ use super::*;
 
     #[test]
     fn document_task_queue() {
-        let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
+        let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
             DocumentBuilderImpl::new_document(None);
 
         // Using task queue to create the following structure initially:
@@ -809,7 +809,7 @@ use super::*;
 
     #[test]
     fn task_queue_insert_attribute_failues() {
-        let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
+        let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
             <DocumentBuilderImpl as DocumentBuilder<Css3System>>::new_document(None);
 
         let mut task_queue = DocumentTaskQueue::new(doc_handle.clone());
@@ -886,23 +886,17 @@ use super::*;
         let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
         assert_eq!(p_id, NodeId::from(2usize));
 
-        doc_handle.get_mut().register_node_at(
-            Document::new_comment_node(doc_handle.clone(), "comment inside p", Location::default()),
-            p_id,
-            None,
-        );
-        doc_handle.get_mut().register_node_at(
-            Document::new_text_node(doc_handle.clone(), "hey", Location::default()),
-            p_id,
-            None,
-        );
-        doc_handle.get_mut().register_node_at(
-            Document::new_comment_node(doc_handle.clone(), "comment inside div", Location::default()),
-            div_id,
-            None,
-        );
+        let node = Document::new_comment_node(doc_handle.clone(), "comment inside p", Location::default());
+        doc_handle.get_mut().register_node_at(node, p_id, None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(p_id).unwrap();
+        let node = Document::new_text_node(doc_handle.clone(), "hey", Location::default());
+        doc_handle.get_mut().register_node_at(node, p_id, None);
+
+        let node = Document::new_comment_node(doc_handle.clone(), "comment inside div", Location::default());
+        doc_handle.get_mut().register_node_at(node, div_id, None);
+
+        let mut binding = doc_handle.get_mut();
+        let node = binding.node_by_id_mut(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
         }
@@ -976,7 +970,7 @@ use super::*;
         );
         let node_id = doc_handle.get_mut().register_node_at(node, NodeId::root(), None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(node_id).unwrap();
+        let node = doc_handle.get_mut().node_by_id_mut(node_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("key", "value");
         }
@@ -990,7 +984,7 @@ use super::*;
 
     #[test]
     fn task_queue_insert_generic_attribute() {
-        let mut doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
+        let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
             <DocumentBuilderImpl as DocumentBuilder<Css3System>>::new_document(None);
 
         let mut task_queue = DocumentTaskQueue::new(doc_handle.clone());
@@ -1019,18 +1013,18 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let mut node = doc_handle.get_mut().node_by_id_mut(div_id).unwrap();
+        let node = doc_handle.get_mut().node_by_id_mut(div_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one two three");
         }
 
         let doc_read = doc_handle.get();
-        let NodeDataTypeInternal::Element(element) = &doc_read.node_by_id(div_id).unwrap().data else {
+        let NodeDataTypeInternal::Element(element_data) = &doc_read.node_by_id(div_id).unwrap().data else {
             panic!()
         };
-        assert!(element.classes().contains("one"));
-        assert!(element.classes().contains("two"));
-        assert!(element.classes().contains("three"));
+        assert!(element_data.classes().contains(&"one".into()));
+        assert!(element_data.classes().contains(&"two".into()));
+        assert!(element_data.classes().contains(&"three".into()));
     }
 
     #[test]
@@ -1047,9 +1041,9 @@ use super::*;
         let NodeDataTypeInternal::Element(element) = &doc_handle.get().node_by_id(div_id).unwrap().data else {
             panic!()
         };
-        assert!(element.classes().contains("one"));
-        assert!(element.classes().contains("two"));
-        assert!(element.classes().contains("three"));
+        assert!(element.classes().contains(&"one".into()));
+        assert!(element.classes().contains(&"two".into()));
+        assert!(element.classes().contains(&"three".into()));
     }
 
     #[test]
@@ -1058,7 +1052,7 @@ use super::*;
             DocumentBuilder::<Css3System>::new_document(None);
 
         let query = Query::new();
-        let found_ids = DocumentQuery::query(&doc_handle, &query);
+        let found_ids = DocumentQuery::query(doc_handle.clone(), &query);
         if let Err(err) = found_ids {
             assert_eq!(
                 err.to_string(),
@@ -1090,32 +1084,32 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let p_id = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1126,14 +1120,14 @@ use super::*;
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1171,32 +1165,32 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let p_id = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let p_id_2 = Document::new_element_node(
+        let p_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id_2 = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1207,14 +1201,14 @@ use super::*;
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let p_id_3 = Document::new_element_node(
+        let p_node_3 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id_3 = doc_handle.get_mut().register_node_at(p_node_3, div_id_3, None);
 
         let p_node_4 = Document::new_element_node(
             doc_handle.clone(),
@@ -1252,32 +1246,32 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let p_id_2 = Document::new_element_node(
+        let p_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id_2 = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
 
         let mut node = doc_handle.get_mut().node_by_id_mut(div_id).unwrap();
@@ -1294,14 +1288,14 @@ use super::*;
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1339,37 +1333,37 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let p_id = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one two");
         }
 
-        let p_id_2 = Document::new_element_node(
+        let p_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(div_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
@@ -1386,14 +1380,14 @@ use super::*;
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let p_id_3 = Document::new_element_node(
+        let p_node_3 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id_3 = doc_handle.get_mut().register_node_at(p_node_3, div_id_3, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(p_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
@@ -1441,37 +1435,37 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let p_id = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one two");
         }
 
-        let p_id_2 = Document::new_element_node(
+        let p_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(p_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
@@ -1488,14 +1482,14 @@ use super::*;
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let p_id_3 = Document::new_element_node(
+        let p_node_3 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id_3 = doc_handle.get_mut().register_node_at(p_node_3, div_id_3, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(p_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
@@ -1543,14 +1537,14 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(div_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
@@ -1558,28 +1552,28 @@ use super::*;
             data.add_attribute("style", "somestyle");
         }
 
-        let p_id = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
-            data.add_attribute("title", "key");3
+            data.add_attribute("title", "key");
         }
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1596,14 +1590,14 @@ use super::*;
             data.add_attribute("id", "otherid");
         }
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node_4 = Document::new_element_node(
             doc_handle.clone(),
@@ -1647,14 +1641,14 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(div_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
@@ -1662,28 +1656,28 @@ use super::*;
             data.add_attribute("style", "somestyle");
         }
 
-        let p_id = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let mut node = doc_handle.get_mut().node_by_id_mut(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("title", "key");
         }
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1700,14 +1694,14 @@ use super::*;
             data.add_attribute("id", "otherid");
         }
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_id_4 = Document::new_element_node(
             doc_handle.clone(),
@@ -1751,32 +1745,32 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1787,14 +1781,14 @@ use super::*;
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1833,32 +1827,32 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1869,14 +1863,14 @@ use super::*;
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1914,32 +1908,32 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -1950,14 +1944,14 @@ use super::*;
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let _ = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1995,32 +1989,32 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let p_id = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let p_id_2 = Document::new_element_node(
+        let p_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
         let div_node_3 = Document::new_element_node(
             doc_handle.clone(),
@@ -2031,14 +2025,14 @@ use super::*;
         );
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
-        let p_id_3 = Document::new_element_node(
+        let p_node_3 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_3
+        let p_id_3 = doc_handle.get_mut().register_node_at(p_node_3, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -2074,45 +2068,49 @@ use super::*;
         );
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
-        let div_id_2 = Document::new_element_node(
+        let div_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "div",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
-        let p_id = Document::new_element_node(
+        let p_node = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
-        let text_id = doc_handle.create_text("first p tag", p_id, Location::default());
-        let p_id_2 = Document::new_element_node(
+        let text_node = Document::new_text_node(doc_handle.clone(),"first p tag", Location::default());
+        let text_id = doc_handle.get_mut().register_node_at(text_node, p_id, None);
+
+        let p_node_2 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id_2
+        let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id_2, None);
 
-        let text_id_2 = doc_handle.create_text("second p tag", p_id_2, Location::default());
-        let p_id_3 = Document::new_element_node(
+        let text_node_2 = Document::new_text_node(doc_handle.clone(),"second p tag", Location::default());
+        let text_id_2 = doc_handle.get_mut().register_node_at(text_node_2, p_id_2, None);
+        let p_node_3 = Document::new_element_node(
             doc_handle.clone(),
             "p",
             Some(HTML_NAMESPACE),
             HashMap::new(),
             Location::default(),
         );
-        //  div_id
+        let p_id_3 = doc_handle.get_mut().register_node_at(p_node_3, div_id, None);
 
-        let text_id_3 = doc_handle.create_text("third p tag", p_id_3, Location::default());
+        let text_node_3 = Document::new_text_node(doc_handle.clone(),"third p tag", Location::default());
+        let text_id_3 = doc_handle.get_mut().register_node_at(text_node_3, p_id_3, None);
 
         let tree_iterator = TreeIterator::new(doc_handle.clone());
 

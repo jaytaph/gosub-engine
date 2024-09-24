@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn new_comment() {
         let document = Document::new(DocumentType::HTML, None, None);
-        let node = Node::new_comment(document.clone(), Location::default(), "test");
+        let node = NodeImpl::new_comment(document.clone(), Location::default(), "test");
         assert_eq!(node.id, NodeId::default());
         assert_eq!(node.parent, None);
         assert!(node.children.is_empty());
@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn new_text() {
         let document = Document::new(DocumentType::HTML, None, None);
-        let node = Node::new_text(document.clone(), Location::default(), "test");
+        let node = NodeImpl::new_text(document.clone(), Location::default(), "test");
         assert_eq!(node.id, NodeId::default());
         assert_eq!(node.parent, None);
         assert!(node.children.is_empty());
@@ -472,8 +472,8 @@ mod tests {
             document.clone(),
             Location::default(),
             "div",
-            attributes,
             Some(HTML_NAMESPACE),
+            attributes,
         );
         assert_eq!(node.type_of(), NodeType::ElementNode);
     }
