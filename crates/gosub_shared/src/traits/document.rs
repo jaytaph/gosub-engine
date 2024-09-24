@@ -57,6 +57,7 @@ pub trait Document<C: CssSystem>: Sized {
     /// Return a node by its Node ID
     fn node_by_id(&self, node_id: NodeId) -> Option<&Self::Node>;
     fn node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node>;
+    fn add_named_id(&mut self, id: &str, node_id: NodeId);
 
     fn stylesheets(&self) -> &Vec<C::Stylesheet>;
     fn add_stylesheet(&mut self, stylesheet: C::Stylesheet);

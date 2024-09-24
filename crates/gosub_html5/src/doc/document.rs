@@ -109,6 +109,7 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.doctype
     }
 
+
     /// Fetches a node by id or returns None when no node with this ID is found
     fn node_by_id(&self, node_id: NodeId) -> Option<&Self::Node> {
         self.arena.node(node_id)
@@ -117,6 +118,10 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     /// Fetches a mutable node by id or returns None when no node with this ID is found
     fn node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node> {
         self.arena.node_mut(node_id)
+    }
+
+    fn add_named_id(&mut self, id: &str, node_id: NodeId) {
+        self.named_id_elements.insert(id.to_string(), node_id);
     }
 
     fn stylesheets(&self) -> &Vec<C::Stylesheet> {
@@ -238,15 +243,11 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     fn register_node(&mut self, node: Self::Node) -> NodeId {
         let node_id = self.arena.register_node(node);
 
-        println!("Registering node");
-
         // Make sure that whenever we register an element node, we store the ID separately
         let node = self.arena.node(node_id).unwrap();
         if let Some(data) = node.get_element_data() {
-            println!("Registering element");
-            if let Some(id) = data.attributes.get("id") {
-                println!("Registering named id: {}", id);
-                self.named_id_elements.insert(id.to_string(), node.id());
+            if let Some(id_value) = data.attributes.get("id") {
+                self.add_named_id(&id_value.clone(), node.id());
             }
         }
 
@@ -258,6 +259,13 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     fn register_node_at(&mut self, node: Self::Node, parent_id: NodeId, position: Option<usize>) -> NodeId {
         let node_id = self.register_node(node);
         self.attach_node(node_id, parent_id, position);
+
+        let node = self.arena.node(node_id).unwrap();
+        if let Some(data) = node.get_element_data() {
+            if let Some(id_value) = data.attributes.get("id") {
+                self.add_named_id(&id_value.clone(), node.id());
+            }
+        }
 
         node_id
     }

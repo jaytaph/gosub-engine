@@ -114,8 +114,6 @@ pub trait ElementDataType<C: CssSystem> {
     fn attribute(&self, name: &str) -> Option<&String>;
     /// Returns all attributes of the element
     fn attributes(&self) -> &HashMap<String, String>;
-    /// Returns mutable attributes of the element
-    fn attributes_mut(&mut self) -> &mut HashMap<String, String>;
     /// Add attribute
     fn add_attribute(&mut self, name: &str, value: &str);
     /// Add a class to the element

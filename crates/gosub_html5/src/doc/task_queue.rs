@@ -76,7 +76,8 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
     }
 
     pub fn flush(&mut self) -> Vec<String> {
-        let errors = Vec::new();
+        let mut errors = Vec::new();
+
         for current_task in &self.tasks {
             match current_task {
                 DocumentTask::CreateElement {
@@ -106,14 +107,23 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     let node = D::new_comment_node(self.doc_handle.clone(), content, *location);
                     self.doc_handle.get_mut().register_node_at(node, *parent_id, None);
                 }
-                DocumentTask::InsertAttribute { key, value, element_id, .. } => {
-                    if let Some(node) = self.doc_handle.get_mut().node_by_id_mut(*element_id) {
-                        if let Some(data) = node.get_element_data_mut() {
-                            data.attributes_mut().insert(key.clone(), value.clone());
-                            // let mut attributes = node.get_element_data().unwrap().attributes().clone();
-                            // attributes.insert(key.clone(), value.clone());
-                            // data.set_attributes(&attributes);
-                        }
+                DocumentTask::InsertAttribute { key, value, element_id, ..} => {
+                    let mut binding = self.doc_handle.get_mut();
+
+                    let Some(node) = binding.node_by_id_mut(*element_id) else {
+                        errors.push(format!("Node {} not found", element_id));
+                        continue;
+                    };
+
+                    let Some(element) = node.get_element_data_mut() else {
+                        errors.push(format!("Node {} is not an element", element_id));
+                        continue;
+                    };
+
+                    println!("adding attribute: {} = {}", key, value);
+                    element.add_attribute(key, value);
+                    if key == "id" {
+                        binding.add_named_id(value, *element_id);
                     }
                 }
             }

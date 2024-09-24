@@ -2212,10 +2212,7 @@ where
                     let element_data = get_element_data_mut!(first_node);
 
                     for (key, value) in attributes {
-                        let attrs = element_data.attributes_mut();
-                        if !attrs.contains_key(key) {
-                            attrs.insert(key.to_owned(), value.to_owned());
-                        }
+                        element_data.add_attribute(key, value);
                     }
                 }
             }
@@ -2263,9 +2260,7 @@ where
 
                     let element_data = get_element_data_mut!(body_node);
                     for (key, value) in attributes {
-                        if !element_data.attributes_mut().contains_key(key) {
-                            element_data.attributes_mut().insert(key.to_owned(), value.to_owned());
-                        }
+                        element_data.add_attribute(key, value);
                     }
                 }
             }

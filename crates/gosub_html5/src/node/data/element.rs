@@ -218,10 +218,6 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
         &self.attributes
     }
 
-    fn attributes_mut(&mut self) -> &mut HashMap<String, String> {
-        &mut self.attributes
-    }
-
     /// This will only compare against the tag, namespace and data same except element data.
     /// for element data compare against the tag, namespace and attributes without order.
     /// Both nodes could still have other parents and children.
