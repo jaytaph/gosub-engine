@@ -1,9 +1,11 @@
 use crate::DocumentHandle;
 use core::fmt::Debug;
+use std::cell::RefCell;
 use gosub_shared::traits::document::{Document as OtherDocument, Document, DocumentType};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::rc::Rc;
 use url::Url;
 
 use crate::doc::builder::DocumentBuilderImpl;
@@ -57,13 +59,6 @@ impl<C: CssSystem> PartialEq for DocumentImpl<C> {
     }
 }
 
-impl<C: CssSystem> Default for DocumentImpl<C> {
-    /// Returns a default document
-    fn default() -> Self {
-        Self::new(DocumentType::HTML, None, None)
-    }
-}
-
 impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     type Node = NodeImpl<C>;
     type Fragment = DocumentFragmentImpl<C>;
@@ -71,8 +66,8 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
 
     /// Creates a new document without a doc handle
     #[must_use]
-    fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<Self::Node>) -> Self {
-        let mut doc = Self {
+    fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<Self::Node>) -> DocumentHandle<Self, C> {
+        let doc = Self {
             url,
             arena: NodeArena::new(),
             named_id_elements: HashMap::new(),
@@ -81,11 +76,16 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
             stylesheets: Vec::new(),
         };
 
-        if let Some(root_node) = root_node {
-            doc.register_node(root_node);
+        let mut doc_handle = DocumentHandle(Rc::new(RefCell::new(doc)), Default::default());
+
+        if let Some(node) = root_node {
+            doc_handle.get_mut().register_node(node);
+        } else {
+            let node = Self::Node::new_document(doc_handle.clone(), Location::default(), QuirksMode::NoQuirks);
+            doc_handle.get_mut().arena.register_node(node);
         }
 
-        doc
+        doc_handle
     }
 
     /// Returns the URL of the document, or "" when no location is set
@@ -175,7 +175,7 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     /// Relocates a node to another parent node
     fn relocate_node(&mut self, node_id: NodeId, parent_id: NodeId) {
         let node = self.arena.node_mut(node_id).unwrap();
-        assert!(node.is_registered, "Node is not registered to the arena");
+        assert!(node.registered, "Node is not registered to the arena");
 
         if node.parent.is_some() && node.parent.unwrap() == parent_id {
             // Nothing to do when we want to relocate to its own parent
@@ -235,8 +235,22 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     }
 
     /// Register a node
-    fn register_node(&mut self, _node: Self::Node) -> NodeId {
-        todo!("register_node() not implemented");
+    fn register_node(&mut self, node: Self::Node) -> NodeId {
+        let node_id = self.arena.register_node(node);
+
+        println!("Registering node");
+
+        // Make sure that whenever we register an element node, we store the ID separately
+        let node = self.arena.node(node_id).unwrap();
+        if let Some(data) = node.get_element_data() {
+            println!("Registering element");
+            if let Some(id) = data.attributes.get("id") {
+                println!("Registering named id: {}", id);
+                self.named_id_elements.insert(id.to_string(), node.id());
+            }
+        }
+
+        node_id
     }
 
     /// Inserts a node to the parent node at the given position in the children (or none
@@ -1046,9 +1060,8 @@ mod tests {
         assert!(errors.is_empty());
 
         let binding = doc_handle.get();
-        let NodeDataTypeInternal::Element(element) = &binding.node_by_id(div_id).unwrap().data else {
-            panic!()
-        };
+        let element = binding.node_by_id(div_id).unwrap().get_element_data().unwrap();
+
         assert!(element.classlist().contains("one"));
         assert!(element.classlist().contains("two"));
         assert!(element.classlist().contains("three"));

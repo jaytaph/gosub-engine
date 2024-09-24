@@ -38,7 +38,7 @@ pub trait Document<C: CssSystem>: Sized {
     type Builder: DocumentBuilder<C, Document = Self>;
 
     // Creates a new doc with an optional document root node
-    fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<Self::Node>) -> Self;
+    fn new(document_type: DocumentType, url: Option<Url>, root_node: Option<Self::Node>) -> DocumentHandle<Self, C>;
 
     // /// Creates a new document with an optional document root node
     // fn new_with_handle(document_type: DocumentType, url: Option<Url>, location: &Location, root_node: Option<&Self::Node>) -> DocumentHandle<Self>;

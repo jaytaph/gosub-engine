@@ -18,8 +18,7 @@ impl<C: CssSystem> DocumentBuilder<C> for DocumentBuilderImpl {
 
     /// Creates a new document with a document root node
     fn new_document(url: Option<Url>) -> DocumentHandle<Self::Document, C> {
-        let doc = <Self::Document as Document<C>>::new(DocumentType::HTML, url, None);
-        DocumentHandle::create(doc)
+        <Self::Document as Document<C>>::new(DocumentType::HTML, url, None)
     }
 
     /// Creates a new document fragment with the context as the root node
@@ -36,8 +35,7 @@ impl<C: CssSystem> DocumentBuilder<C> for DocumentBuilderImpl {
             HashMap::new(),
             context_node.location(),
         );
-        let fragment_doc = <Self::Document as Document<C>>::new(DocumentType::HTML, None, Some(fragment_root_node));
-        let mut fragment_handle = DocumentHandle::create(fragment_doc);
+        let mut fragment_handle = <Self::Document as Document<C>>::new(DocumentType::HTML, None, Some(fragment_root_node));
 
         let context_doc_handle = context_node.handle();
         match context_doc_handle.get().quirks_mode() {

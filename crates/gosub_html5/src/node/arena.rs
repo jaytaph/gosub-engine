@@ -64,10 +64,13 @@ impl<N: Node<C>, C: CssSystem> NodeArena<N, C> {
 
     /// Registered an unregistered node into the arena
     pub fn register_node(&mut self, mut node: N) -> NodeId {
+        assert!(!node.is_registered(), "Node is already attached to an arena");
+
         let id = self.next_id;
         self.next_id = id.next();
 
         node.set_id(id);
+        node.set_registered(true);
 
         self.nodes.insert(id, node);
         id
@@ -113,9 +116,9 @@ mod tests {
         let id = doc_handle.get_mut().arena.register_node(node);
 
         let binding = doc_handle.get();
-        assert_eq!(binding.arena.nodes.len(), 1);
-        assert_eq!(binding.arena.next_id, 1usize.into());
-        assert_eq!(id, NodeId::default());
+        assert_eq!(binding.arena.nodes.len(), 2);
+        assert_eq!(binding.arena.next_id, 2usize.into());
+        assert_eq!(id, NodeId::from(1_usize));
     }
 
     #[test]
@@ -130,7 +133,6 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-
         doc_handle.get_mut().arena.register_node(node);
 
         let node = doc_handle.get_mut().node_by_id(NodeId::root()).unwrap().to_owned();

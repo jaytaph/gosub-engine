@@ -159,6 +159,9 @@ pub trait Node<C: CssSystem>: Clone + PartialEq {
     /// Sets the parent of the node, or None when the node is the root
     fn set_parent(&mut self, parent_id: Option<NodeId>);
 
+    fn set_registered(&mut self, registered: bool);
+    fn is_registered(&self) -> bool;
+
     /// Returns true when this node is the root node
     fn is_root(&self) -> bool;
     /// Returns the children of the node

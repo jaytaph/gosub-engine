@@ -40,7 +40,7 @@ pub struct NodeImpl<C: CssSystem> {
     /// Handle to the document in which this node resides
     pub document: DocumentHandle<DocumentImpl<C>, C>,
     // Returns true when the given node is registered into the document arena
-    pub is_registered: bool,
+    pub registered: bool,
     // Location of the node in the source code
     pub location: Location,
 }
@@ -71,6 +71,14 @@ impl<C: CssSystem> Node<C> for NodeImpl<C> {
 
     fn set_parent(&mut self, parent_id: Option<NodeId>) {
         self.parent = parent_id;
+    }
+
+    fn set_registered(&mut self, registered: bool) {
+        self.registered = registered;
+    }
+
+    fn is_registered(&self) -> bool {
+        self.registered
     }
 
     fn is_root(&self) -> bool {
@@ -193,7 +201,7 @@ impl<C: CssSystem> Clone for NodeImpl<C> {
             children: self.children.clone(),
             data: self.data.clone(),
             document: self.document.clone(),
-            is_registered: self.is_registered,
+            registered: self.registered,
             location: self.location,
         }
     }
@@ -207,14 +215,15 @@ impl<C: CssSystem> NodeImpl<C> {
         location: Location,
         data: &NodeDataTypeInternal<C>,
     ) -> Self {
-        let (id, parent, children, is_registered) = <_>::default();
+        let (id, parent, children, registered) = <_>::default();
+
         Self {
             id,
             parent,
             children,
             data: data.clone(),
             document: document.clone(),
-            is_registered,
+            registered,
             location,
         }
     }
@@ -281,10 +290,10 @@ impl<C: CssSystem> NodeImpl<C> {
         )
     }
 
-    /// Returns true if this node is registered into an arena
-    pub fn is_registered(&self) -> bool {
-        self.is_registered
-    }
+    // /// Returns true if this node is registered into an arena
+    // pub fn is_registered(&self) -> bool {
+    //     self.registered
+    // }
 }
 
 #[cfg(test)]
