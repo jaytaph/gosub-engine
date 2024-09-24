@@ -4,6 +4,7 @@ use crate::node::NodeId;
 use crate::traits::document::Document;
 use crate::traits::ParserConfig;
 use std::fmt::Debug;
+use crate::traits::render_tree::RenderTree;
 
 /// Defines the origin of the stylesheet (or declaration)
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -36,6 +37,9 @@ pub trait CssSystem: Clone {
         handle: DocumentHandle<D, Self>,
         id: NodeId,
     ) -> Option<Self::PropertyMap>;
+    
+    
+    fn inheritance<T: RenderTree<Self>>(tree: &mut T);
 }
 
 pub trait CssStylesheet: PartialEq {
@@ -49,6 +53,8 @@ pub trait CssStylesheet: PartialEq {
 pub trait CssPropertyMap: Default + Debug {
     type Property: CssProperty;
 
+    fn insert_inherited(&mut self, name: &str, value: Self::Property);
+    
     fn get(&self, name: &str) -> Option<&Self::Property>;
 
     fn get_mut(&mut self, name: &str) -> Option<&mut Self::Property>;

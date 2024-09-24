@@ -1,20 +1,20 @@
-use crate::matcher::styling::{match_selector, CssProperties, CssProperty, DeclarationProperty};
-use crate::Css3;
-use gosub_shared::document::DocumentHandle;
-use gosub_shared::errors::CssResult;
-use gosub_shared::node::NodeId;
-use gosub_shared::traits::css3::{CssOrigin, CssSystem};
-use gosub_shared::traits::document::Document;
-use gosub_shared::traits::node::{ElementDataType, Node, TextDataType};
-use gosub_shared::traits::ParserConfig;
-use log::warn;
-
 use crate::functions::attr::resolve_attr;
 use crate::functions::calc::resolve_calc;
 use crate::functions::var::resolve_var;
 use crate::matcher::property_definitions::get_css_definitions;
 use crate::matcher::shorthands::FixList;
+use crate::matcher::styling::{match_selector, CssProperties, CssProperty, DeclarationProperty};
 use crate::stylesheet::{CssDeclaration, CssValue, Specificity};
+use crate::Css3;
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::errors::CssResult;
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::css3::{CssOrigin, CssPropertyMap, CssSystem};
+use gosub_shared::traits::document::Document;
+use gosub_shared::traits::node::{ElementDataType, Node, TextDataType};
+use gosub_shared::traits::render_tree::{RenderTree, RenderTreeNode};
+use gosub_shared::traits::ParserConfig;
+use log::warn;
 
 #[derive(Debug, Clone)]
 pub struct Css3System;
@@ -93,58 +93,65 @@ impl CssSystem for Css3System {
 
         Some(css_map_entry)
     }
+
+    fn inheritance<T: RenderTree<Self>>(tree: &mut T) {
+        Self::resolve_inheritance(tree, tree.root(), &Vec::new());
+    }
 }
 
-/* TODO
-fn resolve_inheritance(&mut self, node_id: NodeId, inherit_props: &Vec<(String, CssValue)>) {
-    let Some(current_node) = self.get_node(node_id) else {
-        return;
-    };
 
-    for prop in inherit_props {
-        current_node
-            .properties
-            .entry(prop.0.clone())
-            .or_insert_with(|| {
-                let mut p = CssProperty::new(prop.0.as_str());
+impl Css3System {
+    fn resolve_inheritance<T: RenderTree<Self>>(tree: &mut T, node_id: T::NodeId, inherit_props: &Vec<(String, CssValue)>) {
+        let Some(current_node) = tree.get_node_mut(node_id) else {
+            return;
+        };
 
-                p.inherited = prop.1.clone();
+        for prop in inherit_props {
+            let mut p = CssProperty::new(prop.0.as_str());
 
-                p
-            });
-    }
+            p.inherited = prop.1.clone();
 
-    let mut inherit_props = inherit_props.clone();
+            current_node.props_mut().insert_inherited(prop.0.as_str(), p);
+        }
 
-    'props: for (name, prop) in &mut current_node.properties.iter_mut() {
-        prop.compute_value();
+        let mut inherit_props = inherit_props.clone();
 
-        let value = prop.actual.clone();
+        'props: for (name, prop) in &mut current_node.props_mut().iter_mut() {
+            prop.compute_value();
 
-        if prop_is_inherit(name) {
-            for (k, v) in &mut inherit_props {
-                if k == name {
-                    *v = value;
-                    continue 'props;
+            let value = prop.actual.clone();
+
+            if prop_is_inherit(name) {
+                for (k, v) in &mut inherit_props {
+                    if k == name {
+                        *v = value;
+                        continue 'props;
+                    }
                 }
-            }
 
-            inherit_props.push((name.clone(), value));
+                inherit_props.push((name.to_owned(), value));
+            }
+        }
+
+        let Some(children) = tree.get_children(node_id) else {
+            return;
+        };
+
+        for child in children {
+            Self::resolve_inheritance(tree, child, &inherit_props);
         }
     }
-
-    let Some(children) = self.get_children(node_id) else {
-        return;
-    };
-
-    for child in children.clone() {
-        self.resolve_inheritance(child, &inherit_props);
-    }
 }
 
 
+pub fn prop_is_inherit(name: &str) -> bool {
+    get_css_definitions()
+        .find_property(name)
+        .map(|def| def.inherited)
+        .unwrap_or(false)
+}
 
- */
+
 pub fn add_property_to_map(
     css_map_entry: &mut CssProperties,
     sheet: &crate::stylesheet::CssStylesheet,

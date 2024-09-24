@@ -5,6 +5,9 @@ pub mod document;
 pub mod html5;
 pub mod node;
 
+pub mod render_tree;
+
+
 /// Context defines how the data needs to be parsed
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Context {

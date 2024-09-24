@@ -284,7 +284,7 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
 
         self.remove_unrenderable_nodes();
 
-        // self.resolve_inheritance(self.root, &Vec::new());  TODO: Implement inheritance
+        C::inheritance(self); 
 
         if L::COLLAPSE_INLINE {
             self.collapse_inline(self.root);
@@ -415,6 +415,40 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> RenderTree<L, D, C> {
         }
     }
 }
+
+
+
+impl<L: Layouter, D: Document<C>, C: CssSystem> gosub_shared::traits::render_tree::RenderTree<C> for RenderTree<L, D, C> {
+    type NodeId = NodeId;
+    type Node = RenderTreeNode<L, C>;
+
+    fn root(&self) -> Self::NodeId {
+        self.root
+    }
+
+    fn get_node(&self, id: Self::NodeId) -> Option<&Self::Node> {
+        self.get_node(id)
+    }
+
+    fn get_node_mut(&self, id: Self::NodeId) -> Option<&mut Self::Node> {
+        self.get_node_mut(id)
+    }
+
+    fn get_children(&self, id: Self::NodeId) -> Option<Vec<Self::NodeId>> {
+        self.get_children(id).map(|x| x.clone())
+    }
+}
+
+impl<L: Layouter, C: CssSystem> gosub_shared::traits::render_tree::RenderTreeNode<C> for RenderTreeNode<L, C> {
+    fn props(&self) -> &C::PropertyMap {
+        &self.properties
+    }
+
+    fn props_mut(&mut self) -> &mut C::PropertyMap {
+        &mut self.properties
+    }
+}
+
 
 // Generates a declaration property and adds it to the css_map_entry
 

@@ -620,6 +620,11 @@ impl CssProperties {
 impl CssPropertyMap for CssProperties {
     type Property = CssProperty;
 
+
+    fn insert_inherited(&mut self, name: &str, value: Self::Property) {
+        self.properties.entry(name.to_string()).or_insert(value);
+    }
+
     fn get(&self, name: &str) -> Option<&Self::Property> {
         self.properties.get(name)
     }
@@ -628,16 +633,16 @@ impl CssPropertyMap for CssProperties {
         self.properties.get_mut(name)
     }
 
+    fn make_dirty(&mut self) {
+        self.dirty = true;
+    }
+
     fn iter(&self) -> impl Iterator<Item = (&str, &Self::Property)> + '_ {
         self.properties.iter().map(|(k, v)| (k.as_str(), v))
     }
 
     fn iter_mut(&mut self) -> impl Iterator<Item = (&str, &mut Self::Property)> + '_ {
         self.properties.iter_mut().map(|(k, v)| (k.as_str(), v))
-    }
-
-    fn make_dirty(&mut self) {
-        self.dirty = true;
     }
 
     fn make_clean(&mut self) {
@@ -649,17 +654,13 @@ impl CssPropertyMap for CssProperties {
     }
 }
 
-pub fn prop_is_inherit(name: &str) -> bool {
-    get_css_definitions()
-        .find_property(name)
-        .map(|def| def.inherited)
-        .unwrap_or(false)
-}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::colors::RgbColor;
+    use crate::system::prop_is_inherit;
 
     #[test]
     fn css_props() {
