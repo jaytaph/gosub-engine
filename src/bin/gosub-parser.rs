@@ -1,6 +1,6 @@
 use anyhow::bail;
 use gosub_css3::system::Css3System;
-use gosub_html5::doc::builder::DocumentBuilder;
+use gosub_html5::doc::builder::DocumentBuilderImpl;
 use gosub_html5::doc::document::DocumentImpl;
 use gosub_html5::parser::Html5Parser;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
@@ -12,6 +12,7 @@ use std::fs;
 use std::process::exit;
 use std::str::FromStr;
 use url::Url;
+use gosub_shared::traits::document::DocumentBuilder;
 
 fn bail(message: &str) -> ! {
     println!("{message}");
@@ -60,8 +61,7 @@ fn main() -> Result<()> {
     // SimpleLogger::new().init().unwrap();
 
     // Create a new document that will be filled in by the parser
-    let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-        <DocumentBuilder as gosub_shared::traits::document::DocumentBuilder<Css3System>>::new_document(Some(url));
+    let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> = DocumentBuilderImpl::new_document(Some(url));
     let parse_errors =
         Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None)?;
 

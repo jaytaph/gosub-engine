@@ -1,5 +1,5 @@
 use gosub_css3::system::Css3System;
-use gosub_html5::doc::builder::DocumentBuilder as DocumentBuilderImpl;
+use gosub_html5::doc::builder::DocumentBuilderImpl;
 use gosub_html5::doc::document::DocumentImpl;
 use gosub_html5::parser::Html5Parser;
 use gosub_shared::byte_stream::{ByteStream, Encoding};

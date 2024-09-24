@@ -3,6 +3,7 @@ use gosub_html5::parser::Html5Parser;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
 use gosub_shared::types::Result;
 use std::process::exit;
+use gosub_html5::doc::builder::DocumentBuilderImpl;
 
 use gosub_html5::doc::document::DocumentImpl;
 use gosub_shared::document::DocumentHandle;
@@ -33,7 +34,7 @@ fn main() -> Result<()> {
     stream.close();
 
     let doc_handle: DocumentHandle<DocumentImpl<Css3System>, Css3System> =
-        <gosub_html5::doc::builder::DocumentBuilder as DocumentBuilder<Css3System>>::new_document(None);
+        DocumentBuilderImpl::new_document(None);
     let parse_errors =
         Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None)?;
 
