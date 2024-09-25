@@ -455,9 +455,14 @@ where
             if !self.reprocess_token {
                 self.current_token = self.fetch_next_token();
 
-                // If we reprocess a given token, the dispatcher mode should stay the same and
-                // should not be re-evaluated
-                dispatcher_mode = self.select_dispatch_mode();
+               let node = self.get_adjusted_current_node();
+                
+                if node.is_element_node() {
+                    // If we reprocess a given token, the dispatcher mode should stay the same and
+                    // should not be re-evaluated
+                    dispatcher_mode = self.select_dispatch_mode();
+                }
+                
             }
 
             self.reprocess_token = false;
@@ -3051,8 +3056,7 @@ where
             Token::StartTag { name, .. } if name == "script" => {
                 let insert_position = self.appropriate_place_insert(None);
                 let node = self.create_node(&self.current_token.clone(), HTML_NAMESPACE);
-                let node_id = self.document.get_mut().register_node(node);
-                self.insert_element_helper(node_id, insert_position);
+                let node_id = self.insert_element_helper(node, insert_position);
 
                 // TODO Set the element's parser document to the Document, and set the element's force async to false.
 

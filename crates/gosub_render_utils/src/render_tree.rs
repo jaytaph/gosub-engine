@@ -430,7 +430,7 @@ impl<L: Layouter, D: Document<C>, C: CssSystem> gosub_shared::traits::render_tre
         self.get_node(id)
     }
 
-    fn get_node_mut(&self, id: Self::NodeId) -> Option<&mut Self::Node> {
+    fn get_node_mut(&mut self, id: Self::NodeId) -> Option<&mut Self::Node> {
         self.get_node_mut(id)
     }
 

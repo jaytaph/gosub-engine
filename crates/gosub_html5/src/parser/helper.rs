@@ -7,6 +7,7 @@ use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::document::Document;
 use gosub_shared::traits::document::DocumentFragment;
 use gosub_shared::traits::node::{ElementDataType, Node, TextDataType};
+use crate::node::nodeimpl::NodeImpl;
 
 const ADOPTION_AGENCY_OUTER_LOOP_DEPTH: usize = 8;
 const ADOPTION_AGENCY_INNER_LOOP_DEPTH: usize = 3;
@@ -81,19 +82,22 @@ where
             })
     }
 
-    pub fn insert_element_helper(&mut self, node_id: NodeId, position: InsertionPositionMode<D, C, NodeId>) {
+    pub fn insert_element_helper(&mut self, node: D::Node, position: InsertionPositionMode<D, C, NodeId>) -> NodeId {
         match position {
             InsertionPositionMode::Sibling { handle, parent, before } => {
-                let node = get_node_by_id!(handle, node_id);
                 let parent_node = get_node_by_id!(handle, parent);
                 let position = parent_node.children().iter().position(|&x| x == before);
                 let mut_handle = &mut handle.clone();
-                mut_handle.get_mut().register_node_at(node, parent, position);
+                let id = mut_handle.get_mut().register_node_at(node, parent, position).clone();
+                
+                
+                id
             }
             InsertionPositionMode::LastChild { handle, parent } => {
-                let node = get_node_by_id!(handle, node_id);
                 let mut_handle = &mut handle.clone();
-                mut_handle.get_mut().register_node_at(node, parent, None);
+                let id = mut_handle.get_mut().register_node_at(node, parent, None);
+                
+                id
             }
         }
     }
@@ -165,16 +169,20 @@ where
         override_node: Option<NodeId>,
         namespace: Option<&str>,
     ) -> NodeId {
-        let node = self.create_node(token, namespace.unwrap_or(HTML_NAMESPACE));
+        let mut node = self.create_node(token, namespace.unwrap_or(HTML_NAMESPACE));
         // add CSS classes from class attribute in element
         // e.g., <div class="one two three">
         // TODO: this will be refactored later in ElementAttributes to do this
         // when inserting a "class" attribute. Similar to "id" to attach it to the DOM
         // named_id_list. Although this will require some shared pointers
 
+        
+        
+        
+        
         if node.is_element_node() {
-            let mut_handle = &mut self.document.clone();
-            let mut node = get_node_by_id!(mut_handle, node.id());
+            // let mut_handle = &mut self.document.clone();
+            // let mut node = get_node_by_id!(mut_handle, node.id());
 
             let data = get_element_data_mut!(&mut node);
             if let Some(class_string) = data.attributes().get("class") {
@@ -205,10 +213,9 @@ where
     }
 
     pub fn insert_element(&mut self, node: D::Node, override_node: Option<NodeId>) -> NodeId {
-        let node_id = self.document.get_mut().register_node(node);
 
         let insert_position = self.appropriate_place_insert(override_node);
-        self.insert_element_helper(node_id, insert_position);
+        let node_id = self.insert_element_helper(node, insert_position);
 
         //     if parser not created as part of html fragment parsing algorithm
         //       pop the top element queue from the relevant agent custom element reactions stack (???)
@@ -236,9 +243,9 @@ where
             return;
         }
 
-        let node_id = self.document.get_mut().register_node(node);
+        // let node_id = self.document.get_mut().register_node(node);
         let insert_position = self.appropriate_place_insert(None);
-        self.insert_element_helper(node_id, insert_position);
+        self.insert_element_helper(node, insert_position);
     }
 
     pub fn insert_text_element(&mut self, token: &Token) {
@@ -459,7 +466,12 @@ where
             // step 4.14
             self.document.get_mut().detach_node(last_node_id);
             let insert_position = self.appropriate_place_insert(Some(common_ancestor));
-            self.insert_element_helper(last_node_id, insert_position);
+            
+            
+            let node = get_node_by_id!(self.document, last_node_id);
+            
+            
+            self.insert_element_helper(todo!(), insert_position);
 
             // step 4.15
             let new_format_node = D::new_element_node(

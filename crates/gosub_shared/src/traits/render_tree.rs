@@ -9,7 +9,7 @@ pub trait RenderTree<C: CssSystem> {
 
     fn get_node(&self, id: Self::NodeId) -> Option<&Self::Node>;
 
-    fn get_node_mut(&self, id: Self::NodeId) -> Option<&mut Self::Node>;
+    fn get_node_mut(&mut self, id: Self::NodeId) -> Option<&mut Self::Node>;
     
     fn get_children(&self, id: Self::NodeId) -> Option<Vec<Self::NodeId>>;
 }

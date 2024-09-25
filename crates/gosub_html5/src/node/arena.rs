@@ -64,7 +64,11 @@ impl<N: Node<C>, C: CssSystem> NodeArena<N, C> {
 
     /// Registered an unregistered node into the arena
     pub fn register_node(&mut self, mut node: N) -> NodeId {
-        assert!(!node.is_registered(), "Node is already attached to an arena");
+        
+        
+        dbg!(node.is_registered());
+        
+        assert_eq!(!node.is_registered(), true, "Node is already attached to an arena");
 
         let id = self.next_id;
         self.next_id = id.next();
