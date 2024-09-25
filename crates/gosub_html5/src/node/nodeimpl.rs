@@ -252,14 +252,14 @@ impl<C: CssSystem> NodeImpl<C> {
     /// Create a new element node with the given name and attributes and namespace
     #[must_use]
     pub fn new_element(
-        document: DocumentHandle<DocumentImpl<C>, C>,
+        doc_handle: DocumentHandle<DocumentImpl<C>, C>,
         location: Location,
         name: &str,
         namespace: Option<&str>,
         attributes: HashMap<String, String>,
     ) -> Self {
         Self::new(
-            document,
+            doc_handle.clone(),
             location,
             &NodeDataTypeInternal::Element(ElementData::new(
                 name,
@@ -272,9 +272,9 @@ impl<C: CssSystem> NodeImpl<C> {
 
     /// Creates a new comment node
     #[must_use]
-    pub fn new_comment(document: DocumentHandle<DocumentImpl<C>, C>, location: Location, value: &str) -> Self {
+    pub fn new_comment(doc_handle: DocumentHandle<DocumentImpl<C>, C>, location: Location, value: &str) -> Self {
         Self::new(
-            document.clone(),
+            doc_handle.clone(),
             location,
             &NodeDataTypeInternal::Comment(CommentData::with_value(value)),
         )
@@ -282,18 +282,13 @@ impl<C: CssSystem> NodeImpl<C> {
 
     /// Creates a new text node
     #[must_use]
-    pub fn new_text(document: DocumentHandle<DocumentImpl<C>, C>, location: Location, value: &str) -> Self {
+    pub fn new_text(doc_handle: DocumentHandle<DocumentImpl<C>, C>, location: Location, value: &str) -> Self {
         Self::new(
-            document.clone(),
+            doc_handle.clone(),
             location,
             &NodeDataTypeInternal::Text(TextData::with_value(value)),
         )
     }
-
-    // /// Returns true if this node is registered into an arena
-    // pub fn is_registered(&self) -> bool {
-    //     self.registered
-    // }
 }
 
 #[cfg(test)]

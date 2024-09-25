@@ -116,6 +116,8 @@ pub trait ElementDataType<C: CssSystem> {
     fn attributes(&self) -> &HashMap<String, String>;
     /// Add attribute
     fn add_attribute(&mut self, name: &str, value: &str);
+    /// Remove an attribute
+    fn remove_attribute(&mut self, name: &str);
     /// Add a class to the element
     fn add_class(&mut self, class: &str);
 

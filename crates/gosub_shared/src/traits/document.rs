@@ -58,6 +58,8 @@ pub trait Document<C: CssSystem>: Sized {
     fn node_by_id(&self, node_id: NodeId) -> Option<&Self::Node>;
     fn node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node>;
     fn add_named_id(&mut self, id: &str, node_id: NodeId);
+    /// Remove a named ID from the document
+    fn remove_named_id(&mut self, id: &str);
 
     fn stylesheets(&self) -> &Vec<C::Stylesheet>;
     fn add_stylesheet(&mut self, stylesheet: C::Stylesheet);

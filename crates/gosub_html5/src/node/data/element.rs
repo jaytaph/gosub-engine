@@ -150,8 +150,6 @@ impl From<&str> for ClassListImpl {
 /// Data structure for element nodes
 #[derive(PartialEq, Clone)]
 pub struct ElementData<C: CssSystem> {
-    // /// Numerical ID of the node this data is attached to
-    // pub node_id: NodeId,
     /// Name of the element (e.g., div)
     pub name: String,
     /// Namespace of the element
@@ -162,7 +160,7 @@ pub struct ElementData<C: CssSystem> {
     /// to keep attributes in sync with the DOM.
     pub attributes: HashMap<String, String>,
     /// CSS list of classes
-    pub classlist: ClassListImpl,
+    pub class_list: ClassListImpl,
     // Only used for <script> elements
     pub force_async: bool,
     // Template contents (when it's a template element)
@@ -174,7 +172,7 @@ impl<C: CssSystem> Debug for ElementData<C> {
         let mut debug = f.debug_struct("ElementData");
         debug.field("name", &self.name);
         debug.field("attributes", &self.attributes);
-        debug.field("classes", &self.classlist);
+        debug.field("classes", &self.class_list);
         debug.finish()
     }
 }
@@ -199,11 +197,15 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
     }
 
     fn classlist(&self) -> &impl ClassList {
-        &self.classlist
+        &self.class_list
+    }
+
+    fn classlist_mut(&mut self) -> &mut impl ClassList {
+        &mut self.class_list
     }
 
     fn active_class_names(&self) -> Vec<String> {
-        self.classlist
+        self.class_list
             .iter()
             .filter(|(_, active)| *active)
             .map(|(name, _)| name.clone())
@@ -216,6 +218,39 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
 
     fn attributes(&self) -> &HashMap<String, String> {
         &self.attributes
+    }
+
+    /// Note that adding attributes should not be done directly, but rather through the document.insert_attribute
+    /// function. This way, the document can keep track of ID attributes.
+    fn add_attribute(&mut self, name: &str, value: &str) {
+        self.attributes.insert(name.into(), value.into());
+
+        // Classes are treated as a special attributes as they are stored separately
+        if name == "class" {
+            self.class_list = ClassListImpl::new();
+            for class in value.split_whitespace() {
+                self.class_list.add(class);
+            }
+        }
+    }
+
+    // removes attribute from element
+    fn remove_attribute(&mut self, name: &str) {
+        if name == "class" {
+            if let Some(value) = self.attributes.get(name) {
+                self.class_list.remove(value);
+            }
+        }
+
+        self.attributes.remove(name);
+    }
+
+    // fn set_attributes(&mut self, attributes: &HashMap<String, String>) {
+    //     self.attributes = attributes.to_owned();
+    // }
+
+    fn add_class(&mut self, class_name: &str) {
+        self.class_list.add(class_name);
     }
 
     /// This will only compare against the tag, namespace and data same except element data.
@@ -244,10 +279,6 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
 
         namespace == MATHML_NAMESPACE && ["mi", "mo", "mn", "ms", "mtext"].contains(&self.name.as_str())
     }
-
-    // fn set_attributes(&mut self, attributes: &HashMap<String, String>) {
-    //     self.attributes = attributes.to_owned();
-    // }
 
     /// Returns true if the given node is a html integration point
     /// See: https://html.spec.whatwg.org/multipage/parsing.html#html-integration-point
@@ -288,22 +319,6 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
         false
     }
 
-    fn add_attribute(&mut self, name: &str, value: &str) {
-        self.attributes.insert(name.into(), value.into());
-
-        // Classes are treated as a special attribute
-        if name == "class" {
-            self.classlist = ClassListImpl::new();
-            for class in value.split_whitespace() {
-                self.classlist.add(class);
-            }
-        }
-    }
-
-    fn add_class(&mut self, class_name: &str) {
-        self.classlist.add(class_name);
-    }
-
     fn template_contents(&self) -> Option<&Self::DocumentFragment> {
         match &self.template_contents {
             Some(fragment) => Some(fragment),
@@ -319,10 +334,6 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
     fn set_template_contents(&mut self, template_contents: Self::DocumentFragment) {
         self.template_contents = Some(template_contents);
     }
-
-    fn classlist_mut(&mut self) -> &mut impl ClassList {
-        &mut self.classlist
-    }
 }
 
 impl<C: CssSystem> ElementData<C> {
@@ -337,7 +348,7 @@ impl<C: CssSystem> ElementData<C> {
             name: name.into(),
             namespace: Some(namespace.unwrap_or(HTML_NAMESPACE).into()),
             attributes,
-            classlist,
+            class_list: classlist,
             force_async,
             template_contents,
         }

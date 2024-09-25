@@ -120,8 +120,14 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.arena.node_mut(node_id)
     }
 
+    /// Add given node to the named ID elements
     fn add_named_id(&mut self, id: &str, node_id: NodeId) {
         self.named_id_elements.insert(id.to_string(), node_id);
+    }
+
+    /// Remove a named ID from the document
+    fn remove_named_id(&mut self, id: &str) {
+        self.named_id_elements.remove(id);
     }
 
     fn stylesheets(&self) -> &Vec<C::Stylesheet> {
@@ -239,7 +245,7 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.arena.peek_next_id()
     }
 
-    /// Register a node
+    /// Register a node (to where?)
     fn register_node(&mut self, node: Self::Node) -> NodeId {
         let node_id = self.arena.register_node(node);
 
@@ -924,6 +930,7 @@ mod tests {
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
         }
+        binding.add_named_id("myid", p_id);
         drop(binding);
 
         // DOM should now have all our nodes
