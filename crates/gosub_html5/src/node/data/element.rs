@@ -10,6 +10,9 @@ use std::collections::hash_map::IntoIter;
 use gosub_shared::traits::css3::CssSystem;
 use gosub_shared::traits::node::{ClassList, ElementDataType};
 use std::fmt;
+use gosub_shared::document::DocumentHandle;
+use gosub_shared::node::NodeId;
+use gosub_shared::traits::document::Document;
 
 #[derive(Debug)]
 pub struct ClassListImpl {
@@ -150,6 +153,8 @@ impl From<&str> for ClassListImpl {
 /// Data structure for element nodes
 #[derive(PartialEq, Clone)]
 pub struct ElementData<C: CssSystem> {
+    pub doc_handle: DocumentHandle<DocumentImpl<C>, C>,
+    pub node_id: Option<NodeId>,
     /// Name of the element (e.g., div)
     pub name: String,
     /// Namespace of the element
@@ -232,6 +237,11 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
                 self.class_list.add(class);
             }
         }
+
+        // Update ID in the document when this node is actually registered (ie. has a node_id)
+        if name == "id" && self.node_id.is_some() {
+            self.doc_handle.get_mut().add_named_id(value, self.node_id.unwrap());
+        }
     }
 
     // removes attribute from element
@@ -242,12 +252,14 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
             }
         }
 
+        if name == "id" && self.node_id.is_some() {
+            if let Some(value) = self.attributes.get(name) {
+                self.doc_handle.get_mut().remove_named_id(value);
+            }
+        }
+
         self.attributes.remove(name);
     }
-
-    // fn set_attributes(&mut self, attributes: &HashMap<String, String>) {
-    //     self.attributes = attributes.to_owned();
-    // }
 
     fn add_class(&mut self, class_name: &str) {
         self.class_list.add(class_name);
@@ -338,6 +350,7 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
 
 impl<C: CssSystem> ElementData<C> {
     pub(crate) fn new(
+        doc_handle: DocumentHandle<DocumentImpl<C>, C>,
         name: &str,
         namespace: Option<&str>,
         attributes: HashMap<String, String>,
@@ -345,6 +358,8 @@ impl<C: CssSystem> ElementData<C> {
     ) -> Self {
         let (force_async, template_contents) = <_>::default();
         Self {
+            doc_handle: doc_handle.clone(),
+            node_id: None,      // We are not yet registered in the document, so we have no node-id
             name: name.into(),
             namespace: Some(namespace.unwrap_or(HTML_NAMESPACE).into()),
             attributes,

@@ -4271,7 +4271,7 @@ mod test {
             let node = NodeImpl::new(
                 $self.document.clone(),
                 Location::default(),
-                &NodeDataTypeInternal::Element(ElementData::new($name, Some(HTML_NAMESPACE), HashMap::new(), Default::default())),
+                &NodeDataTypeInternal::Element(ElementData::new($self.document.clone(), $name, Some(HTML_NAMESPACE), HashMap::new(), Default::default())),
             );
             let node_id = $self.document.clone().get_mut().register_node_at(node, NodeId::root(), None);
             $self.open_elements.push(node_id);

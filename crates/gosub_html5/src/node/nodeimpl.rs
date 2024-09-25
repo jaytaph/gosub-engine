@@ -262,6 +262,7 @@ impl<C: CssSystem> NodeImpl<C> {
             doc_handle.clone(),
             location,
             &NodeDataTypeInternal::Element(ElementData::new(
+                doc_handle.clone(),
                 name,
                 namespace,
                 attributes,

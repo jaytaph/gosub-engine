@@ -245,14 +245,22 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.arena.peek_next_id()
     }
 
-    /// Register a node (to where?)
+    /// Register a node. It is not connected to anything yet, but it does receive a nodeId
     fn register_node(&mut self, node: Self::Node) -> NodeId {
         let node_id = self.arena.register_node(node);
 
-        // Make sure that whenever we register an element node, we store the ID separately
+        // Add node ID to the element data if it's an element node
+        let mut_node = self.arena.node_mut(node_id).unwrap();
+        if mut_node.is_element_node() {
+            let element_data = mut_node.get_element_data_mut().unwrap();
+            element_data.node_id = Some(node_id);
+        }
+
+        // Add ID to the document if it has an ID attribute
         let node = self.arena.node(node_id).unwrap();
-        if let Some(data) = node.get_element_data() {
-            if let Some(id_value) = data.attributes.get("id") {
+        if node.is_element_node() {
+            let element_data = node.get_element_data().unwrap();
+            if let Some(id_value) = element_data.attributes.get("id") {
                 self.add_named_id(&id_value.clone(), node.id());
             }
         }
@@ -266,9 +274,18 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         let node_id = self.register_node(node);
         self.attach_node(node_id, parent_id, position);
 
+        // Add node ID to the element data if it's an element node
+        let mut_node = self.arena.node_mut(node_id).unwrap();
+        if mut_node.is_element_node() {
+            let element_data = mut_node.get_element_data_mut().unwrap();
+            element_data.node_id = Some(node_id);
+        }
+
+        // Add ID to the document if it has an ID attribute
         let node = self.arena.node(node_id).unwrap();
-        if let Some(data) = node.get_element_data() {
-            if let Some(id_value) = data.attributes.get("id") {
+        if node.is_element_node() {
+            let element_data = node.get_element_data().unwrap();
+            if let Some(id_value) = element_data.attributes.get("id") {
                 self.add_named_id(&id_value.clone(), node.id());
             }
         }
@@ -328,7 +345,7 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         NodeImpl::new(
             handle.clone(),
             location,
-            &NodeDataTypeInternal::Element(ElementData::new(name, namespace, attributes, ClassListImpl::default())),
+            &NodeDataTypeInternal::Element(ElementData::new(handle.clone(), name, namespace, attributes, ClassListImpl::default())),
         )
     }
 
@@ -930,7 +947,7 @@ mod tests {
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
         }
-        binding.add_named_id("myid", p_id);
+        // binding.add_named_id("myid", p_id);
         drop(binding);
 
         // DOM should now have all our nodes
