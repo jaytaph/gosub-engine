@@ -455,14 +455,10 @@ where
             if !self.reprocess_token {
                 self.current_token = self.fetch_next_token();
 
-               let node = self.get_adjusted_current_node();
-                
-                if node.is_element_node() {
-                    // If we reprocess a given token, the dispatcher mode should stay the same and
-                    // should not be re-evaluated
-                    dispatcher_mode = self.select_dispatch_mode();
-                }
-                
+
+                // If we reprocess a given token, the dispatcher mode should stay the same and
+                // should not be re-evaluated
+                dispatcher_mode = self.select_dispatch_mode();
             }
 
             self.reprocess_token = false;
@@ -2210,15 +2206,16 @@ where
 
                 // Add attributes to html element
                 let first_node_id = *self.open_elements.first().unwrap();
-                let mut doc = self.document.get_mut();
-                let first_node = doc.node_by_id_mut(first_node_id).expect("node not found");
+                let mut first_node = get_node_by_id!(self.document, first_node_id);
+                // let mut first_node = doc.node_by_id(first_node_id).expect("node not found");
 
                 if first_node.is_element_node() {
                     let element_data = get_element_data_mut!(first_node);
-
                     for (key, value) in attributes {
                         element_data.add_attribute(key, value);
                     }
+                    let mut doc = self.document.get_mut();
+                    doc.update_node(first_node);
                 }
             }
             Token::StartTag { name, .. }
@@ -2259,14 +2256,16 @@ where
                     node_element_data.name() == "body" && node_element_data.is_namespace(HTML_NAMESPACE)
                 });
 
-                if let Some(body_node_id) = body_node_id {
-                    let mut doc = self.document.get_mut();
-                    let body_node = doc.node_by_id_mut(*body_node_id).expect("node not found");
+                if let Some(&body_node_id) = body_node_id {
+                    let mut body_node = get_node_by_id!(self.document, body_node_id);
 
                     let element_data = get_element_data_mut!(body_node);
                     for (key, value) in attributes {
                         element_data.add_attribute(key, value);
                     }
+
+                    let mut doc = self.document.get_mut();
+                    doc.update_node(body_node);
                 }
             }
             Token::StartTag { name, .. } if name == "frameset" => {
@@ -3056,7 +3055,8 @@ where
             Token::StartTag { name, .. } if name == "script" => {
                 let insert_position = self.appropriate_place_insert(None);
                 let node = self.create_node(&self.current_token.clone(), HTML_NAMESPACE);
-                let node_id = self.insert_element_helper(node, insert_position);
+                let node_id = self.document.get_mut().register_node(node);
+                self.insert_element_helper(node_id, insert_position);
 
                 // TODO Set the element's parser document to the Document, and set the element's force async to false.
 
@@ -3105,10 +3105,12 @@ where
                     let clone_document = self.document.clone();
 
                     let mut binding = self.document.get_mut();
-                    let node = binding.node_by_id_mut(node_id).expect("node not found");
+                    let mut node = binding.cloned_node_by_id(node_id).expect("node not found");
                     if node.is_element_node() {
                         let element_data = get_element_data_mut!(node);
                         element_data.set_template_contents(D::Fragment::new(clone_document, current_node_id));
+
+                        binding.update_node(node);
                     }
                 }
             }

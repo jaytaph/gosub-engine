@@ -112,23 +112,22 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
 
     /// Fetches a node by id or returns None when no node with this ID is found
     fn node_by_id(&self, node_id: NodeId) -> Option<&Self::Node> {
+        self.arena.node_ref(node_id)
+    }
+
+    fn cloned_node_by_id(&self, node_id: NodeId) -> Option<Self::Node> {
         self.arena.node(node_id)
     }
 
-    /// Fetches a mutable node by id or returns None when no node with this ID is found
-    fn node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node> {
-        self.arena.node_mut(node_id)
-    }
-
-    /// Add given node to the named ID elements
-    fn add_named_id(&mut self, id: &str, node_id: NodeId) {
-        self.named_id_elements.insert(id.to_string(), node_id);
-    }
-
-    /// Remove a named ID from the document
-    fn remove_named_id(&mut self, id: &str) {
-        self.named_id_elements.remove(id);
-    }
+    // /// Add given node to the named ID elements
+    // fn add_named_id(&mut self, id: &str, node_id: NodeId) {
+    //     self.named_id_elements.insert(id.to_string(), node_id);
+    // }
+    //
+    // /// Remove a named ID from the document
+    // fn remove_named_id(&mut self, id: &str) {
+    //     self.named_id_elements.remove(id);
+    // }
 
     fn stylesheets(&self) -> &Vec<C::Stylesheet> {
         &self.stylesheets
@@ -140,52 +139,63 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
 
     /// returns the root node
     fn get_root(&self) -> &Self::Node {
-        self.arena.node(NodeId::root()).expect("Root node not found !?")
+        self.arena.node_ref(NodeId::root()).expect("Root node not found !?")
     }
 
-    /// returns the root node
-    fn get_root_mut(&mut self) -> &mut Self::Node {
-        self.arena.node_mut(NodeId::root()).expect("Root node not found !?")
-    }
+    // /// returns the root node
+    // fn get_root_mut(&mut self) -> &mut Self::Node {
+    //     self.arena.node_mut(NodeId::root()).expect("Root node not found !?")
+    // }
 
     fn attach_node(&mut self, node_id: NodeId, parent_id: NodeId, position: Option<usize>) {
-        //check if any children of node have parent as child
+        // Check if any children of node have parent as child. This will keep adding the node to itself
         if parent_id == node_id || self.has_node_id_recursive(node_id, parent_id) {
             return;
         }
 
-        if let Some(parent_node) = self.node_by_id_mut(parent_id) {
+        if let Some(parent_node) = self.node_by_id(parent_id) {
+            let mut parent_node = parent_node.clone();
+
             // Make sure position can never be larger than the number of children in the parent
-            if let Some(mut position) = position {
-                if position > parent_node.children().len() {
-                    position = parent_node.children().len();
+            match position {
+                Some(position) => {
+                    if position > parent_node.children().len() {
+                        parent_node.push(node_id);
+                    } else {
+                        parent_node.insert(node_id, position);
+                    }
+                },
+                None => {
+                    // No position given, add to end of the children list
+                    parent_node.push(node_id);
                 }
-                parent_node.insert(node_id, position);
-            } else {
-                // No position given, add to end of the children list
-                parent_node.push(node_id);
             }
+
+            self.update_node(parent_node);
         }
 
-        let node = self.arena.node_mut(node_id).unwrap();
+        let mut node = self.arena.node(node_id).unwrap();
         node.parent = Some(parent_id);
+        self.update_node(node);
     }
 
     fn detach_node(&mut self, node_id: NodeId) {
         let parent = self.node_by_id(node_id).expect("node not found").parent_id();
 
         if let Some(parent_id) = parent {
-            let parent_node = self.node_by_id_mut(parent_id).expect("parent node not found");
+            let mut parent_node = self.node_by_id(parent_id).expect("parent node not found").clone();
             parent_node.remove(node_id);
+            self.update_node(parent_node);
 
-            let node = self.node_by_id_mut(node_id).expect("node not found");
+            let mut node = self.node_by_id(node_id).expect("node not found").clone();
             node.set_parent(None);
+            self.update_node(node);
         }
     }
 
     /// Relocates a node to another parent node
     fn relocate_node(&mut self, node_id: NodeId, parent_id: NodeId) {
-        let node = self.arena.node_mut(node_id).unwrap();
+        let node = self.arena.node_ref(node_id).unwrap();
         assert!(node.registered, "Node is not registered to the arena");
 
         if node.parent.is_some() && node.parent.unwrap() == parent_id {
@@ -197,13 +207,31 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.attach_node(node_id, parent_id, None);
     }
 
-    /// Returns the parent node of the given node, or None when no parent is found
-    fn parent_node(&self, node: &Self::Node) -> Option<&Self::Node> {
-        match node.parent_id() {
-            Some(parent_node_id) => self.node_by_id(parent_node_id),
-            None => None,
+    fn update_node_ref(&mut self, node: &Self::Node) {
+        if ! node.is_registered() {
+            log::warn!("Node is not registered to the arena");
+            return;
         }
+
+        self.arena.update_node(node.clone());
     }
+
+    fn update_node(&mut self, node: Self::Node) {
+        if ! node.is_registered() {
+            log::warn!("Node is not registered to the arena");
+            return;
+        }
+
+        self.arena.update_node(node);
+    }
+
+    // /// Returns the parent node of the given node, or None when no parent is found
+    // fn parent_node(&self, node: &Self::Node) -> Option<&Self::Node> {
+    //     match node.parent_id() {
+    //         Some(parent_node_id) => self.node_by_id(parent_node_id),
+    //         None => None,
+    //     }
+    // }
 
     /// Removes a node by id from the arena. Note that this does not check the nodelist itself to see
     /// if the node is still available as a child or parent in the tree.
@@ -212,8 +240,9 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         let parent_id = node.parent_id();
 
         if let Some(parent_id) = parent_id {
-            let parent = self.node_by_id_mut(parent_id).unwrap();
+            let mut parent = self.node_by_id(parent_id).unwrap().clone();
             parent.remove(node_id);
+            self.update_node(parent);
         }
 
         self.arena.delete_node(node_id);
@@ -250,10 +279,12 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         let node_id = self.arena.register_node(node);
 
         // Add node ID to the element data if it's an element node
-        let mut_node = self.arena.node_mut(node_id).unwrap();
-        if mut_node.is_element_node() {
-            let element_data = mut_node.get_element_data_mut().unwrap();
+        let mut node = self.arena.node(node_id).unwrap();
+        if node.is_element_node() {
+            let element_data = node.get_element_data_mut().unwrap();
             element_data.node_id = Some(node_id);
+
+            self.update_node(node);
         }
 
         // Add ID to the document if it has an ID attribute
@@ -261,7 +292,8 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         if node.is_element_node() {
             let element_data = node.get_element_data().unwrap();
             if let Some(id_value) = element_data.attributes.get("id") {
-                self.add_named_id(&id_value.clone(), node.id());
+                // self.add_named_id(&id_value.clone(), node.id());
+                self.named_id_elements.insert(id_value.clone(), node.id());
             }
         }
 
@@ -275,18 +307,21 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.attach_node(node_id, parent_id, position);
 
         // Add node ID to the element data if it's an element node
-        let mut_node = self.arena.node_mut(node_id).unwrap();
-        if mut_node.is_element_node() {
-            let element_data = mut_node.get_element_data_mut().unwrap();
+        let node = self.arena.node_ref(node_id).unwrap();
+        if node.is_element_node() {
+            let mut node = node.clone();
+
+            let element_data = node.get_element_data_mut().unwrap();
             element_data.node_id = Some(node_id);
+            self.update_node(node);
         }
 
         // Add ID to the document if it has an ID attribute
-        let node = self.arena.node(node_id).unwrap();
+        let node = self.arena.node_ref(node_id).unwrap();
         if node.is_element_node() {
             let element_data = node.get_element_data().unwrap();
             if let Some(id_value) = element_data.attributes.get("id") {
-                self.add_named_id(&id_value.clone(), node.id());
+                self.named_id_elements.insert(id_value.clone(), node.id());
             }
         }
 
@@ -438,30 +473,29 @@ impl<C: CssSystem> DocumentImpl<C> {
     /// Fetches a node by named id (string) or returns None when no node with this ID is found
     pub fn get_node_by_named_id(&self, named_id: &str) -> Option<&<DocumentImpl<C> as Document<C>>::Node> {
         let node_id = self.named_id_elements.get(named_id)?;
-        self.arena.node(*node_id)
+        self.arena.node_ref(*node_id)
     }
 
-    /// Fetches a mutable node by named id (string) or returns None when no node with this ID is found
-    pub fn get_node_by_named_id_mut<D>(
-        &mut self,
-        named_id: &str,
-    ) -> Option<&mut <DocumentImpl<C> as Document<C>>::Node> {
-        let node_id = self.named_id_elements.get(named_id)?;
-        self.arena.node_mut(*node_id)
-    }
+    // /// Fetches a mutable node by named id (string) or returns None when no node with this ID is found
+    // pub fn get_node_by_named_id_mut<D>(
+    //     &mut self,
+    //     named_id: &str,
+    // ) -> Option<&mut <DocumentImpl<C> as Document<C>>::Node> {
+    //     let node_id = self.named_id_elements.get(named_id)?;
+    //     self.arena.node_mut(*node_id)
+    // }
 
     // pub fn count_nodes(&self) -> usize {
     //     self.arena.count_nodes()
     // }
 
     pub fn has_node_id_recursive(&self, parent_id: NodeId, target_node_id: NodeId) -> bool {
-        let parent = self.arena.node(parent_id).cloned();
+        let parent = self.arena.node_ref(parent_id);
         if parent.is_none() {
             return false;
         }
 
-        let parent = parent.unwrap();
-        for child_node_id in parent.children() {
+        for child_node_id in parent.unwrap().children() {
             if *child_node_id == target_node_id {
                 return true;
             }
@@ -698,9 +732,10 @@ mod tests {
         // when div_1's ID changes, "myid" should be removed from the DOM
         {
             let mut binding = doc_handle.get_mut();
-            let div_1 = binding.node_by_id_mut(div1_id).unwrap();
+            let mut div_1 = binding.cloned_node_by_id(div1_id).unwrap();
             if let Some(data) = div_1.get_element_data_mut() {
                 data.add_attribute("id", "newid");
+                binding.update_node(div_1);
             }
         }
 
@@ -943,10 +978,11 @@ mod tests {
         doc_handle.get_mut().register_node_at(node, div_id, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
         }
+        binding.update_node(node);
         // binding.add_named_id("myid", p_id);
         drop(binding);
 
@@ -1020,9 +1056,10 @@ mod tests {
         let node_id = doc_handle.get_mut().register_node_at(node, NodeId::root(), None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(node_id).unwrap();
+        let mut node = binding.cloned_node_by_id(node_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("key", "value");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1065,9 +1102,10 @@ mod tests {
         let div_id = doc_handle.get_mut().register_node_at(div_node, NodeId::root(), None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(div_id).unwrap();
+        let mut node = binding.cloned_node_by_id(div_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one two three");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1327,9 +1365,10 @@ mod tests {
         let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(div_id).unwrap();
+        let mut node = binding.cloned_node_by_id(div_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1406,9 +1445,10 @@ mod tests {
         let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one two");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1422,10 +1462,11 @@ mod tests {
         let _ = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(div_id).unwrap();
+        let mut node = binding.cloned_node_by_id(div_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one");
             data.add_attribute("id", "myid");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1448,9 +1489,10 @@ mod tests {
         let p_id_3 = doc_handle.get_mut().register_node_at(p_node_3, div_id_3, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id_3).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "two_tree");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1464,9 +1506,10 @@ mod tests {
         let p_id_4 = doc_handle.get_mut().register_node_at(p_node_4, NodeId::root(), None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id_4).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id_4).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "three");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1516,9 +1559,10 @@ mod tests {
         let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one two");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1532,10 +1576,11 @@ mod tests {
         let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id_2).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "one");
             data.add_attribute("id", "myid");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1558,9 +1603,10 @@ mod tests {
         let p_id_3 = doc_handle.get_mut().register_node_at(p_node_3, div_id_3, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id_3).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "two three");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1574,9 +1620,10 @@ mod tests {
         let p_id_4 = doc_handle.get_mut().register_node_at(p_node_4, NodeId::root(), None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id_4).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id_4).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("class", "three");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1617,10 +1664,11 @@ mod tests {
         let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(div_id_2).unwrap();
+        let mut node = binding.cloned_node_by_id(div_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
             data.add_attribute("style", "somestyle");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1634,9 +1682,10 @@ mod tests {
         let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("title", "key");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1659,10 +1708,11 @@ mod tests {
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(div_id_3).unwrap();
+        let mut node = binding.cloned_node_by_id(div_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("style", "otherstyle");
             data.add_attribute("id", "otherid");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1685,10 +1735,11 @@ mod tests {
         let p_id_4 = doc_handle.get_mut().register_node_at(p_node_4, NodeId::root(), None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id_4).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id_4).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("title", "yo");
             data.add_attribute("style", "cat");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1729,10 +1780,11 @@ mod tests {
         let div_id_2 = doc_handle.get_mut().register_node_at(div_node_2, div_id, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(div_id_2).unwrap();
+        let mut node = binding.cloned_node_by_id(div_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
             data.add_attribute("style", "somestyle");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1746,9 +1798,10 @@ mod tests {
         let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("title", "key");
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1771,10 +1824,12 @@ mod tests {
         let div_id_3 = doc_handle.get_mut().register_node_at(div_node_3, NodeId::root(), None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(div_id_3).unwrap();
+        let mut node = binding.cloned_node_by_id(div_id_3).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("style", "otherstyle");
             data.add_attribute("id", "otherid");
+
+            binding.update_node(node);
         }
         drop(binding);
 
@@ -1797,10 +1852,12 @@ mod tests {
         let p_id_4 = doc_handle.get_mut().register_node_at(p_node_4, NodeId::root(), None);
 
         let mut binding = doc_handle.get_mut();
-        let node = binding.node_by_id_mut(p_id_4).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id_4).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("title", "yo");
             data.add_attribute("style", "cat");
+
+            binding.update_node(node);
         }
         drop(binding);
 

@@ -110,21 +110,25 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                 DocumentTask::InsertAttribute { key, value, element_id, ..} => {
                     let mut binding = self.doc_handle.get_mut();
 
-                    let Some(node) = binding.node_by_id_mut(*element_id) else {
+                    let Some(node) = binding.node_by_id(*element_id) else {
                         errors.push(format!("Node {} not found", element_id));
                         continue;
                     };
 
-                    let Some(element) = node.get_element_data_mut() else {
-                        errors.push(format!("Node {} is not an element", element_id));
-                        continue;
-                    };
 
-                    println!("adding attribute: {} = {}", key, value);
-                    element.add_attribute(key, value);
-                    if key == "id" {
-                        binding.add_named_id(value, *element_id);
+                    if node.is_element_node() {
+                        let mut node = node.clone();
+
+                        println!("adding attribute: {} = {}", key, value);
+                        let element_data = node.get_element_data_mut().unwrap();
+                        element_data.add_attribute(key, value);
+
+                        binding.update_node(node);
                     }
+
+
+                    errors.push(format!("Node {} is not an element", element_id));
+                    continue;
                 }
             }
         }

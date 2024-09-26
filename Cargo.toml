@@ -13,7 +13,7 @@ keywords = ["html5", "parser", "browser", "Rust", "DOM"]
 [workspace]
 members = [
     "crates/*"
-, "test_things/doc_handle_borrow"]
+]
 
 [[example]]
 name = "html5-parser"

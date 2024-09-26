@@ -12,7 +12,6 @@ use gosub_shared::traits::node::{ClassList, ElementDataType};
 use std::fmt;
 use gosub_shared::document::DocumentHandle;
 use gosub_shared::node::NodeId;
-use gosub_shared::traits::document::Document;
 
 #[derive(Debug)]
 pub struct ClassListImpl {
@@ -237,11 +236,6 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
                 self.class_list.add(class);
             }
         }
-
-        // Update ID in the document when this node is actually registered (ie. has a node_id)
-        if name == "id" && self.node_id.is_some() {
-            self.doc_handle.get_mut().add_named_id(value, self.node_id.unwrap());
-        }
     }
 
     // removes attribute from element
@@ -249,12 +243,6 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
         if name == "class" {
             if let Some(value) = self.attributes.get(name) {
                 self.class_list.remove(value);
-            }
-        }
-
-        if name == "id" && self.node_id.is_some() {
-            if let Some(value) = self.attributes.get(name) {
-                self.doc_handle.get_mut().remove_named_id(value);
             }
         }
 

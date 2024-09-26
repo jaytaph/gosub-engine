@@ -49,26 +49,32 @@ impl<N: Node<C>, C: CssSystem> NodeArena<N, C> {
     }
 
     /// Gets the node with the given id
-    pub fn node(&self, node_id: NodeId) -> Option<&N> {
+    pub fn node_ref(&self, node_id: NodeId) -> Option<&N> {
         self.nodes.get(&node_id)
     }
 
-    /// Get the node with the given id as a mutable reference
-    pub fn node_mut(&mut self, node_id: NodeId) -> Option<&mut N> {
-        self.nodes.get_mut(&node_id)
+    /// Gets the node with the given id
+    pub fn node(&self, node_id: NodeId) -> Option<N> {
+        self.nodes.get(&node_id).cloned()
     }
+
+    // /// Get the node with the given id as a mutable reference
+    // pub fn node_mut(&mut self, node_id: NodeId) -> Option<&mut N> {
+    //     self.nodes.get_mut(&node_id)
+    // }
 
     pub fn delete_node(&mut self, node_id: NodeId) {
         self.nodes.remove(&node_id);
     }
 
+    pub fn update_node(&mut self, node: N) {
+        self.nodes.insert(node.id(), node);
+    }
+
+
     /// Registered an unregistered node into the arena
     pub fn register_node(&mut self, mut node: N) -> NodeId {
-        
-        
-        dbg!(node.is_registered());
-        
-        assert_eq!(!node.is_registered(), true, "Node is already attached to an arena");
+        assert_eq!(node.is_registered(), false, "Node is already attached to an arena");
 
         let id = self.next_id;
         self.next_id = id.next();
@@ -163,25 +169,25 @@ mod tests {
         assert_eq!(node.unwrap().get_element_data().unwrap().name, "test");
     }
 
-    #[test]
-    fn get_node_mut() {
-        let mut doc_handle = DocumentBuilderImpl::new_document(None);
-
-        let node = DocumentImpl::<Css3System>::new_element_node(
-            doc_handle.clone(),
-            "test",
-            Some(HTML_NAMESPACE),
-            HashMap::new(),
-            Location::default(),
-        );
-
-        let node_id = doc_handle.get_mut().arena.register_node(node);
-
-        let binding = doc_handle.get();
-        let node = binding.arena.node(node_id);
-        assert!(node.is_some());
-        assert_eq!(node.unwrap().get_element_data().unwrap().name, "test");
-    }
+    // #[test]
+    // fn get_node_mut() {
+    //     let mut doc_handle = DocumentBuilderImpl::new_document(None);
+    //
+    //     let node = DocumentImpl::<Css3System>::new_element_node(
+    //         doc_handle.clone(),
+    //         "test",
+    //         Some(HTML_NAMESPACE),
+    //         HashMap::new(),
+    //         Location::default(),
+    //     );
+    //
+    //     let node_id = doc_handle.get_mut().arena.register_node(node);
+    //
+    //     let binding = doc_handle.get();
+    //     let node = binding.arena.node(node_id);
+    //     assert!(node.is_some());
+    //     assert_eq!(node.unwrap().get_element_data().unwrap().name, "test");
+    // }
 
     #[test]
     fn register_node_through_document() {

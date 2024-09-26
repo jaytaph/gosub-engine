@@ -56,25 +56,30 @@ pub trait Document<C: CssSystem>: Sized {
 
     /// Return a node by its Node ID
     fn node_by_id(&self, node_id: NodeId) -> Option<&Self::Node>;
-    fn node_by_id_mut(&mut self, node_id: NodeId) -> Option<&mut Self::Node>;
-    fn add_named_id(&mut self, id: &str, node_id: NodeId);
-    /// Remove a named ID from the document
-    fn remove_named_id(&mut self, id: &str);
+
+    // fn add_named_id(&mut self, id: &str, node_id: NodeId);
+    // /// Remove a named ID from the document
+    // fn remove_named_id(&mut self, id: &str);
 
     fn stylesheets(&self) -> &Vec<C::Stylesheet>;
     fn add_stylesheet(&mut self, stylesheet: C::Stylesheet);
 
     /// Return the root node of the document
     fn get_root(&self) -> &Self::Node;
-    fn get_root_mut(&mut self) -> &mut Self::Node;
+    // fn get_root_mut(&mut self) -> &mut Self::Node;
 
     fn attach_node(&mut self, node_id: NodeId, parent_id: NodeId, position: Option<usize>);
-
     fn detach_node(&mut self, node_id: NodeId);
     fn relocate_node(&mut self, node_id: NodeId, parent_id: NodeId);
 
-    /// Return the parent node from a given ID
-    fn parent_node(&self, node: &Self::Node) -> Option<&Self::Node>;
+    /// Updates a node into the document
+    fn update_node(&mut self, node: Self::Node);
+
+    // Updates a node that is referenced into the document. This is useful for instance when a node is fetched with node_by_id() for instance.
+    fn update_node_ref(&mut self, node: &Self::Node);
+
+    // /// Return the parent node from a given ID
+    // fn parent_node(&self, node: &Self::Node) -> Option<&Self::Node>;
 
     /// Removes a node from the document
     fn delete_node_by_id(&mut self, node_id: NodeId);
@@ -114,4 +119,5 @@ pub trait Document<C: CssSystem>: Sized {
 
     fn write(&self) -> String;
     fn write_from_node(&self, node_id: NodeId) -> String;
+    fn cloned_node_by_id(&self, node_id: NodeId) -> Option<Self::Node>;
 }
