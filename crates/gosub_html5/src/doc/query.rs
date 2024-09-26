@@ -26,6 +26,8 @@ impl<D: Document<C>, C: CssSystem> DocumentQuery<D, C> {
 
         let mut found_ids = Vec::new();
         for current_node_id in tree_iterator {
+            println!("Iterating node: {}", current_node_id);
+
             let mut predicate_result: bool = true;
             for condition in &query.conditions {
                 if !Self::matches_query_condition(doc_handle.clone(), &current_node_id, condition) {
@@ -33,6 +35,8 @@ impl<D: Document<C>, C: CssSystem> DocumentQuery<D, C> {
                     break;
                 }
             }
+
+            println!("Predicate result: {}", predicate_result);
 
             if predicate_result {
                 found_ids.push(current_node_id);
@@ -47,11 +51,18 @@ impl<D: Document<C>, C: CssSystem> DocumentQuery<D, C> {
 
     /// Check if a given node's children contain a certain tag name
     pub fn contains_child_tag(doc_handle: DocumentHandle<D, C>, node_id: NodeId, tag: &str) -> bool {
+        println!("Checking contains_child_tag: node_id: {:?}, tag: {}", node_id, tag);
+
         if let Some(node) = doc_handle.get().node_by_id(node_id) {
+            println!("The children of node {}: {:?}", node_id, node.children().to_vec());
             for child_id in &node.children().to_vec() {
+                println!("Checking child: {:?}", child_id);
                 if let Some(child) = doc_handle.get().node_by_id(*child_id) {
                     if let Some(data) = child.get_element_data() {
-                        return data.name() == tag;
+                        println!("Checking tag: {} ", data.name());
+                        if data.name() == tag {
+                            return true;
+                        }
                     }
                 }
             }
@@ -69,13 +80,19 @@ impl<D: Document<C>, C: CssSystem> DocumentQuery<D, C> {
         let Some(current_node) = binding.node_by_id(*current_node_id) else {
             return false;
         };
-        let Some(current_node_data) = current_node.get_element_data() else {
-            return false;
-        };
 
         match condition {
-            Condition::EqualsTag(tag) => current_node_data.name() == *tag,
+            Condition::EqualsTag(tag) => {
+                let Some(current_node_data) = current_node.get_element_data() else {
+                    return false;
+                };
+                current_node_data.name() == *tag
+            },
             Condition::EqualsId(id) => {
+                let Some(current_node_data) = current_node.get_element_data() else {
+                    return false;
+                };
+
                 if let Some(id_attr) = current_node_data.attributes().get("id") {
                     return *id_attr == *id;
                 }
@@ -83,9 +100,17 @@ impl<D: Document<C>, C: CssSystem> DocumentQuery<D, C> {
                 false
             }
             Condition::ContainsClass(class_name) => {
+                let Some(current_node_data) = current_node.get_element_data() else {
+                    return false;
+                };
+
                 return current_node_data.classlist().contains(class_name);
             }
             Condition::ContainsAttribute(attribute) => {
+                let Some(current_node_data) = current_node.get_element_data() else {
+                    return false;
+                };
+
                 return current_node_data.attributes().contains_key(attribute);
             }
             Condition::ContainsChildTag(child_tag) => {

@@ -222,6 +222,14 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
             return;
         }
 
+        if node.is_element_node() {
+            let element_data = node.get_element_data().unwrap();
+
+            if let Some(id_value) = element_data.attributes.get("id") {
+                self.named_id_elements.insert(id_value.clone(), node.id());
+            }
+        }
+
         self.arena.update_node(node);
     }
 
@@ -287,12 +295,13 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
             self.update_node(node);
         }
 
+
         // Add ID to the document if it has an ID attribute
         let node = self.arena.node(node_id).unwrap();
         if node.is_element_node() {
             let element_data = node.get_element_data().unwrap();
+
             if let Some(id_value) = element_data.attributes.get("id") {
-                // self.add_named_id(&id_value.clone(), node.id());
                 self.named_id_elements.insert(id_value.clone(), node.id());
             }
         }
@@ -408,7 +417,7 @@ impl<C: CssSystem> DocumentImpl<C> {
         } else {
             buffer.push_str("├─ ");
         }
-        // buffer.push_str(format!("{} ", node.id).as_str());
+        buffer.push_str(format!("{} ", node.id).as_str());
 
         match &node.data {
             NodeDataTypeInternal::Document(_) => {
@@ -1191,7 +1200,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
+        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_2, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1218,7 +1227,7 @@ mod tests {
             HashMap::new(),
             Location::default(),
         );
-        let p_id = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
+        let _ = doc_handle.get_mut().register_node_at(p_node, div_id_3, None);
 
         let p_node = Document::new_element_node(
             doc_handle.clone(),
@@ -1228,6 +1237,7 @@ mod tests {
             Location::default(),
         );
         doc_handle.get_mut().register_node_at(p_node, NodeId::root(), None);
+        println!("{}", doc_handle.get());
 
         let query = Query::new().equals_tag("p").find_first();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query).unwrap();
@@ -1365,7 +1375,7 @@ mod tests {
         let p_id_2 = doc_handle.get_mut().register_node_at(p_node_2, div_id, None);
 
         let mut binding = doc_handle.get_mut();
-        let mut node = binding.cloned_node_by_id(div_id).unwrap();
+        let mut node = binding.cloned_node_by_id(p_id_2).unwrap();
         if let Some(data) = node.get_element_data_mut() {
             data.add_attribute("id", "myid");
             binding.update_node(node);
@@ -2022,6 +2032,8 @@ mod tests {
             Location::default(),
         );
         let _ = doc_handle.get_mut().register_node_at(p_node, NodeId::root(), None);
+
+        println!("{}", doc_handle.get());
 
         let query = Query::new().contains_child_tag("p").find_all();
         let found_ids = DocumentQuery::query(doc_handle.clone(), &query).unwrap();
