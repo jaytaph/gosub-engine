@@ -54,8 +54,11 @@ pub trait Document<C: CssSystem>: Sized {
     fn set_doctype(&mut self, doctype: DocumentType);
     fn doctype(&self) -> DocumentType;
 
-    /// Return a node by its Node ID
+    /// Return a node by its node ID
     fn node_by_id(&self, node_id: NodeId) -> Option<&Self::Node>;
+
+    // Return an element node by the "id" attribute
+    fn node_by_named_id(&self, id: &str) -> Option<&Self::Node>;
 
     // fn add_named_id(&mut self, id: &str, node_id: NodeId);
     // /// Remove a named ID from the document

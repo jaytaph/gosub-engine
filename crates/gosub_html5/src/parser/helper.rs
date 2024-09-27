@@ -15,12 +15,12 @@ const ADOPTION_AGENCY_INNER_LOOP_DEPTH: usize = 3;
 pub enum InsertionPositionMode<D: Document<C>, C: CssSystem, NodeId> {
     LastChild {
         handle: DocumentHandle<D, C>,
-        parent: NodeId,
+        parent_id: NodeId,
     },
     Sibling {
         handle: DocumentHandle<D, C>,
-        parent: NodeId,
-        before: NodeId,
+        parent_id: NodeId,
+        before_id: NodeId,
     },
 }
 
@@ -83,33 +83,30 @@ where
 
     pub fn insert_element_helper(&mut self, node_id: NodeId, position: InsertionPositionMode<D, C, NodeId>) {
         match position {
-            InsertionPositionMode::Sibling { handle, parent, before } => {
-                let node = get_node_by_id!(handle, node_id);
-                let parent_node = get_node_by_id!(handle, parent);
-                let position = parent_node.children().iter().position(|&x| x == before);
+            InsertionPositionMode::Sibling { handle, parent_id, before_id } => {
+                let parent_node = get_node_by_id!(handle, parent_id);
+                let position = parent_node.children().iter().position(|&x| x == before_id);
+
                 let mut_handle = &mut handle.clone();
-                // let id = mut_handle.get_mut().register_node_at(node, parent, position).clone();
-                mut_handle.get_mut().register_node_at(node, parent, position);
+                mut_handle.get_mut().attach_node(node_id, parent_id, position);
             }
-            InsertionPositionMode::LastChild { handle, parent } => {
-                let node = get_node_by_id!(handle, node_id);
+            InsertionPositionMode::LastChild { handle, parent_id } => {
                 let mut_handle = &mut handle.clone();
-                // let id = mut_handle.get_mut().register_node_at(node, parent, None);
-                mut_handle.get_mut().register_node_at(node, parent, None);
+                mut_handle.get_mut().attach_node(node_id, parent_id, None);
             }
         }
     }
 
     pub fn insert_text_helper(&mut self, position: InsertionPositionMode<D, C, NodeId>, token: &Token) {
         match position {
-            InsertionPositionMode::Sibling { handle, parent, before } => {
-                let parent_node = get_node_by_id!(handle, parent);
-                let position = parent_node.children().iter().position(|&x| x == before);
+            InsertionPositionMode::Sibling { handle, parent_id, before_id } => {
+                let parent_node = get_node_by_id!(handle, parent_id);
+                let position = parent_node.children().iter().position(|&x| x == before_id);
                 match position {
                     None | Some(0) => {
                         let node = self.create_node(token, HTML_NAMESPACE);
                         let mut_handle = &mut handle.clone();
-                        mut_handle.get_mut().register_node_at(node, parent, position);
+                        mut_handle.get_mut().register_node_at(node, parent_id, position);
                     }
                     Some(index) => {
                         let last_node_id = parent_node.children()[index - 1];
@@ -124,12 +121,12 @@ where
 
                         let node = self.create_node(token, HTML_NAMESPACE);
                         let mut_handle = &mut handle.clone();
-                        mut_handle.get_mut().register_node_at(node, parent, Some(index));
+                        mut_handle.get_mut().register_node_at(node, parent_id, Some(index));
                     }
                 }
             }
-            InsertionPositionMode::LastChild { handle, parent } => {
-                let parent_node = get_node_by_id!(handle, parent);
+            InsertionPositionMode::LastChild { handle, parent_id } => {
+                let parent_node = get_node_by_id!(handle, parent_id);
                 if let Some(&last_node_id) = parent_node.children().last() {
                     let mut_handle = &mut handle.clone();
                     let mut last_node = get_node_by_id!(mut_handle, last_node_id);
@@ -142,13 +139,13 @@ where
 
                     let node = self.create_node(token, HTML_NAMESPACE);
                     let mut_handle = &mut handle.clone();
-                    mut_handle.get_mut().register_node_at(node, parent, None);
+                    mut_handle.get_mut().register_node_at(node, parent_id, None);
                     return;
                 }
 
                 let node = self.create_node(token, HTML_NAMESPACE);
                 let mut_handle = &mut handle.clone();
-                mut_handle.get_mut().register_node_at(node, parent, None);
+                mut_handle.get_mut().register_node_at(node, parent_id, None);
             }
         }
     }
@@ -168,24 +165,6 @@ where
         namespace: Option<&str>,
     ) -> NodeId {
         let node = self.create_node(token, namespace.unwrap_or(HTML_NAMESPACE));
-        // add CSS classes from class attribute in element
-        // e.g., <div class="one two three">
-        // TODO: this will be refactored later in ElementAttributes to do this
-        // when inserting a "class" attribute. Similar to "id" to attach it to the DOM
-        // named_id_list. Although this will require some shared pointers
-
-        if node.is_element_node() {
-            let mut_handle = &mut self.document.clone();
-            let mut node = get_node_by_id!(mut_handle, node.id());
-
-            let data = get_element_data_mut!(&mut node);
-            if let Some(class_string) = data.attributes().get("class") {
-                let class_string = class_string.clone();
-
-                data.add_class(&class_string.clone());
-            }
-        }
-
         self.insert_element(node, override_node)
     }
 
@@ -259,6 +238,14 @@ where
     // @todo: where is the fragment case handled? (sub step 4: https://html.spec.whatwg.org/multipage/parsing.html#appropriate-place-for-inserting-a-node)
     pub fn appropriate_place_insert(&self, override_node: Option<NodeId>) -> InsertionPositionMode<D, C, NodeId> {
         let current_node = current_node!(self);
+
+        if current_node.id() == NodeId::root() {
+            return InsertionPositionMode::LastChild {
+                handle: self.document.clone(),
+                parent_id: NodeId::root(),
+            };
+        }
+
         let element_data = get_element_data!(current_node);
         let target_id = override_node.unwrap_or(current_node.id());
 
@@ -267,13 +254,13 @@ where
                 if let Some(template_fragment) = element_data.template_contents() {
                     return InsertionPositionMode::LastChild {
                         handle: template_fragment.handle(),
-                        parent: target_id,
+                        parent_id: target_id,
                     };
                 }
             } else {
                 return InsertionPositionMode::LastChild {
                     handle: self.document.clone(),
-                    parent: target_id,
+                    parent_id: target_id,
                 };
             }
         }
@@ -286,27 +273,27 @@ where
                 if let Some(template_fragment) = element_data.template_contents() {
                     return InsertionPositionMode::LastChild {
                         handle: template_fragment.handle(),
-                        parent: *node_id,
+                        parent_id: *node_id,
                     };
                 }
             } else if element_data.name() == "table" {
                 if let Some(parent_id) = node.parent_id() {
                     return InsertionPositionMode::Sibling {
                         handle: self.document.clone(),
-                        parent: parent_id,
-                        before: *node_id,
+                        parent_id: parent_id,
+                        before_id: *node_id,
                     };
                 }
                 // TODO has some question? can reached?
                 return InsertionPositionMode::LastChild {
                     handle: self.document.clone(),
-                    parent: *(*iter.peek().unwrap()),
+                    parent_id: *(*iter.peek().unwrap()),
                 };
             }
         }
         InsertionPositionMode::LastChild {
             handle: self.document.clone(),
-            parent: *self.open_elements.first().unwrap(),
+            parent_id: *self.open_elements.first().unwrap(),
         }
     }
 

@@ -197,7 +197,11 @@ impl<C: CssSystem> ElementDataType<C> for ElementData<C> {
     }
 
     fn is_namespace(&self, namespace: &str) -> bool {
-        self.name == namespace
+        if self.namespace.is_none() {
+            return namespace == HTML_NAMESPACE;
+        }
+
+        self.namespace == Some(namespace.into())
     }
 
     fn classlist(&self) -> &impl ClassList {

@@ -108,27 +108,40 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
                     self.doc_handle.get_mut().register_node_at(node, *parent_id, None);
                 }
                 DocumentTask::InsertAttribute { key, value, element_id, ..} => {
-                    let mut binding = self.doc_handle.get_mut();
+                    // Invalid ID value?
+                    if key == "id" && !is_valid_id_attribute_value(value) {
+                        errors.push(format!("ID attribute value '{value}' did not pass validation"));
+                        continue;
+                    }
 
+                    // An ID must be tied to only one element
+                    let binding = self.doc_handle.get();
+                    let named_node = binding.node_by_named_id(value);
+                    if named_node.is_some() && named_node.unwrap().id() != *element_id {
+                        errors.push(format!("ID attribute value '{value}' already exists in DOM"));
+                        continue;
+                    }
+                    drop(binding);
+
+                    let mut binding = self.doc_handle.get_mut();
                     let Some(node) = binding.node_by_id(*element_id) else {
-                        errors.push(format!("Node {} not found", element_id));
+                        errors.push(format!("Node id {} not found", element_id));
                         continue;
                     };
 
 
-                    if node.is_element_node() {
-                        let mut node = node.clone();
-
-                        println!("adding attribute: {} = {}", key, value);
-                        let element_data = node.get_element_data_mut().unwrap();
-                        element_data.add_attribute(key, value);
-
-                        binding.update_node(node);
+                    if !node.is_element_node() {
+                        errors.push(format!("Node id {} is not an element", element_id));
+                        continue;
                     }
 
+                    let mut node = node.clone();
 
-                    errors.push(format!("Node {} is not an element", element_id));
-                    continue;
+                    println!("adding attribute: {} = {}", key, value);
+                    let element_data = node.get_element_data_mut().unwrap();
+                    element_data.add_attribute(key, value);
+
+                    binding.update_node(node);
                 }
             }
         }
@@ -136,6 +149,11 @@ impl<D: Document<C>, C: CssSystem> DocumentTaskQueue<D, C> {
 
         errors
     }
+}
+
+/// according to HTML spec: https://html.spec.whatwg.org/#global-attributes
+pub(crate) fn is_valid_id_attribute_value(value: &str) -> bool {
+    !(value.is_empty() || value.contains(|ref c| char::is_ascii_whitespace(c)))
 }
 
 // See tree_builder.rs for method comments

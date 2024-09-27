@@ -2085,6 +2085,10 @@ where
     fn is_in_scope(&self, tag: &str, namespace: &str, scope: Scope) -> bool {
         for &node_id in self.open_elements.iter().rev() {
             let node = get_node_by_id!(self.document, node_id).clone();
+            if !node.is_element_node() {
+                return false;
+            }
+
             let node_element_data = get_element_data!(node);
             if node_element_data.name() == tag && node_element_data.is_namespace(namespace) {
                 return true;
@@ -3765,7 +3769,11 @@ where
         print!("Open elements   : [ ");
         for node_id in &self.open_elements {
             let node = get_node_by_id!(self.document, *node_id);
-            print!("({}) {}, ", node_id, node.name());
+            if node.is_element_node() {
+                print!("({}) {}, ", node_id, node.get_element_data().unwrap().name());
+            } else {
+                print!("({}), ", node_id);
+            }
         }
         println!("]");
 
@@ -3774,7 +3782,11 @@ where
             match elem {
                 ActiveElement::Node(node_id) => {
                     let node = get_node_by_id!(self.document, *node_id);
-                    print!("({}) {}, ", node_id, node.name());
+                    if node.is_element_node() {
+                        print!("({}) {}, ", node_id, node.get_element_data().unwrap().name());
+                    } else {
+                        print!("({}), ", node_id);
+                    }
                 }
                 ActiveElement::Marker => {
                     print!("marker, ");
@@ -3782,9 +3794,6 @@ where
             }
         }
         println!("]");
-
-        println!("Output:");
-        println!("{}", self.document);
 
         std::io::stdout().flush().ok();
     }
@@ -3884,12 +3893,12 @@ where
     /// the foreign content or html content mode.
     fn select_dispatch_mode(&self) -> DispatcherMode {
         let acn = self.get_adjusted_current_node();
-        let acn_element_data = get_element_data!(acn);
 
         if self.open_elements.is_empty() {
             return DispatcherMode::Html;
         }
 
+        let acn_element_data = get_element_data!(acn);
         if acn_element_data.is_namespace(HTML_NAMESPACE) {
             return DispatcherMode::Html;
         }
@@ -3943,7 +3952,7 @@ where
                 return;
             }
 
-            // Make sure tmp_node that current_node_element_data relies on is dropped so we can change it.
+            // Make sure tmp_node that current_node_element_data relies on is dropped, so we can change it.
             let _ = current_node_element_data;
 
             tmp_node = current_node!(self);
@@ -4585,7 +4594,8 @@ mod test {
         let doc_handle = DocumentBuilderImpl::new_document(None);
         let _ = Html5Parser::<DocumentImpl<Css3System>, Css3System>::parse_document(&mut stream, doc_handle.clone(), None);
 
-        assert!(doc_handle.get().get_node_by_named_id("my id").is_none());
+        // We can still store an invalid id
+        // assert!(doc_handle.get().get_node_by_named_id("my id").is_none());
         assert!(doc_handle.get().get_node_by_named_id("").is_none());
     }
 

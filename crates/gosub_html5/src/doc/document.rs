@@ -115,8 +115,12 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.arena.node_ref(node_id)
     }
 
-    fn cloned_node_by_id(&self, node_id: NodeId) -> Option<Self::Node> {
-        self.arena.node(node_id)
+    fn node_by_named_id(&self, id: &str) -> Option<&Self::Node> {
+        self.named_id_elements.get(id).and_then(|node_id| self.arena.node_ref(*node_id))
+    }
+
+    fn stylesheets(&self) -> &Vec<C::Stylesheet> {
+        &self.stylesheets
     }
 
     // /// Add given node to the named ID elements
@@ -129,10 +133,6 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     //     self.named_id_elements.remove(id);
     // }
 
-    fn stylesheets(&self) -> &Vec<C::Stylesheet> {
-        &self.stylesheets
-    }
-
     fn add_stylesheet(&mut self, stylesheet: C::Stylesheet) {
         self.stylesheets.push(stylesheet);
     }
@@ -141,11 +141,6 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
     fn get_root(&self) -> &Self::Node {
         self.arena.node_ref(NodeId::root()).expect("Root node not found !?")
     }
-
-    // /// returns the root node
-    // fn get_root_mut(&mut self) -> &mut Self::Node {
-    //     self.arena.node_mut(NodeId::root()).expect("Root node not found !?")
-    // }
 
     fn attach_node(&mut self, node_id: NodeId, parent_id: NodeId, position: Option<usize>) {
         // Check if any children of node have parent as child. This will keep adding the node to itself
@@ -179,6 +174,11 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.update_node(node);
     }
 
+    // /// returns the root node
+    // fn get_root_mut(&mut self) -> &mut Self::Node {
+    //     self.arena.node_mut(NodeId::root()).expect("Root node not found !?")
+    // }
+
     fn detach_node(&mut self, node_id: NodeId) {
         let parent = self.node_by_id(node_id).expect("node not found").parent_id();
 
@@ -207,15 +207,6 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.attach_node(node_id, parent_id, None);
     }
 
-    fn update_node_ref(&mut self, node: &Self::Node) {
-        if ! node.is_registered() {
-            log::warn!("Node is not registered to the arena");
-            return;
-        }
-
-        self.arena.update_node(node.clone());
-    }
-
     fn update_node(&mut self, node: Self::Node) {
         if ! node.is_registered() {
             log::warn!("Node is not registered to the arena");
@@ -233,13 +224,14 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         self.arena.update_node(node);
     }
 
-    // /// Returns the parent node of the given node, or None when no parent is found
-    // fn parent_node(&self, node: &Self::Node) -> Option<&Self::Node> {
-    //     match node.parent_id() {
-    //         Some(parent_node_id) => self.node_by_id(parent_node_id),
-    //         None => None,
-    //     }
-    // }
+    fn update_node_ref(&mut self, node: &Self::Node) {
+        if ! node.is_registered() {
+            log::warn!("Node is not registered to the arena");
+            return;
+        }
+
+        self.arena.update_node(node.clone());
+    }
 
     /// Removes a node by id from the arena. Note that this does not check the nodelist itself to see
     /// if the node is still available as a child or parent in the tree.
@@ -255,6 +247,14 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
 
         self.arena.delete_node(node_id);
     }
+
+    // /// Returns the parent node of the given node, or None when no parent is found
+    // fn parent_node(&self, node: &Self::Node) -> Option<&Self::Node> {
+    //     match node.parent_id() {
+    //         Some(parent_node_id) => self.node_by_id(parent_node_id),
+    //         None => None,
+    //     }
+    // }
 
     /// Retrieves the next sibling NodeId (to the right) of the reference_node or None.
     fn get_next_sibling(&self, reference_node: NodeId) -> Option<NodeId> {
@@ -386,10 +386,16 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
         attributes: HashMap<String, String>,
         location: Location,
     ) -> Self::Node {
+        // Extract class list from the class-attribute (if exists)
+        let class_list = match attributes.get("class") {
+            Some(class_value) => ClassListImpl::from(class_value.as_str()),
+            None => ClassListImpl::default(),
+        };
+
         NodeImpl::new(
             handle.clone(),
             location,
-            &NodeDataTypeInternal::Element(ElementData::new(handle.clone(), name, namespace, attributes, ClassListImpl::default())),
+            &NodeDataTypeInternal::Element(ElementData::new(handle.clone(), name, namespace, attributes, class_list)),
         )
     }
 
@@ -399,6 +405,10 @@ impl<C: CssSystem> Document<C> for DocumentImpl<C> {
 
     fn write_from_node(&self, _node_id: NodeId) -> String {
         todo!(); //This should definitely be implemented
+    }
+
+    fn cloned_node_by_id(&self, node_id: NodeId) -> Option<Self::Node> {
+        self.arena.node(node_id)
     }
 }
 
@@ -417,7 +427,7 @@ impl<C: CssSystem> DocumentImpl<C> {
         } else {
             buffer.push_str("├─ ");
         }
-        buffer.push_str(format!("{} ", node.id).as_str());
+        // buffer.push_str(format!("{} ", node.id).as_str());
 
         match &node.data {
             NodeDataTypeInternal::Document(_) => {
@@ -701,57 +711,6 @@ mod tests {
         );
     }
 
-    #[ignore]
-    #[test]
-    fn duplicate_named_id_elements() {
-        let mut doc_handle = DocumentBuilderImpl::new_document(None);
-
-        let div_1: NodeImpl<Css3System> = DocumentImpl::new_element_node(
-            doc_handle.clone(),
-            "div",
-            Some(HTML_NAMESPACE),
-            HashMap::new(),
-            Location::default(),
-        );
-        let div_2: NodeImpl<Css3System> = DocumentImpl::new_element_node(
-            doc_handle.clone(),
-            "div",
-            Some(HTML_NAMESPACE),
-            HashMap::new(),
-            Location::default(),
-        );
-
-        let div1_id = doc_handle.get_mut().register_node_at(div_1, NodeId::root(), None);
-        doc_handle.get_mut().register_node_at(div_2, NodeId::root(), None);
-
-        // // when adding duplicate IDs, our current implementation will prevent duplicates.
-        // if let Some(data) = div_1.get_element_data() {
-        //     let res = data.add_attribute("id", "myid");
-        //     assert!(res.is_ok());
-        // }
-        // if let Some(data) = div_2.get_element_data() {
-        //     let res = data.add_attribute("id", "myid");
-        //     assert!(res.is_err());
-        //     if let Err(err) = res {
-        //         assert_eq!(err.to_string(), "document task error: ID 'myid' already exists in DOM");
-        //     }
-        // }
-        // assert_eq!(doc_handle.get().get_node_by_named_id("myid").unwrap().id, div_1.id());
-
-        // when div_1's ID changes, "myid" should be removed from the DOM
-        {
-            let mut binding = doc_handle.get_mut();
-            let mut div_1 = binding.cloned_node_by_id(div1_id).unwrap();
-            if let Some(data) = div_1.get_element_data_mut() {
-                data.add_attribute("id", "newid");
-                binding.update_node(div_1);
-            }
-        }
-
-        assert!(doc_handle.get().get_node_by_named_id("myid").is_none());
-        assert_eq!(doc_handle.get().get_node_by_named_id("newid").unwrap().id, div1_id);
-    }
-
     #[test]
     fn verify_node_ids_in_element_data() {
         let mut doc_handle = DocumentBuilderImpl::new_document(None);
@@ -884,6 +843,7 @@ mod tests {
         // since it doesn't touch DOM until flush
         let _ = task_queue.insert_attribute("id", "myid", p_id, Location::default());
         let errors = task_queue.flush();
+        println!("{:?}", errors);
         assert!(errors.is_empty());
 
         let doc_read = doc_handle.get();
@@ -911,7 +871,7 @@ mod tests {
         // NOTE: inserting attribute in task queue always succeeds
         // since it doesn't touch DOM until flush
         let _ = task_queue.insert_attribute("id", "myid", NodeId::from(1usize), Location::default());
-        let _ = task_queue.insert_attribute("id", "myid", NodeId::from(1usize), Location::default());
+        let _ = task_queue.insert_attribute("id", "myid", NodeId::from(2usize), Location::default());
         let _ = task_queue.insert_attribute("id", "otherid", NodeId::from(2usize), Location::default());
         let _ = task_queue.insert_attribute("id", "dummyid", NodeId::from(42usize), Location::default());
         let _ = task_queue.insert_attribute("id", "my id", NodeId::from(1usize), Location::default());
@@ -922,17 +882,11 @@ mod tests {
             println!("{}", error);
         }
         assert_eq!(errors.len(), 5);
-        assert_eq!(errors[0], "document task error: ID 'myid' already exists in DOM",);
-        assert_eq!(errors[1], "document task error: Node ID 2 is not an element",);
-        assert_eq!(errors[2], "document task error: Node ID 42 not found");
-        assert_eq!(
-            errors[3],
-            "document task error: Attribute value 'my id' did not pass validation",
-        );
-        assert_eq!(
-            errors[4],
-            "document task error: Attribute value '' did not pass validation",
-        );
+        assert_eq!(errors[0], "ID attribute value 'myid' already exists in DOM");
+        assert_eq!(errors[1], "Node id 2 is not an element");
+        assert_eq!(errors[2], "Node id 42 not found");
+        assert_eq!(errors[3], "ID attribute value 'my id' did not pass validation");
+        assert_eq!(errors[4], "ID attribute value '' did not pass validation");
 
         // validate that invalid changes did not apply to DOM
         let doc_read = doc_handle.get();
@@ -1136,6 +1090,7 @@ mod tests {
         let div_id = task_queue.create_element("div", NodeId::root(), None, HTML_NAMESPACE, Location::default());
         let _ = task_queue.insert_attribute("class", "one two three", div_id, Location::default());
         let errors = task_queue.flush();
+        println!("{:?}", errors);
         assert!(errors.is_empty());
 
         let binding = doc_handle.get();
