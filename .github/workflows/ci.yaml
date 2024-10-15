@@ -11,12 +11,12 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         rust_version: [ stable, nightly, 1.73.0 ]
-        os: [ ubuntu-latest ]
+        os: [ ubuntu-22.04 ]
 #        rust_version: [ stable, beta, nightly, 1.73.0, "stable minus 1 release", "stable minus 2 releases" ]
 #        os: [ ubuntu-latest, windows-latest, macos-latest ]
     steps:
@@ -47,12 +47,12 @@ jobs:
           cargo sweep --time 7
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         rust_version: [ stable, nightly, 1.73.0 ]
-        os: [ ubuntu-latest ]
+        os: [ ubuntu-22.04 ]
 #        rust_version: [ stable, beta, nightly, 1.73.0, "stable minus 1 release", "stable minus 2 releases" ]
 #        os: [ ubuntu-latest, windows-latest, macos-latest ]
     steps:
@@ -80,12 +80,12 @@ jobs:
         run: cargo test --verbose --all --no-fail-fast --all-features --all-targets
 
   clippy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         rust_version: [ stable, nightly ]
-        os: [ ubuntu-latest ]
+        os: [ ubuntu-22.04 ]
 #        rust_version: [ stable, beta, nightly, 1.73.0, "stable minus 1 release", "stable minus 2 releases" ]
 #        os: [ ubuntu-latest, windows-latest, macos-latest ]
     steps:
@@ -111,7 +111,7 @@ jobs:
         run: cargo clippy --all --tests -- -D warnings
 
   fmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
