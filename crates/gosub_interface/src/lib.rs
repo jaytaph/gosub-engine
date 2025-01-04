@@ -14,3 +14,4 @@ pub mod render_backend;
 pub mod render_tree;
 pub mod request;
 pub mod svg;
+pub mod font;

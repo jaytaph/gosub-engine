@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
 use crate::config::HasLayouter;
-use gosub_shared::font::{Font, Glyph};
 use gosub_shared::geo::{Point, Rect, Size, SizeU32};
 use gosub_shared::types::Result;
+use crate::font::Font;
 
 pub trait LayoutTree<C: HasLayouter<LayoutTree = Self>>: Sized + Debug + 'static {
     type NodeId: Debug + Copy + Clone + From<u64> + Into<u64> + PartialEq;
@@ -140,15 +140,12 @@ pub trait HasTextLayout<C: HasLayouter> {
 
 pub trait TextLayout {
     type Font: Font;
+
+    fn text(&self) -> &str;
+
     fn dbg_layout(&self) -> String;
 
-    fn size(&self) -> Size;
-
-    fn glyphs(&self) -> &[Glyph];
-
-    fn font(&self) -> &Self::Font;
-
-    fn font_size(&self) -> f32;
+    fn font(&self) -> impl Font;
 
     fn coords(&self) -> &[i16];
 

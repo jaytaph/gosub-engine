@@ -13,6 +13,7 @@ use gosub_shared::types::Result;
 use log::info;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+use gosub_interface::font::Font;
 
 mod desc;
 
@@ -801,7 +802,7 @@ impl<C: HasLayouter> LayoutNode<C> for RenderTreeNode<C> {
 
     fn text_size(&self) -> Option<Size> {
         if let RenderNodeData::Text(text) = &self.data {
-            text.layout.as_ref().map(|layout| layout.size())
+            text.layout.as_ref().map(|layout| Size::new(layout.font().size(), layout.font().size()))
         } else {
             None
         }

@@ -20,6 +20,7 @@ mod elements;
 #[allow(unused)]
 pub mod render;
 mod scene;
+mod font_manager;
 
 #[derive(Clone)]
 pub struct CairoBackend;
@@ -36,7 +37,6 @@ impl RenderBackend for CairoBackend {
     type BorderSide = GsBorderSide;
     type BorderRadius = GsBorderRadius;
     type Transform = GsTransform;
-    type Text = GsText;
     type Gradient = GsGradient;
     type Color = GsColor;
     type Image = GsImage;

@@ -10,7 +10,7 @@ use gosub_html5::document::document_impl::DocumentImpl;
 use gosub_html5::document::fragment::DocumentFragmentImpl;
 use gosub_html5::parser::Html5Parser;
 use gosub_interface::config::{
-    HasChrome, HasCssSystem, HasDocument, HasDrawComponents, HasHtmlParser, HasLayouter, HasRenderBackend,
+    HasChrome, HasCssSystem, HasDocument, HasHtmlParser, HasLayouter, HasRenderBackend,
     HasRenderTree, HasTreeDrawer, ModuleConfiguration,
 };
 use gosub_renderer::draw::TreeDrawerImpl;

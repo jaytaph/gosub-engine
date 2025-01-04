@@ -1724,12 +1724,15 @@ dependencies = [
  "freetype-rs",
  "futures",
  "gosub_interface",
+ "gosub_renderer",
  "gosub_shared",
  "gosub_svg",
  "image",
  "kurbo",
  "log",
  "once_cell",
+ "pango",
+ "pangocairo",
  "parley",
  "peniko",
  "skrifa 0.26.2",
@@ -1908,6 +1911,7 @@ dependencies = [
  "gosub_shared",
  "image",
  "log",
+ "pango",
  "url",
  "wasm-bindgen-futures",
  "web-sys",
@@ -3452,6 +3456,32 @@ dependencies = [
  "glib-sys",
  "gobject-sys",
  "libc",
+ "system-deps 7.0.3",
+]
+
+[[package]]
+name = "pangocairo"
+version = "0.20.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4690509a2fea2a6552a0ef8aa3e5f790c1365365ee0712afa1aedb39af3997b6"
+dependencies = [
+ "cairo-rs",
+ "glib",
+ "libc",
+ "pango",
+ "pangocairo-sys",
+]
+
+[[package]]
+name = "pangocairo-sys"
+version = "0.20.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5be6ac24147911a6a46783922fc288cf02f67570bc0d360e563b5b26aead6767"
+dependencies = [
+ "cairo-sys-rs",
+ "glib-sys",
+ "libc",
+ "pango-sys",
  "system-deps 7.0.3",
 ]
 

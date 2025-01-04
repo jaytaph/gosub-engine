@@ -12,7 +12,7 @@ use gosub_interface::eventloop::EventLoopHandle;
 use gosub_interface::layout::{Layout, LayoutTree, Layouter, TextLayout};
 use gosub_interface::render_backend::{
     Border, BorderSide, BorderStyle, Brush, Color, ImageBuffer, ImgCache, NodeDesc, Rect, RenderBackend, RenderBorder,
-    RenderRect, RenderText, Scene as TScene, Text, Transform,
+    RenderRect, RenderText, Scene as TScene, Transform,
 };
 use gosub_interface::render_tree;
 use gosub_interface::render_tree::RenderTreeNode as _;
@@ -77,12 +77,7 @@ impl<C: HasDrawComponents> TreeDrawerImpl<C> {
     }
 }
 
-impl<C: HasDrawComponents<RenderTree = RenderTree<C>, LayoutTree = RenderTree<C>> + HasHtmlParser> TreeDrawer<C>
-    for TreeDrawerImpl<C>
-where
-    <<C::RenderBackend as RenderBackend>::Text as Text>::Font:
-        From<<<C::Layouter as Layouter>::TextLayout as TextLayout>::Font>,
-{
+impl<C: HasDrawComponents<RenderTree = RenderTree<C>, LayoutTree = RenderTree<C>> + HasHtmlParser> TreeDrawer<C> for TreeDrawerImpl<C> {
     type ImgCache = ImageCache<C::RenderBackend>;
 
     fn draw(&mut self, size: SizeU32, el: &impl EventLoopHandle<C>) -> <C::RenderBackend as RenderBackend>::Scene {
@@ -366,11 +361,7 @@ struct Drawer<'s, 't, C: HasDrawComponents, EL: EventLoopHandle<C>> {
 impl<
         C: HasDrawComponents<LayoutTree = RenderTree<C>, RenderTree = RenderTree<C>> + HasHtmlParser,
         EL: EventLoopHandle<C>,
-    > Drawer<'_, '_, C, EL>
-where
-    <<C::RenderBackend as RenderBackend>::Text as Text>::Font:
-        From<<<C::Layouter as Layouter>::TextLayout as TextLayout>::Font>,
-{
+    > Drawer<'_, '_, C, EL> {
     pub(crate) fn render(&mut self, size: SizeU32) {
         let root = self.drawer.tree.root();
         if let Err(e) = self.drawer.layouter.layout::<C>(&mut self.drawer.tree, root, size) {
@@ -402,7 +393,9 @@ where
     }
 
     fn render_node(&mut self, id: NodeId, pos: &mut Point) -> Result<()> {
+        // info!(target: "renderer", "Rendering node {id}");
         let node = self.drawer.tree.get_node(id).ok_or(anyhow!("Node {id} not found"))?;
+        // dbg!(&node);
 
         let p = node.layout().rel_pos();
         pos.x += p.x as FP;
@@ -475,18 +468,7 @@ fn render_text<C: HasDrawComponents>(
     node: &<C::RenderTree as render_tree::RenderTree<C>>::Node,
     pos: &Point,
     scene: &mut <C::RenderBackend as RenderBackend>::Scene,
-) where
-    <<C::RenderBackend as RenderBackend>::Text as Text>::Font:
-        From<<<C::Layouter as Layouter>::TextLayout as TextLayout>::Font>,
-{
-    // if u64::from(node.id) < 204 && u64::from(node.id) > 202 {
-    //     return;
-    // }
-
-    // if u64::from(node.id) == 203 {
-    //     return;
-    // }
-
+) {
     let color = node
         .props()
         .get("color")
@@ -500,15 +482,12 @@ fn render_text<C: HasDrawComponents>(
             return;
         };
 
-        let text: <C::RenderBackend as RenderBackend>::Text =
-            Text::new::<<C::Layouter as Layouter>::TextLayout>(layout);
-
         let size = node.layout().size();
-
         let rect = Rect::new(pos.x as FP, pos.y as FP, size.width as FP, size.height as FP);
 
         let render_text = RenderText {
-            text,
+            text: layout.text().to_string(),
+            font: layout.font(),
             rect,
             transform: None,
             brush: Brush::color(color),

@@ -1,7 +1,7 @@
 use futures::channel::mpsc;
 use futures::channel::mpsc::UnboundedSender;
 use futures::executor::block_on;
-use futures::{SinkExt, StreamExt};
+use futures::StreamExt;
 use gosub_cairo::{CairoBackend, Scene};
 use gosub_css3::system::Css3System;
 use gosub_html5::document::builder::DocumentBuilderImpl;
@@ -94,7 +94,7 @@ fn build_ui(app: &Application, cl: &ApplicationCommandLine) -> i32 {
     let url = args
         .get(1)
         .and_then(|url| url.to_str())
-        .unwrap_or("https://example.com")
+        .unwrap_or("https://gosub.io/tests/gopher.html")
         .to_string();
 
     // Create a window and set the title
@@ -120,7 +120,7 @@ fn build_ui(app: &Application, cl: &ApplicationCommandLine) -> i32 {
     // tree drawer.
     let area = DrawingArea::default();
 
-    area.set_draw_func(move |area, cr, width, height| {
+    area.set_draw_func(move |_area, cr, width, height| {
         let size = SizeU32::new(width as u32, height as u32);
 
         let tx = instance.tx.clone();
@@ -146,9 +146,15 @@ fn build_ui(app: &Application, cl: &ApplicationCommandLine) -> i32 {
         });
     });
 
+    let scroll = gtk4::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk4::PolicyType::Automatic)
+        .vscrollbar_policy(gtk4::PolicyType::Automatic)
+        .child(&area)
+        .build();
+    window.set_child(Some(&scroll));
+
     window.set_default_width(800);
     window.set_default_height(600);
-    window.set_child(Some(&area));
     window.present();
 
     1

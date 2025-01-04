@@ -25,6 +25,8 @@ impl GsBrush {
     }
 
     pub fn render(obj: &GsBrush, cr: &cairo::Context) {
+        // info!(target: "cairo", "GsBrush::render");
+
         match &obj {
             GsBrush::Solid(c) => {
                 cr.set_source_rgba(c.r, c.g, c.b, c.a);
