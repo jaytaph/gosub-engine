@@ -1,6 +1,6 @@
 use crate::VelloBackend;
-use gosub_interface::layout::{Decoration, TextLayout};
-use gosub_interface::render_backend::{RenderText, Text as TText};
+use gosub_interface::layout::{TextLayout};
+use gosub_interface::render_backend::{RenderText};
 use gosub_shared::geo::FP;
 use vello::kurbo::{Affine, Line, Stroke};
 use vello::peniko::{Brush, Color, Fill, Font, StyleRef};
@@ -10,42 +10,9 @@ use vello_encoding::Glyph;
 
 #[derive(Clone)]
 pub struct Text {
-    glyphs: Vec<Glyph>,
+    text: String,
     font: Font,
-    fs: FP,
     coords: Vec<NormalizedCoord>,
-    decoration: Decoration,
-}
-
-impl TText for Text {
-    type Font = Font;
-    fn new<TL: TextLayout>(layout: &TL) -> Self
-    where
-        TL::Font: Into<Font>,
-    {
-        let font = layout.font().clone().into();
-        let fs = layout.font_size();
-
-        let glyphs = layout
-            .glyphs()
-            .iter()
-            .map(|g| Glyph {
-                id: g.id as u32,
-                x: g.x,
-                y: g.y,
-            })
-            .collect();
-
-        let coords = layout.coords().iter().map(|c| NormalizedCoord::from_bits(*c)).collect();
-
-        Self {
-            glyphs,
-            font,
-            fs,
-            coords,
-            decoration: layout.decorations().clone(),
-        }
-    }
 }
 
 impl Text {

@@ -1,5 +1,4 @@
 use crate::CairoBackend;
-use gosub_interface::layout::TextLayout;
 use gosub_interface::render_backend::RenderText;
 
 use crate::elements::brush::GsBrush;

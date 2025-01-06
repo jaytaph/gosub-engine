@@ -1,27 +1,11 @@
 use gosub_interface::layout::{Decoration, TextLayout as TLayout};
-use gosub_shared::font::Font as TFont;
-use gosub_shared::font::Glyph;
 use gosub_shared::geo::Size;
-use parley::Font as PFont;
-
-#[derive(Debug, Clone)]
-pub struct Font(pub PFont);
-
-impl TFont for Font {
-    fn to_bytes(&self) -> &[u8] {
-        self.0.data.data()
-    }
-}
-
-impl From<Font> for PFont {
-    fn from(font: Font) -> Self {
-        font.0
-    }
-}
+use gosub_interface::font::Font as GsFont;
 
 #[derive(Debug)]
 pub struct TextLayout {
-    pub glyphs: Vec<Glyph>,
+    pub text: String,
+    // pub glyphs: Vec<Glyph>,
     pub font: Font,
     pub font_size: f32,
     pub size: Size,
@@ -30,26 +14,18 @@ pub struct TextLayout {
 }
 
 impl TLayout for TextLayout {
-    type Font = Font;
+    type Font = GsFont;
+
+    fn text(&self) -> &str {
+        self.text.as_str()
+    }
 
     fn dbg_layout(&self) -> String {
         format!("TextLayout: {:?}", self)
     }
 
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn glyphs(&self) -> &[Glyph] {
-        &self.glyphs
-    }
-
     fn font(&self) -> &Self::Font {
         &self.font
-    }
-
-    fn font_size(&self) -> f32 {
-        self.font_size
     }
 
     fn coords(&self) -> &[i16] {

@@ -1,4 +1,3 @@
-use gosub_shared::font::Font;
 use crate::svg::SvgRenderer;
 pub use gosub_shared::geo::*;
 use gosub_shared::types::Result;
@@ -7,6 +6,7 @@ use smallvec::SmallVec;
 use std::fmt::{Debug, Display, Write};
 use std::io;
 use std::ops::{Div, Mul, MulAssign};
+use crate::font::Font;
 
 pub trait WindowHandle: HasDisplayHandle + HasWindowHandle + Send + Sync + Clone {}
 

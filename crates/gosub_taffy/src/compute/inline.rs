@@ -17,7 +17,7 @@ use gosub_shared::font::Glyph;
 use gosub_shared::geo;
 use gosub_shared::ROBOTO_FONT;
 
-use crate::text::{Font, TextLayout};
+use crate::text::TextLayout;
 use crate::{Display, LayoutDocument, TaffyLayouter};
 
 static FONT_CX: LazyLock<Mutex<FontContext>> = LazyLock::new(|| {

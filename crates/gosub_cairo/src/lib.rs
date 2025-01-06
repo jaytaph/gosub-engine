@@ -5,6 +5,7 @@ use crate::elements::gradient::GsGradient;
 use crate::elements::image::GsImage;
 use crate::elements::rect::GsRect;
 use crate::elements::text::GsText;
+use gosub_interface::font::Font as GsFont;
 use crate::elements::transform::GsTransform;
 use crate::render::window::{ActiveWindowData, WindowData};
 use gosub_interface::render_backend::{RenderBackend, RenderRect, RenderText, Scene as _, WindowHandle};

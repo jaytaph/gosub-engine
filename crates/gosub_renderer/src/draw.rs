@@ -28,6 +28,7 @@ use std::future::Future;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use url::Url;
+use gosub_interface::font::Font;
 
 mod img;
 pub mod img_cache;
@@ -467,8 +468,7 @@ impl<
 fn render_text<C: HasDrawComponents>(
     node: &<C::RenderTree as render_tree::RenderTree<C>>::Node,
     pos: &Point,
-    scene: &mut <C::RenderBackend as RenderBackend>::Scene,
-) {
+    scene: &mut <C::RenderBackend as RenderBackend>::Scene) {
     let color = node
         .props()
         .get("color")
@@ -485,9 +485,11 @@ fn render_text<C: HasDrawComponents>(
         let size = node.layout().size();
         let rect = Rect::new(pos.x as FP, pos.y as FP, size.width as FP, size.height as FP);
 
+        let font = <C::RenderBackend as RenderBackend>::Font::new("Arial", 12.0);
+
         let render_text = RenderText {
             text: layout.text().to_string(),
-            font: layout.font(),
+            font,
             rect,
             transform: None,
             brush: Brush::color(color),

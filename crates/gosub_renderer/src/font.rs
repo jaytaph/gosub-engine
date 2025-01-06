@@ -1,11 +1,12 @@
 use pango::{FontDescription, Style, Weight};
 use gosub_interface::font::{Font as TFont, FontDecoration, FontStyle, FontWeight};
 
+/// Implementation of the Font
 #[derive(Debug, Clone, PartialEq)]
 pub struct Font {
     /// Font family used (ie: "Arial", "Times New Roman", etc.)
     pub family: String,
-    /// Font size
+    /// Font size (defined by height in points)
     pub size: f32,
     /// Font weight (ie: "normal", "bold", etc.)
     pub weight: FontWeight,
@@ -16,6 +17,16 @@ pub struct Font {
 }
 
 impl TFont for Font {
+    fn new(family: &str, size: f32) -> Self {
+        Font {
+            family: family.to_string(),
+            size,
+            weight: FontWeight::Regular,
+            style: FontStyle::Normal,
+            decoration: FontDecoration::default(),
+        }
+    }
+
     fn family(&self) -> &str {
         self.family.as_str()
     }
@@ -37,7 +48,7 @@ impl TFont for Font {
     }
 }
 
-// Default implementation for Font
+// Default implementation for Fonts
 // https://granneman.com/webdev/coding/css/fonts-and-formatting/web-browser-font-defaults
 //
 // OS	        Browser	    Sans-serif	    Serif	            Mono
@@ -58,7 +69,7 @@ impl Default for Font {
             size: 12.0,
             weight: FontWeight::Regular,
             style: FontStyle::Normal,
-            decoration: FontDecoration::new(),
+            decoration: FontDecoration::default(),
         }
     }
 }

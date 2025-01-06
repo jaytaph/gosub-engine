@@ -1,4 +1,5 @@
 pub trait Font {
+    fn new(family: &str, size: f32) -> Self;
     fn family(&self) -> &str;
     fn size(&self) -> f32;
     fn weight(&self) -> FontWeight;
@@ -42,7 +43,7 @@ impl FontDecoration {
             strike_through: false,
         }
     }
-
+    
     pub fn set_underline(&mut self, underline: bool) {
         self.underline = underline;
     }
