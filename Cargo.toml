@@ -17,14 +17,22 @@ members = [
 
 [[example]]
 name = "html5-parser"
+path = "examples/html5-parser/main.rs"
 
 [[example]]
-name = "gtk-renderer"
-path = "examples/gtk-renderer/main.rs"
+name = "cairo-renderer"
+path = "examples/cairo-renderer/main.rs"
+required-features = ["gtk", "gosub_render_pipeline/text_pango", "gosub_render_pipeline/backend_cairo"]
 
 [[example]]
 name = "vello-renderer"
 path = "examples/vello-renderer/main.rs"
+required-features = ["gosub_render_pipeline/backend_vello"]
+
+[[example]]
+name = "skia-renderer"
+path = "examples/skia-renderer/main.rs"
+required-features = ["gosub_render_pipeline/text_skia", "gosub_render_pipeline/backend_skia"]
 
 [[bench]]
 name = "tree_iterator"
@@ -40,12 +48,7 @@ gosub_shared = { version = "0.1.1", path = "./crates/gosub_shared", features = [
 gosub_config = { version = "0.1.1", path = "./crates/gosub_config", features = [], registry = "gosub" }
 gosub_html5 = { version = "0.1.1", path = "./crates/gosub_html5", features = [], registry = "gosub" }
 gosub_css3 = { version = "0.1.1", path = "./crates/gosub_css3", features = [], registry = "gosub" }
-gosub_jsapi = { version = "0.1.1", path = "./crates/gosub_jsapi", features = [], registry = "gosub" }
-gosub_rendering = { version = "0.1.1", path = "crates/gosub_rendering", features = [], registry = "gosub" }
-gosub_renderer = { version = "0.1.1", path = "./crates/gosub_renderer", features = [], registry = "gosub" }
-gosub_vello = { version = "0.1.1", path = "./crates/gosub_vello", features = [], registry = "gosub" }
-gosub_cairo = { version = "0.1.1", path = "./crates/gosub_cairo", features = [], registry = "gosub" }
-gosub_taffy = { version = "0.1.1", path = "./crates/gosub_taffy", features = [], registry = "gosub" }
+gosub_render_pipeline = { version = "0.1.0", path = "./crates/gosub_render_pipeline", registry = "gosub" }
 gosub_net = { version = "0.1.1", path = "./crates/gosub_net", features = [], registry = "gosub" }
 gosub_instance = { version = "0.1.0", path = "./crates/gosub_instance", features = [], registry = "gosub" }
 gosub_fontmanager = { version = "0.1.0", path = "./crates/gosub_fontmanager", registry = "gosub" }
@@ -58,13 +61,12 @@ derive_more = "2.0.1"
 simple_logger = "5.0.0"
 log = "0.4.22"
 walkdir = "2.5.0"
+gtk4 = { version = "0.9.6", optional = true }
+#winit = { version = "0.30.8", optional = true }
 
 # Dependencies for testing and development. Also used for some of the examples (like the gtk/vello renderer).
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
-test-case = "3.3.1"
-gtk4 = "0.8.0"
-winit = "0.30.8"
 cookie = { version = "0.18.1", features = ["secure", "private"] }
 url = "2.5.4"
 clap = { version = "4.5.34", features = ["derive"] }
@@ -78,6 +80,8 @@ slotmap = "1.0.7"
 # Enables extended debugging information during parsing.
 debug_parser = []
 debug_parser_verbose = []
+
+gtk = ["dep:gtk4"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = "0.3.72"
