@@ -4,7 +4,6 @@ use std::sync::{Arc, RwLock};
 use rstar::primitives::GeomWithData;
 use crate::layouter::box_model::BoxModel;
 use crate::rendertree_builder::{RenderTree, RenderNodeId};
-use crate::common::document::node::{NodeId as DomNodeId, NodeId};
 use crate::common::font::FontInfo;
 use crate::common::geo::{Coordinate, Dimension};
 use crate::common::media::MediaId;

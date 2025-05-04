@@ -1,5 +1,4 @@
-use crate::common::document::node::{Node, NodeId as DomNodeId, NodeType};
-use crate::common::document::style::{FontWeight, StyleProperty, StyleValue, TextAlign, Unit};
+use crate::common::style::{FontWeight, StyleProperty, StyleValue, TextAlign, Unit};
 use crate::common::geo::Coordinate;
 use crate::common::media::{Media, MediaId, MediaType};
 use crate::common::{geo, get_media_store};
@@ -376,7 +375,7 @@ impl TaffyLayouter {
 
     /// Extracts taffy variables based the DOM node. It will generate the taffy style based on the node CSS properties,
     /// any context that might be needed (images, svg, text).
-    fn extract_taffy_data(&self, layout_tree: &LayoutTree, dom_node: &&Node) -> Option<(Option<TaffyContext>, Style)> {
+    fn extract_taffy_data(&self, layout_tree: &LayoutTree, dom_node: &Node) -> Option<(Option<TaffyContext>, Style)> {
         let mut taffy_context = None;
         let mut taffy_style = Style::default();
 

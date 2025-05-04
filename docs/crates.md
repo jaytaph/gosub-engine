@@ -4,16 +4,16 @@ The engine is split up in a few different crates. This is done to keep the codeb
 
 * gosub_config
 * gosub_css3
+* gosub_fontmanager
 * gosub_html5
+* gosub_instance
+* gosub_interface
 * gosub_jsapi
 * gosub_net
-* gosub_render_utils
-* gosub_renderer
+* gosub_render_pipeline
 * gosub_shared
-* gosub_svg
-* gosub_taffy
 * gosub_v8
-* gosub_vello
+* gosub_web_platform
 * gosub_webexecutor
 * gosub_webinterop
 

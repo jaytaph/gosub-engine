@@ -2282,6 +2282,8 @@ dependencies = [
  "gl",
  "glutin",
  "glutin-winit",
+ "gosub_html5",
+ "gosub_shared",
  "gtk4",
  "hex",
  "image",

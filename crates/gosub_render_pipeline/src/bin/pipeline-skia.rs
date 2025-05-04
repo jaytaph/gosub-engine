@@ -258,6 +258,10 @@ impl ApplicationHandler for App {
                 }
 
                 let canvas = env.surface.canvas();
+                
+                
+                C::Compositor::compose(C::CompositorConfig::new(&mut scene))
+                
                 let _surface = SkiaCompositor::compose(SkiaCompositorConfig { canvas });
 
                 env.gr_context.flush_and_submit();

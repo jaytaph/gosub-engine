@@ -1,9 +1,9 @@
 pub mod texture;
 pub mod media;
-pub mod document;
 pub mod geo;
 pub mod browser_state;
 pub mod font;
+pub mod style;
 
 mod texture_store;
 mod hash;

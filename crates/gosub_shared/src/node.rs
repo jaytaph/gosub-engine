@@ -53,6 +53,11 @@ impl NodeId {
         self.0 == Self::ROOT_NODE
     }
 
+    /// Returns the node ID as a u64 representation
+    pub fn to_u64(&self) -> u64 {
+        self.0 as u64
+    }
+
     /// Returns the next node ID
     #[must_use]
     pub fn next(&self) -> Self {

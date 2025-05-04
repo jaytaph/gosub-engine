@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::ops::AddAssign;
 use std::sync::Arc;
-use crate::common::document::document::Document;
-use crate::common::document::node::{Node, NodeType, NodeId};
-use crate::common::document::style::{StyleProperty, StyleValue, Display as CssDisplay};
+use gosub_shared::node::NodeId;
+use crate::common::style::{StyleProperty, StyleValue, Display as CssDisplay};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RenderNodeId(u64);
