@@ -208,7 +208,7 @@ impl<C: HasDocument<Document = DocumentImpl<C>, DocumentFragment = crate::docume
         self.children.push(node_id);
     }
 
-    fn data(&self) -> NodeData<C> {
+    fn data(&self) -> NodeData<'_, C> {
         match self.data {
             NodeDataTypeInternal::Document(ref data) => NodeData::Document(data),
             NodeDataTypeInternal::DocType(ref data) => NodeData::DocType(data),
