@@ -476,7 +476,7 @@ impl<C: HasDocument<Document = Self, DocumentFragment = crate::document::fragmen
     //     self.arena.count_nodes()
     // }
 
-    #[must_use] 
+    #[must_use]
     pub fn has_node_id_recursive(&self, parent_id: NodeId, target_node_id: NodeId) -> bool {
         let parent = self.arena.node_ref(parent_id);
         if parent.is_none() {
@@ -495,7 +495,7 @@ impl<C: HasDocument<Document = Self, DocumentFragment = crate::document::fragmen
         false
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn peek_next_id(&self) -> NodeId {
         self.arena.peek_next_id()
     }
