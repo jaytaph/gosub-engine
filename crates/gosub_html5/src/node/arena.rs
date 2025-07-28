@@ -30,6 +30,7 @@ impl<C: HasDocumentFragment> std::fmt::Debug for NodeArena<C> {
 }
 
 impl<C: HasDocumentFragment> NodeArena<C> {
+    #[must_use]
     pub fn node_count(&self) -> usize {
         self.nodes.len()
     }
@@ -46,7 +47,7 @@ impl<C: HasDocumentFragment> PartialEq for NodeArena<C> {
 }
 
 impl<C: HasDocumentFragment> NodeArena<C> {
-    /// Creates a new NodeArena
+    /// Creates a new `NodeArena`
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -63,17 +64,19 @@ impl<C: HasDocumentFragment> NodeArena<C> {
     }
 
     /// Peek what the next node ID is without incrementing the internal counter.
-    /// Used by DocumentTaskQueue for create_element() tasks.
+    /// Used by `DocumentTaskQueue` for `create_element()` tasks.
     pub(crate) fn peek_next_id(&self) -> NodeId {
         self.next_id
     }
 
     /// Gets the node with the given id
+    #[must_use]
     pub fn node_ref(&self, node_id: NodeId) -> Option<&NodeImpl<C>> {
         self.nodes.get(&node_id)
     }
 
     /// Gets the node with the given id
+    #[must_use]
     pub fn node(&self, node_id: NodeId) -> Option<NodeImpl<C>> {
         self.nodes.get(&node_id).cloned()
     }
@@ -109,6 +112,7 @@ impl<C: HasDocumentFragment> NodeArena<C> {
         id
     }
 
+    #[must_use]
     pub fn nodes(&self) -> &HashMap<NodeId, NodeImpl<C>> {
         &self.nodes
     }

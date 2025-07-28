@@ -12,7 +12,7 @@ use gosub_shared::byte_stream::Location;
 use gosub_shared::node::NodeId;
 use std::collections::HashMap;
 
-/// Implementation of the NodeDataType trait
+/// Implementation of the `NodeDataType` trait
 pub enum NodeDataTypeInternal<C: HasDocumentFragment> {
     /// Represents a document
     Document(DocumentData),
@@ -105,7 +105,7 @@ impl<C: HasDocument<Document = DocumentImpl<C>, DocumentFragment = crate::docume
     }
 
     fn set_id(&mut self, id: NodeId) {
-        self.id = id
+        self.id = id;
     }
 
     fn location(&self) -> Location {
@@ -417,10 +417,7 @@ mod tests {
         assert_eq!(node.id, NodeId::default());
         assert_eq!(node.parent, None);
         assert!(node.children.is_empty());
-        match &node.data {
-            NodeDataTypeInternal::Document(_) => (),
-            _ => panic!(),
-        }
+        if let NodeDataTypeInternal::Document(_) = &node.data {  } else { panic!() }
     }
 
     #[test]
@@ -433,14 +430,11 @@ mod tests {
         assert_eq!(node.parent, None);
         assert!(node.children.is_empty());
 
-        match &node.data {
-            NodeDataTypeInternal::Element(data) => {
-                assert_eq!(data.name(), "div");
-                assert!(data.attributes().contains_key("id"));
-                assert_eq!(data.attributes().get("id").unwrap(), "test");
-            }
-            _ => panic!(),
-        }
+        if let NodeDataTypeInternal::Element(data) = &node.data {
+            assert_eq!(data.name(), "div");
+            assert!(data.attributes().contains_key("id"));
+            assert_eq!(data.attributes().get("id").unwrap(), "test");
+        } else { panic!() }
     }
 
     #[test]
@@ -492,7 +486,7 @@ mod tests {
 
     #[test]
     fn special_html_elements() {
-        for element in SPECIAL_HTML_ELEMENTS.iter() {
+        for element in &SPECIAL_HTML_ELEMENTS {
             let mut attributes = HashMap::new();
             attributes.insert("id".to_string(), "test".to_string());
 
@@ -504,7 +498,7 @@ mod tests {
 
     #[test]
     fn special_mathml_elements() {
-        for element in SPECIAL_MATHML_ELEMENTS.iter() {
+        for element in &SPECIAL_MATHML_ELEMENTS {
             let mut attributes = HashMap::new();
             attributes.insert("id".to_string(), "test".to_string());
             let node = NodeImpl::<Config>::new_element(
@@ -520,7 +514,7 @@ mod tests {
 
     #[test]
     fn special_svg_elements() {
-        for element in SPECIAL_SVG_ELEMENTS.iter() {
+        for element in &SPECIAL_SVG_ELEMENTS {
             let mut attributes = HashMap::new();
             attributes.insert("id".to_string(), "test".to_string());
             let node = NodeImpl::<Config>::new_element(Location::default(), element, Some(SVG_NAMESPACE), attributes);
