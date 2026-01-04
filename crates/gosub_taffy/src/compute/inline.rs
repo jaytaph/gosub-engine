@@ -591,15 +591,15 @@ pub fn compute_inline_layout<C: HasLayouter<Layouter = TaffyLayouter>>(
         );
     }
 
-    let mut size = content_size;
-
-    if let AvailableSpace::Definite(width) = layout_input.available_space.width {
-        size.width = content_size.width.min(width);
-    }
-
-    if let AvailableSpace::Definite(height) = layout_input.available_space.height {
-        size.height = content_size.height.min(height);
-    }
+    // let mut size = content_size;
+    //
+    // if let AvailableSpace::Definite(width) = layout_input.available_space.width {
+    //     size.width = content_size.width.min(width);
+    // }
+    //
+    // if let AvailableSpace::Definite(height) = layout_input.available_space.height {
+    //     size.height = content_size.height.min(height);
+    // }
 
     LayoutOutput {
         size: content_size,
