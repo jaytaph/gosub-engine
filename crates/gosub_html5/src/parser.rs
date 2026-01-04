@@ -4110,12 +4110,8 @@ impl<'a, C: HasDocument> Html5Parser<'a, C> {
         let css = if url.scheme() == "http" || url.scheme() == "https" {
             // Fetch the html from the url
             let response = ureq::get(url.as_ref()).call();
-            if response.is_err() {
-                warn!(
-                    "Could not load external stylesheet from {}. Error: {}",
-                    url,
-                    response.unwrap_err()
-                );
+            if let Err(err) = response {
+                warn!("Could not load external stylesheet from {}. Error: {}", url, err);
                 return None;
             }
             let mut response = response.expect("result");
