@@ -1,4 +1,4 @@
-# Gosub: Gateway to Optimized Searching and Unlimited Browsing
+# Gosub: A new browser engine made from scratch
 
 This repository holds the Gosub browser engine. It will become a standalone library that can be used by other projects
 but will ultimately be used by the Gosub browser user-agent. See the [About](#about) section for more information.
@@ -56,18 +56,48 @@ We can render a part for our own [site](https://gosub.io):
 This project uses [cargo](https://doc.rust-lang.org/cargo/) and [rustup](https://www.rust-lang.org/tools/install). First
 you must install `rustup` at the link provided. After installing `rustup`, run:
 
+If you want to use a specific version of rust: 
+
 ```bash
-$ rustup toolchain install 1.73
+$ rustup toolchain install 1.82
+$ rustup default 1.82
 $ rustc --version
-rustc 1.73.0 (cc66ad468 2023-10-03)
+rustc 1.82.0 (f6e511eec 2024-10-15)
 ```
+
+or you can use the latest version:
+
+```bash
+$ rustup default stable
+$ rustc --version
+rustc 1.92.0 (ded5c06cf 2025-12-08)
+(or a higher version if available)
+```
+
+You also should have following OS packages installed:
+
+```
+gcc
+g++
+libglib2.0-dev
+libcairo2-dev
+libpango1.0-dev
+libgdk-pixbuf-2.0-dev
+libgraphene-1.0-dev
+libgtk-4-dev
+libsqlite3-dev
+```
+
+or equivalent for non-ubuntu based systems.
+
 
 Once Rust is installed, run this command to pre-build the dependencies:
 
 ```bash
+$ git clone https://github.com/gosub-io/gosub-engine.git
+$ cd gosub-engine
 $ cargo build --release
 ```
-
 </details>
 
 
@@ -141,4 +171,5 @@ building small proof-of-concepts and figuring out what needs to be done next. Mu
 of the project will be non-coding.
 
 We do like to hear from you if you are interested in contributing to the project and you can join us currently at
+
 our [Zulip chat](https://chat.developer.gosub.io)!
