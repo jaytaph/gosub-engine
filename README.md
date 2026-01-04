@@ -52,7 +52,6 @@ We can render a part for our own [site](https://gosub.io):
 <details>
 <summary> Installing dependencies </summary>
 
-
 This project uses [cargo](https://doc.rust-lang.org/cargo/) and [rustup](https://www.rust-lang.org/tools/install). First
 you must install `rustup` at the link provided. After installing `rustup`, run:
 
@@ -77,6 +76,7 @@ rustc 1.92.0 (ded5c06cf 2025-12-08)
 You also should have following OS packages installed:
 
 ```
+make
 gcc
 g++
 libglib2.0-dev
@@ -101,12 +101,12 @@ $ cargo build --release
 </details>
 
 
-You can run the following binaries:
+You can run the following binaries (these will not output much useful information yet, as the engine is still in development):
 
 | Command                                | Type | Description                                                                                                                                                     |
 |----------------------------------------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `cargo run -r --bin config-store`      | bin  | A simple test application of the config store for testing purposes                                                                                              |
-| `cargo run -r --bin css3-parser`       | bin  | Show the parsed css tree                                                                                                                                        |
+| `cargo run -r --bin css3-parser`       | bin  | Show a parsed css tree from an url                                                                                                                              |
 | `cargo run -r --bin display-text-tree` | bin  | A simple parser that will try and return a textual presentation of the website                                                                                  |
 | `cargo run -r --bin gosub-parser`      | bin  | The actual html5 parser/tokenizer that allows you to convert html5 into a document tree.                                                                        |
 | `cargo run -r --bin html5-parser-test` | test | A test suite that tests all html5lib tests for the treebuilding                                                                                                 |
@@ -115,8 +115,7 @@ You can run the following binaries:
 
 For running the binaries, take a look at a quick introduction at [/docs/binaries.md](/docs/binaries.md)
 
-There are also a bit more advanced examples that can be run:
-
+There are also a bit more advanced examples that can be run that will try and display some graphics:
 
 | Command                                    | Description                                                  |
 |--------------------------------------------|--------------------------------------------------------------|
