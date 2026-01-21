@@ -14,5 +14,6 @@ pub mod geo;
 pub mod node;
 pub mod timing;
 pub mod types;
+pub mod engine;
 
 pub const ROBOTO_FONT: &[u8] = include_bytes!("../resources/fonts/Roboto-Regular.ttf");

@@ -1,0 +1,17 @@
+use tracing::instrument;
+use crate::events::{NetEvent, NetObserver};
+
+/// Emitter that will drop any events received
+pub struct NullEmitter;
+
+impl NetObserver for NullEmitter {
+    #[instrument(
+        name = "net.observer",
+        level = "debug",
+        skip(self),
+    )]
+    fn on_event(&self, _ev: NetEvent) {
+        // Do nothing with the event
+        log::trace!("NullEmitter received an event, but will ignore it.");
+    }
+}

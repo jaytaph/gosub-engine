@@ -11,3 +11,24 @@ extern crate gosub_config;
 pub mod dns;
 pub mod errors;
 pub mod http;
+
+pub mod decision;
+pub mod emitter;
+
+mod decision_hub;
+mod events;
+mod fetch;
+mod fetcher;
+mod fs_utils;
+mod io_runtime;
+mod pump;
+mod req_ref_tracker;
+mod router;
+mod shared_body;
+mod types;
+mod utils;
+
+
+#[doc(inline)]
+/// Tab management and browsing context API.
+pub use gosub_shared::engine::tab;
