@@ -1,7 +1,6 @@
+use crate::byte_stream::{ByteStream, Location};
 use crate::config::HasDocument;
-use gosub_shared::byte_stream::{ByteStream, Location};
-
-use gosub_shared::types::{ParseError, Result};
+use crate::types::{ParseError, Result};
 
 pub trait Html5Parser<C: HasDocument> {
     type Options: ParserOptions;

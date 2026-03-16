@@ -1952,7 +1952,6 @@ dependencies = [
  "cairo-rs",
  "gosub_fontmanager",
  "gosub_interface",
- "gosub_shared",
  "gosub_svg",
  "image",
  "kurbo",
@@ -1967,7 +1966,6 @@ version = "0.1.1"
 dependencies = [
  "anyhow",
  "cow-utils",
- "gosub_shared",
  "lazy_static",
  "log",
  "rusqlite",
@@ -1989,7 +1987,6 @@ dependencies = [
  "colors-transform",
  "cow-utils",
  "gosub_interface",
- "gosub_shared",
  "indexmap",
  "itertools 0.14.0",
  "lazy_static",
@@ -2026,7 +2023,6 @@ dependencies = [
  "gosub_net",
  "gosub_renderer",
  "gosub_rendering",
- "gosub_shared",
  "gosub_taffy",
  "gosub_v8",
  "gosub_vello",
@@ -2080,7 +2076,6 @@ dependencies = [
  "criterion",
  "gosub_css3",
  "gosub_interface",
- "gosub_shared",
  "lazy_static",
  "log",
  "nom 8.0.0",
@@ -2101,7 +2096,6 @@ version = "0.1.0"
 dependencies = [
  "gosub_interface",
  "gosub_net",
- "gosub_shared",
  "gosub_web_platform",
  "log",
  "tokio",
@@ -2112,12 +2106,28 @@ dependencies = [
 name = "gosub_interface"
 version = "0.1.2"
 dependencies = [
+ "anyhow",
+ "chardet",
+ "chardetng",
+ "derive_more",
+ "encoding_rs",
+ "futures",
+ "getrandom 0.2.15",
  "gosub_net",
- "gosub_shared",
  "image",
+ "js-sys",
+ "lazy_static",
+ "log",
+ "rand 0.9.1",
  "raw-window-handle",
  "smallvec",
+ "thiserror 2.0.12",
  "url",
+ "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
 ]
 
 [[package]]
@@ -2125,7 +2135,7 @@ name = "gosub_jsapi"
 version = "0.1.1"
 dependencies = [
  "cow-utils",
- "gosub_shared",
+ "gosub_interface",
  "regex",
  "uuid",
 ]
@@ -2139,7 +2149,6 @@ dependencies = [
  "derive_more",
  "domain-lookup-tree",
  "gosub_config",
- "gosub_shared",
  "hickory-resolver",
  "js-sys",
  "log",
@@ -2159,7 +2168,6 @@ dependencies = [
  "gosub_interface",
  "gosub_net",
  "gosub_rendering",
- "gosub_shared",
  "image",
  "log",
  "pango 0.20.9",
@@ -2176,36 +2184,8 @@ dependencies = [
  "cow-utils",
  "gosub_html5",
  "gosub_interface",
- "gosub_shared",
  "log",
  "rstar",
-]
-
-[[package]]
-name = "gosub_shared"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "chardet",
- "chardetng",
- "derive_more",
- "encoding_rs",
- "futures",
- "getrandom 0.2.15",
- "image",
- "js-sys",
- "lazy_static",
- "log",
- "rand 0.9.1",
- "raw-window-handle",
- "smallvec",
- "thiserror 2.0.12",
- "url",
- "uuid",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test",
- "web-sys",
 ]
 
 [[package]]
@@ -2215,7 +2195,6 @@ dependencies = [
  "anyhow",
  "gosub_html5",
  "gosub_interface",
- "gosub_shared",
  "resvg",
  "tiny-skia",
 ]
@@ -2227,7 +2206,6 @@ dependencies = [
  "anyhow",
  "gosub_fontmanager",
  "gosub_interface",
- "gosub_shared",
  "log",
  "parley",
  "regex",
@@ -2239,7 +2217,7 @@ name = "gosub_v8"
 version = "0.1.2"
 dependencies = [
  "anyhow",
- "gosub_shared",
+ "gosub_interface",
  "gosub_webexecutor",
  "gosub_webinterop",
  "serde_json",
@@ -2257,7 +2235,6 @@ dependencies = [
  "gosub_fontmanager",
  "gosub_html5",
  "gosub_interface",
- "gosub_shared",
  "gosub_svg",
  "image",
  "log",
@@ -2274,7 +2251,6 @@ name = "gosub_web_platform"
 version = "0.1.0"
 dependencies = [
  "gosub_interface",
- "gosub_shared",
  "log",
  "pin-project",
  "slotmap",
@@ -2285,7 +2261,7 @@ dependencies = [
 name = "gosub_webexecutor"
 version = "0.1.1"
 dependencies = [
- "gosub_shared",
+ "gosub_interface",
  "paste",
  "thiserror 2.0.12",
 ]

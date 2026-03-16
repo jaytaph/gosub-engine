@@ -8,7 +8,7 @@ use gosub_interface::eventloop::EventLoopHandle;
 use gosub_interface::render_backend::{Image as _, ImageBuffer, ImageCacheEntry, ImgCache, RenderBackend, SizeU32};
 use gosub_interface::svg::SvgRenderer;
 use gosub_net::http::fetcher::Fetcher;
-use gosub_shared::types::Result;
+use gosub_interface::types::Result;
 use image::DynamicImage;
 use url::Url;
 
@@ -40,7 +40,7 @@ pub fn request_img<C: HasDrawComponents>(
                 ));
             };
 
-            gosub_shared::async_executor::spawn(async move {
+            gosub_interface::async_executor::spawn(async move {
                 if let Ok(img) = load_img::<C::RenderBackend>(&url, fetcher, svg_renderer, size).await {
                     el.add_img_cache(url, img, size);
                 } else {

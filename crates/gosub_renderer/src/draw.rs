@@ -20,9 +20,9 @@ use gosub_interface::svg::SvgRenderer;
 use gosub_net::http::fetcher::Fetcher;
 use gosub_rendering::position::PositionTree;
 use gosub_rendering::render_tree::RenderTree;
-use gosub_shared::geo::{Size, SizeU32, FP};
-use gosub_shared::node::NodeId;
-use gosub_shared::types::Result;
+use gosub_interface::geo::{Size, SizeU32, FP};
+use gosub_interface::node::NodeId;
+use gosub_interface::types::Result;
 use log::{error, info};
 use std::future::Future;
 use std::sync::mpsc::Sender;
@@ -37,7 +37,7 @@ const DEBUG_CONTENT_COLOR: (u8, u8, u8) = (0, 192, 255);
 const DEBUG_PADDING_COLOR: (u8, u8, u8) = (0, 255, 192);
 const DEBUG_BORDER_COLOR: (u8, u8, u8) = (255, 72, 72);
 
-type Point = gosub_shared::types::Point<FP>;
+type Point = gosub_interface::types::Point<FP>;
 
 #[derive(Debug)]
 pub struct TreeDrawerImpl<C: HasDrawComponents> {

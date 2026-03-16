@@ -9,9 +9,9 @@ use gosub_interface::config::{HasDocument, HasHtmlParser};
 use gosub_interface::document::{Document, DocumentBuilder};
 
 use gosub_interface::html5::{Html5Parser, ParserOptions};
-use gosub_shared::byte_stream::{ByteStream, Config, Encoding, Location};
-use gosub_shared::node::NodeId;
-use gosub_shared::types::{ParseError, Result};
+use gosub_interface::byte_stream::{ByteStream, Config, Encoding, Location};
+use gosub_interface::node::NodeId;
+use gosub_interface::types::{ParseError, Result};
 use parser::{ScriptMode, TestSpec};
 use result::TestResult;
 use result::{ResultStatus, TreeLineResult};

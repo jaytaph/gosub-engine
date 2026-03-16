@@ -1,10 +1,10 @@
-use anyhow::bail;
+use anyhow::{bail, Result};
 use std::error::Error;
 use std::fmt::Debug;
 use std::future::Future;
 use url::{ParseError, Url};
 
-use gosub_shared::types::Result;
+
 
 use crate::http::request::Request;
 use crate::http::request_impl::RequestImpl;

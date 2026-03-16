@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use gosub_interface::render_backend::Image as TImage;
-use gosub_shared::geo::FP;
+use gosub_interface::geo::FP;
 use image::{DynamicImage, GenericImageView};
 use vello::peniko::ImageFormat;
 use vello::peniko::{Blob, Image as VelloImage};

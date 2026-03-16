@@ -21,11 +21,11 @@ use gosub_interface::document::{Document, DocumentFragment, DocumentType};
 use gosub_interface::html5::ParserOptions;
 use gosub_interface::node::TextDataType;
 use gosub_interface::node::{ElementDataType, Node, QuirksMode};
-use gosub_shared::byte_stream::{ByteStream, Location};
-use gosub_shared::config::{Context, ParserConfig};
-use gosub_shared::node::NodeId;
-use gosub_shared::types::{ParseError, Result};
-use gosub_shared::{timing_start, timing_stop};
+use gosub_interface::byte_stream::{ByteStream, Location};
+use gosub_interface::parser_config::{Context, ParserConfig};
+use gosub_interface::node::NodeId;
+use gosub_interface::types::{ParseError, Result};
+use gosub_interface::{timing_start, timing_stop};
 use log::warn;
 use url::Url;
 
@@ -4259,7 +4259,7 @@ mod test {
     use gosub_css3::system::Css3System;
     use gosub_interface::config::HasCssSystem;
     use gosub_interface::node::ClassList;
-    use gosub_shared::byte_stream::Encoding;
+    use gosub_interface::byte_stream::Encoding;
 
     #[derive(Clone, Debug, PartialEq)]
     struct Config;

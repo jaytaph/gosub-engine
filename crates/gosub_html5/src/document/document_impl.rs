@@ -18,8 +18,8 @@ use crate::node::visitor::Visitor;
 use gosub_interface::config::{HasCssSystem, HasDocument, HasDocumentFragment};
 use gosub_interface::node::Node;
 use gosub_interface::node::QuirksMode;
-use gosub_shared::byte_stream::Location;
-use gosub_shared::node::NodeId;
+use gosub_interface::byte_stream::Location;
+use gosub_interface::node::NodeId;
 
 /// Defines a document
 #[derive(Debug)]
@@ -585,7 +585,7 @@ mod tests {
     use gosub_interface::node::ClassList;
     use gosub_interface::node::ElementDataType;
     use gosub_interface::node::NodeType;
-    use gosub_shared::byte_stream::Location;
+    use gosub_interface::byte_stream::Location;
     use std::collections::HashMap;
 
     #[derive(Clone, Debug, PartialEq)]

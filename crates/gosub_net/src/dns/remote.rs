@@ -1,7 +1,8 @@
+use anyhow::Result;
 use crate::dns::{DnsEntry, DnsResolver, ResolveType};
 use crate::errors::Error;
 use core::str::FromStr;
-use gosub_shared::types::Result;
+
 use hickory_resolver::config::Protocol::Udp;
 use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
 use hickory_resolver::Resolver;

@@ -10,9 +10,9 @@ use {
     gosub_net::http::headers::Headers,
     gosub_net::http::request::Request,
     gosub_net::http::response::Response,
-    gosub_shared::byte_stream::{ByteStream, Encoding},
-    gosub_shared::types::{ParseError, Result},
-    gosub_shared::{timing_start, timing_stop},
+    gosub_interface::byte_stream::{ByteStream, Encoding},
+    gosub_interface::types::{ParseError, Result},
+    gosub_interface::{timing_start, timing_stop},
     url::Url,
 };
 

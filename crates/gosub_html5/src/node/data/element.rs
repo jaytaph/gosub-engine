@@ -6,7 +6,7 @@ use core::fmt::{Debug, Formatter};
 use gosub_interface::config::{HasDocument, HasDocumentFragment};
 
 use gosub_interface::node::{ClassList, ElementDataType};
-use gosub_shared::node::NodeId;
+use gosub_interface::node::NodeId;
 use std::collections::hash_map::IntoIter;
 use std::collections::HashMap;
 use std::fmt;

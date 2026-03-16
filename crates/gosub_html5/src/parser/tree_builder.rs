@@ -1,6 +1,6 @@
-use gosub_shared::byte_stream::Location;
-use gosub_shared::node::NodeId;
-use gosub_shared::types::Result;
+use gosub_interface::byte_stream::Location;
+use gosub_interface::node::NodeId;
+use gosub_interface::types::Result;
 
 /// `TreeBuilder` is an interface to abstract DOM tree modifications.
 ///

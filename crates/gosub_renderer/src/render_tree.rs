@@ -6,7 +6,7 @@ use gosub_interface::document::{Document, DocumentBuilder};
 use gosub_interface::html5::Html5Parser;
 use gosub_net::http::fetcher::Fetcher;
 use gosub_rendering::render_tree::generate_render_tree;
-use gosub_shared::byte_stream::{ByteStream, Encoding};
+use gosub_interface::byte_stream::{ByteStream, Encoding};
 use std::fs;
 use url::Url;
 
@@ -14,7 +14,7 @@ use url::Url;
 pub async fn load_html_rendertree<C: HasRenderTree + HasHtmlParser>(
     url: Url,
     source: Option<&str>,
-) -> gosub_shared::types::Result<(C::RenderTree, C::Document, Fetcher)> {
+) -> gosub_interface::types::Result<(C::RenderTree, C::Document, Fetcher)> {
     let fetcher = Fetcher::new(url.clone());
 
     let (rt, handle) = match source {
@@ -30,7 +30,7 @@ pub async fn load_html_rendertree<C: HasRenderTree + HasHtmlParser>(
 pub fn load_html_rendertree_source<C: HasRenderTree + HasHtmlParser>(
     url: Url,
     source_html: &str,
-) -> gosub_shared::types::Result<(C::RenderTree, C::Document)> {
+) -> gosub_interface::types::Result<(C::RenderTree, C::Document)> {
     let mut stream = ByteStream::new(Encoding::UTF8, None);
     stream.read_from_str(source_html, Some(Encoding::UTF8));
     stream.close();
@@ -51,7 +51,7 @@ pub fn load_html_rendertree_source<C: HasRenderTree + HasHtmlParser>(
 pub async fn load_html_rendertree_fetcher<C: HasRenderTree + HasHtmlParser>(
     url: Url,
     fetcher: &Fetcher,
-) -> gosub_shared::types::Result<(C::RenderTree, C::Document)> {
+) -> gosub_interface::types::Result<(C::RenderTree, C::Document)> {
     let html = if url.scheme() == "http" || url.scheme() == "https" {
         // Fetch the html from the url
         let response = fetcher.get(url.as_ref()).await?;

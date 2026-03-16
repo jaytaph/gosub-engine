@@ -15,7 +15,7 @@ use gosub_interface::config::{
 };
 use gosub_renderer::draw::TreeDrawerImpl;
 use gosub_rendering::render_tree::RenderTree;
-use gosub_shared::types::Result;
+use gosub_interface::types::Result;
 use gosub_taffy::TaffyLayouter;
 use gosub_vello::VelloBackend;
 use log::LevelFilter;
@@ -31,7 +31,7 @@ use gosub_interface::chrome::ChromeHandle;
 use gosub_interface::font::HasFontManager;
 use gosub_interface::instance::InstanceId;
 use gosub_interface::render_backend::RenderBackend;
-use gosub_shared::geo::SizeU32;
+use gosub_interface::geo::SizeU32;
 pub use winit;
 use winit::event_loop::EventLoopProxy;
 
