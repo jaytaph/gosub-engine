@@ -164,7 +164,7 @@ pub struct ElementData<C: HasDocumentFragment> {
     // Only used for <script> elements
     pub force_async: bool,
     // Template contents (when it's a template element)
-    pub template_contents: Option<C::DocumentFragment>,
+    pub template_contents: Option<Box<C::DocumentFragment>>,
 }
 
 impl<C: HasDocumentFragment> PartialEq for ElementData<C> {
@@ -343,7 +343,7 @@ impl<C: HasDocument> ElementDataType<C> for ElementData<C> {
     }
 
     fn template_contents(&self) -> Option<&C::DocumentFragment> {
-        self.template_contents.as_ref()
+        self.template_contents.as_deref()
     }
 
     /// Returns true if the given node is a "formatting" node
@@ -352,7 +352,7 @@ impl<C: HasDocument> ElementDataType<C> for ElementData<C> {
     }
 
     fn set_template_contents(&mut self, template_contents: C::DocumentFragment) {
-        self.template_contents = Some(template_contents);
+        self.template_contents = Some(Box::new(template_contents));
     }
 }
 
