@@ -19,7 +19,7 @@ impl Css3<'_> {
 mod tests {
     use crate::walker::Walker;
     use crate::{CssOrigin, ParserConfig};
-    use gosub_interface::byte_stream::{ByteStream, Encoding};
+    use gosub_stream::byte_stream::{ByteStream, Encoding};
 
     #[test]
     fn test_parse_at_rule_supports_prelude() {

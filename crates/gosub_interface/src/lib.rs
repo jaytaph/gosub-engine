@@ -1,5 +1,4 @@
 pub mod async_executor;
-pub mod byte_stream;
 pub mod chrome;
 pub mod config;
 pub mod css3;
@@ -7,6 +6,7 @@ pub mod document;
 pub mod draw;
 pub mod errors;
 pub mod eventloop;
+pub mod fetcher;
 pub mod font;
 pub mod geo;
 pub mod glyph;

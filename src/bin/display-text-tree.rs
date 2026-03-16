@@ -1,7 +1,7 @@
 use gosub_css3::system::Css3System;
 use gosub_html5::document::builder::DocumentBuilderImpl;
 use gosub_html5::parser::Html5Parser;
-use gosub_interface::byte_stream::{ByteStream, Encoding};
+use gosub_stream::byte_stream::{ByteStream, Encoding};
 use gosub_interface::types::Result;
 use std::process::exit;
 
@@ -27,6 +27,7 @@ impl HasDocument for Config {
 
 impl HasHtmlParser for Config {
     type HtmlParser = Html5Parser<'static, Self>;
+    type HtmlStream = ByteStream;
 }
 
 fn main() -> Result<()> {

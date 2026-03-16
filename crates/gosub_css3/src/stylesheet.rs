@@ -1,7 +1,7 @@
 use core::fmt::Debug;
 use core::slice;
 use gosub_interface::css3::CssOrigin;
-use gosub_interface::byte_stream::Location;
+use gosub_stream::byte_stream::Location;
 use gosub_interface::errors::CssError;
 use gosub_interface::errors::CssResult;
 use std::cmp::Ordering;

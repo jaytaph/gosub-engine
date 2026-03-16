@@ -1,4 +1,4 @@
-use gosub_interface::byte_stream::Location;
+use gosub_stream::byte_stream::{ByteStream, Location};
 use gosub_interface::node::NodeId;
 use gosub_interface::types::Result;
 
@@ -54,6 +54,7 @@ mod tests {
 
     impl HasHtmlParser for Config {
         type HtmlParser = Html5Parser<'static, Self>;
+        type HtmlStream = ByteStream;
     }
 
     const DISABLED_CASES: &[&str] = &[

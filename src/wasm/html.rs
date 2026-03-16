@@ -5,7 +5,7 @@ use gosub_html5::parser::Html5Parser;
 use gosub_html5::writer::DocumentWriter;
 use gosub_interface::document::DocumentBuilder;
 
-use gosub_interface::byte_stream::{ByteStream, Encoding};
+use gosub_stream::byte_stream::{ByteStream, Encoding};
 use gosub_interface::node::NodeId;
 use url::Url;
 use wasm_bindgen::prelude::wasm_bindgen;

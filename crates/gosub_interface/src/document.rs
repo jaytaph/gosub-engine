@@ -1,4 +1,4 @@
-use crate::byte_stream::Location;
+use crate::node::Location;
 use crate::config::HasDocument;
 use crate::node::{Node, NodeId, QuirksMode};
 use std::collections::HashMap;

@@ -39,7 +39,8 @@ pub trait HasDocument:
 }
 
 pub trait HasHtmlParser: HasDocument {
-    type HtmlParser: Html5Parser<Self>;
+    type HtmlParser: Html5Parser<Self, Stream = Self::HtmlStream>;
+    type HtmlStream: 'static;
 }
 
 pub trait HasDocumentExt<C: HasDocument> {

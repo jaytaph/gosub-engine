@@ -6,6 +6,7 @@ use gosub_interface::input::InputEvent;
 use gosub_interface::instance::{Handles, InstanceId};
 use gosub_interface::layout::LayoutTree;
 use gosub_interface::render_backend::{ImageBuffer, NodeDesc};
+use gosub_interface::fetcher::Fetcher as FetcherTrait;
 use gosub_net::http::fetcher::Fetcher;
 use gosub_interface::geo::SizeU32;
 use gosub_interface::types::Result;
@@ -31,7 +32,7 @@ pub struct EngineInstance<C: ModuleConfiguration> {
     id: InstanceId,
     handles: Handles<C>,
     #[allow(unused)]
-    fetcher: Arc<Fetcher>,
+    fetcher: Arc<dyn FetcherTrait>,
     size: SizeU32,
 }
 
@@ -58,7 +59,7 @@ impl<C: ModuleConfiguration> EngineInstance<C> {
         id: InstanceId,
         handles: Handles<C>,
     ) -> Result<Self> {
-        let fetcher = Arc::new(Fetcher::new(url.clone()));
+        let fetcher: Arc<dyn FetcherTrait> = Arc::new(Fetcher::new(url.clone()));
         let (data, _handle) = C::TreeDrawer::with_fetcher(url.clone(), fetcher.clone(), layouter, false).await?;
 
         let (itx, irx) = tokio::sync::mpsc::channel(128);

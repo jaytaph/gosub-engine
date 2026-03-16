@@ -136,7 +136,7 @@ mod tests {
     use gosub_interface::document::Document;
     use gosub_interface::document::DocumentBuilder;
 
-    use gosub_interface::byte_stream::Location;
+    use gosub_stream::byte_stream::Location;
 
     #[derive(Clone, Debug, PartialEq)]
     struct Config;

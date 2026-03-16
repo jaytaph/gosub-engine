@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Result};
 use gosub_css3::tokenizer::{TokenType, Tokenizer};
 use gosub_css3::Css3;
 use gosub_interface::css3::CssOrigin;
-use gosub_interface::byte_stream::{ByteStream, Encoding, Location};
+use gosub_stream::byte_stream::{ByteStream, Encoding, Location};
 use gosub_interface::parser_config::ParserConfig;
 use gosub_interface::errors::CssError;
 use simple_logger::SimpleLogger;

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::parser::tree_builder::TreeBuilder;
 use gosub_interface::config::HasDocument;
 use gosub_interface::node::{ElementDataType, Node};
-use gosub_interface::byte_stream::Location;
+use gosub_stream::byte_stream::Location;
 use gosub_interface::node::NodeId;
 use gosub_interface::types::Result;
 

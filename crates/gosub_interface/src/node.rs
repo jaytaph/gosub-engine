@@ -1,9 +1,46 @@
-use crate::byte_stream::Location;
 use crate::config::HasDocument;
 use derive_more::Display;
 use std::collections::hash_map::IntoIter;
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
+use std::fmt;
+
+/// Location holds the start position of the given element in the data source
+#[derive(Clone, PartialEq, Copy)]
+pub struct Location {
+    /// Line number, starting with 1
+    pub line: usize,
+    /// Column number, starting with 1
+    pub column: usize,
+    /// Byte offset, starting with 0
+    pub offset: usize,
+}
+
+impl Default for Location {
+    /// Default to line 1, column 1
+    fn default() -> Self {
+        Self::new(1, 1, 0)
+    }
+}
+
+impl Location {
+    /// Create a new Location
+    pub fn new(line: usize, column: usize, offset: usize) -> Self {
+        Self { line, column, offset }
+    }
+}
+
+impl Display for Location {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "({}:{})", self.line, self.column)
+    }
+}
+
+impl Debug for Location {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "({}:{})", self.line, self.column)
+    }
+}
 
 /// A NodeID is a unique identifier for a node in a node tree.
 #[derive(Clone, Copy, Debug, Default, Display, Eq, Hash, PartialEq, PartialOrd)]

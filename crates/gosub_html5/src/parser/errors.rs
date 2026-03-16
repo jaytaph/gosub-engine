@@ -1,4 +1,4 @@
-use gosub_interface::byte_stream::Location;
+use gosub_stream::byte_stream::Location;
 use gosub_interface::types::ParseError;
 
 /// Possible parser error enumerated

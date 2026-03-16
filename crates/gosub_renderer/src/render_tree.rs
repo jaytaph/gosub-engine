@@ -2,16 +2,16 @@ use anyhow::bail;
 use gosub_interface::config::{HasHtmlParser, HasRenderTree};
 use gosub_interface::css3::CssSystem;
 use gosub_interface::document::{Document, DocumentBuilder};
-
+use gosub_interface::fetcher::Fetcher as FetcherTrait;
 use gosub_interface::html5::Html5Parser;
 use gosub_net::http::fetcher::Fetcher;
 use gosub_rendering::render_tree::generate_render_tree;
-use gosub_interface::byte_stream::{ByteStream, Encoding};
+use gosub_stream::byte_stream::{ByteStream, Encoding};
 use std::fs;
 use url::Url;
 
 /// Generates a render tree from the given URL... if the source is given, the URL is not loaded, but the source HTML is used instead
-pub async fn load_html_rendertree<C: HasRenderTree + HasHtmlParser>(
+pub async fn load_html_rendertree<C: HasRenderTree + HasHtmlParser<HtmlStream = ByteStream>>(
     url: Url,
     source: Option<&str>,
 ) -> gosub_interface::types::Result<(C::RenderTree, C::Document, Fetcher)> {
@@ -27,7 +27,7 @@ pub async fn load_html_rendertree<C: HasRenderTree + HasHtmlParser>(
 
 // Generate a render tree from the given source HTML. THe URL is needed to resolve relative URLs
 // and also to set the base URL for the document.
-pub fn load_html_rendertree_source<C: HasRenderTree + HasHtmlParser>(
+pub fn load_html_rendertree_source<C: HasRenderTree + HasHtmlParser<HtmlStream = ByteStream>>(
     url: Url,
     source_html: &str,
 ) -> gosub_interface::types::Result<(C::RenderTree, C::Document)> {
@@ -48,14 +48,14 @@ pub fn load_html_rendertree_source<C: HasRenderTree + HasHtmlParser>(
 }
 
 /// Generates a render tree from the given URL. The complete HTML source is fetched from the URL async.
-pub async fn load_html_rendertree_fetcher<C: HasRenderTree + HasHtmlParser>(
+pub async fn load_html_rendertree_fetcher<C: HasRenderTree + HasHtmlParser<HtmlStream = ByteStream>>(
     url: Url,
-    fetcher: &Fetcher,
+    fetcher: &dyn FetcherTrait,
 ) -> gosub_interface::types::Result<(C::RenderTree, C::Document)> {
     let html = if url.scheme() == "http" || url.scheme() == "https" {
         // Fetch the html from the url
         let response = fetcher.get(url.as_ref()).await?;
-        if response.status != 200 {
+        if !response.is_ok() {
             bail!(format!("Could not get url. Status code {}", response.status));
         }
 

@@ -5,7 +5,7 @@ use crate::stylesheet::CssStylesheet;
 use crate::tokenizer::Tokenizer;
 
 use gosub_interface::css3::CssOrigin;
-use gosub_interface::byte_stream::{ByteStream, Encoding, Location};
+use gosub_stream::byte_stream::{ByteStream, Encoding, Location};
 use gosub_interface::parser_config::Context;
 use gosub_interface::parser_config::ParserConfig;
 use gosub_interface::errors::{CssError, CssResult};

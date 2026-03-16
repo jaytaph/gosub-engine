@@ -233,7 +233,7 @@ impl Css3<'_> {
 mod test {
     use super::*;
     use gosub_interface::css3::CssOrigin;
-    use gosub_interface::byte_stream::{ByteStream, Encoding};
+    use gosub_stream::byte_stream::{ByteStream, Encoding};
     use gosub_interface::parser_config::ParserConfig;
 
     macro_rules! test {

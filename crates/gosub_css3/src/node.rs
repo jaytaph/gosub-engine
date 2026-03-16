@@ -1,5 +1,5 @@
 use core::fmt::{Display, Formatter};
-use gosub_interface::byte_stream::Location;
+use gosub_stream::byte_stream::Location;
 use std::ops::Deref;
 
 pub type Number = f32;

@@ -8,7 +8,7 @@ use core::fmt::Debug;
 use gosub_interface::config::{HasDocument, HasDocumentFragment};
 
 use gosub_interface::node::{Node, NodeData, NodeType, QuirksMode};
-use gosub_interface::byte_stream::Location;
+use gosub_stream::byte_stream::Location;
 use gosub_interface::node::NodeId;
 use std::collections::HashMap;
 

@@ -1,8 +1,8 @@
 use crate::config::{HasDocument, HasDrawComponents, HasHtmlParser};
 use crate::eventloop::EventLoopHandle;
+use crate::fetcher::Fetcher;
 use crate::layout::LayoutTree;
 use crate::render_backend::{ImgCache, NodeDesc, RenderBackend};
-use gosub_net::http::fetcher::Fetcher;
 use crate::geo::{Point, SizeU32, FP};
 use crate::types::Result;
 use std::future::Future;
@@ -44,7 +44,7 @@ pub trait TreeDrawer<C: HasDrawComponents> {
         // The initial url that the source was loaded from
         url: Url,
         // The fetcher that is used to load resources
-        fetcher: Arc<Fetcher>,
+        fetcher: Arc<dyn Fetcher>,
         // Layouter that renders the tree
         layouter: C::Layouter,
         // Debug flag
