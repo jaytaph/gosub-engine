@@ -17,9 +17,9 @@ use crate::node::node_impl::{NodeDataTypeInternal, NodeImpl};
 use crate::node::visitor::Visitor;
 use gosub_interface::config::{HasCssSystem, HasDocument, HasDocumentFragment};
 use gosub_interface::node::Node;
+use gosub_interface::node::NodeId;
 use gosub_interface::node::QuirksMode;
 use gosub_stream::byte_stream::Location;
-use gosub_interface::node::NodeId;
 
 /// Defines a document
 #[derive(Debug)]

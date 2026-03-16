@@ -1,4 +1,4 @@
-use gosub_stream::byte_stream::{ByteStream, Location};
+use gosub_stream::byte_stream::Location;
 use gosub_interface::node::NodeId;
 use gosub_interface::types::Result;
 
@@ -39,6 +39,7 @@ mod tests {
     use gosub_css3::system::Css3System;
     use gosub_interface::config::{HasCssSystem, HasDocument, HasHtmlParser};
     use test_case::test_case;
+    use gosub_stream::byte_stream::ByteStream;
 
     #[derive(Clone, Debug, PartialEq)]
     struct Config;

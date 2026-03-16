@@ -1,5 +1,5 @@
-use gosub_interface::config::HasDocument;
-use gosub_interface::node::Node;
+use crate::node::node_impl::NodeImpl;
+use gosub_interface::config::HasDocumentFragment;
 use gosub_interface::node::NodeId;
 use std::collections::HashMap;
 
@@ -132,7 +132,7 @@ mod tests {
     use crate::document::fragment::DocumentFragmentImpl;
     use crate::node::HTML_NAMESPACE;
     use gosub_css3::system::Css3System;
-    use gosub_interface::config::HasCssSystem;
+    use gosub_interface::config::{HasCssSystem, HasDocument};
     use gosub_interface::document::Document;
     use gosub_interface::document::DocumentBuilder;
 

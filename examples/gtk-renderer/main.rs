@@ -9,6 +9,7 @@ use gosub_html5::document::builder::DocumentBuilderImpl;
 use gosub_html5::document::document_impl::DocumentImpl;
 use gosub_html5::document::fragment::DocumentFragmentImpl;
 use gosub_html5::parser::Html5Parser;
+use gosub_stream::byte_stream::ByteStream;
 use gosub_instance::{EngineInstance, InstanceMessage};
 use gosub_interface::chrome::ChromeHandle;
 use gosub_interface::config::{
