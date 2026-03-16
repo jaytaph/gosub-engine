@@ -1,5 +1,5 @@
 use gosub_interface::chrome::ChromeHandle;
-use gosub_interface::config::{HasDocument, HasHtmlParser, HasTreeDrawer, ModuleConfiguration};
+use gosub_interface::config::{HasTreeDrawer, ModuleConfiguration};
 use gosub_interface::draw::TreeDrawer;
 use gosub_interface::eventloop::EventLoopHandle;
 use gosub_interface::input::InputEvent;
@@ -35,7 +35,7 @@ pub struct EngineInstance<C: ModuleConfiguration> {
     size: SizeU32,
 }
 
-impl<C: ModuleConfiguration + HasDocument + HasHtmlParser> EngineInstance<C> {
+impl<C: ModuleConfiguration> EngineInstance<C> {
     pub async fn new(
         url: Url,
         layouter: C::Layouter,
