@@ -1,24 +1,41 @@
-use gosub_interface::config::HasDocument;
-use gosub_interface::node::Node;
+use crate::node::node_impl::NodeImpl;
+use gosub_interface::config::{HasDocument, HasDocumentFragment};
 use gosub_shared::node::NodeId;
 use std::collections::HashMap;
 
 /// The node arena is the single source for nodes in a document (or fragment).
-#[derive(Debug, Clone)]
-pub struct NodeArena<C: HasDocument> {
+pub struct NodeArena<C: HasDocumentFragment> {
     /// Current nodes stored as <id, node>
-    nodes: HashMap<NodeId, C::Node>,
+    nodes: HashMap<NodeId, NodeImpl<C>>,
     /// Next node ID to use
     next_id: NodeId,
 }
 
-impl<C: HasDocument> NodeArena<C> {
+impl<C: HasDocumentFragment> Clone for NodeArena<C> {
+    fn clone(&self) -> Self {
+        Self {
+            nodes: self.nodes.clone(),
+            next_id: self.next_id,
+        }
+    }
+}
+
+impl<C: HasDocumentFragment> std::fmt::Debug for NodeArena<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NodeArena")
+            .field("next_id", &self.next_id)
+            .field("node_count", &self.nodes.len())
+            .finish()
+    }
+}
+
+impl<C: HasDocumentFragment> NodeArena<C> {
     pub fn node_count(&self) -> usize {
         self.nodes.len()
     }
 }
 
-impl<C: HasDocument> PartialEq for NodeArena<C> {
+impl<C: HasDocumentFragment> PartialEq for NodeArena<C> {
     fn eq(&self, other: &Self) -> bool {
         if self.next_id != other.next_id {
             return false;
@@ -28,7 +45,7 @@ impl<C: HasDocument> PartialEq for NodeArena<C> {
     }
 }
 
-impl<C: HasDocument> NodeArena<C> {
+impl<C: HasDocumentFragment> NodeArena<C> {
     /// Creates a new NodeArena
     #[must_use]
     pub fn new() -> Self {
@@ -52,57 +69,52 @@ impl<C: HasDocument> NodeArena<C> {
     }
 
     /// Gets the node with the given id
-    pub fn node_ref(&self, node_id: NodeId) -> Option<&C::Node> {
+    pub fn node_ref(&self, node_id: NodeId) -> Option<&NodeImpl<C>> {
         self.nodes.get(&node_id)
     }
 
     /// Gets the node with the given id
-    pub fn node(&self, node_id: NodeId) -> Option<C::Node> {
+    pub fn node(&self, node_id: NodeId) -> Option<NodeImpl<C>> {
         self.nodes.get(&node_id).cloned()
     }
-
-    // /// Get the node with the given id as a mutable reference
-    // pub fn node_mut(&mut self, node_id: NodeId) -> Option<&mut N> {
-    //     self.nodes.get_mut(&node_id)
-    // }
 
     pub fn delete_node(&mut self, node_id: NodeId) {
         self.nodes.remove(&node_id);
     }
 
-    pub fn update_node(&mut self, node: C::Node) {
-        self.nodes.insert(node.id(), node);
+    pub fn update_node(&mut self, node: NodeImpl<C>) {
+        self.nodes.insert(node.id, node);
     }
 
-    pub fn register_node_with_node_id(&mut self, mut node: C::Node, node_id: NodeId) {
-        assert!(!node.is_registered(), "Node is already attached to an arena");
+    pub fn register_node_with_node_id(&mut self, mut node: NodeImpl<C>, node_id: NodeId) {
+        assert!(!node.registered, "Node is already attached to an arena");
 
-        node.set_id(node_id);
-        node.set_registered(true);
+        node.id = node_id;
+        node.registered = true;
 
         self.nodes.insert(node_id, node);
     }
 
     /// Registered an unregistered node into the arena
-    pub fn register_node(&mut self, mut node: C::Node) -> NodeId {
-        assert!(!node.is_registered(), "Node is already attached to an arena");
+    pub fn register_node(&mut self, mut node: NodeImpl<C>) -> NodeId {
+        assert!(!node.registered, "Node is already attached to an arena");
 
         let id = self.next_id;
         self.next_id = id.next();
 
-        node.set_id(id);
-        node.set_registered(true);
+        node.id = id;
+        node.registered = true;
 
         self.nodes.insert(id, node);
         id
     }
 
-    pub fn nodes(&self) -> &HashMap<NodeId, C::Node> {
+    pub fn nodes(&self) -> &HashMap<NodeId, NodeImpl<C>> {
         &self.nodes
     }
 }
 
-impl<C: HasDocument> Default for NodeArena<C> {
+impl<C: HasDocumentFragment> Default for NodeArena<C> {
     fn default() -> Self {
         Self::new()
     }
@@ -174,26 +186,6 @@ mod tests {
         assert!(node.is_some());
         assert_eq!(node.unwrap().get_element_data().unwrap().name, "test");
     }
-
-    // #[test]
-    // fn get_node_mut() {
-    //     let mut doc_handle = <DocumentBuilderImpl as DocumentBuilder<Config>::new_document(None);
-    //
-    //     let node = DocumentImpl::<Config>::new_element_node(
-    //         doc_handle.clone(),
-    //         "test",
-    //         Some(HTML_NAMESPACE),
-    //         HashMap::new(),
-    //         Location::default(),
-    //     );
-    //
-    //     let node_id = doc_handle.get_mut().arena.register_node(node);
-    //
-    //     let binding = doc_handle.get();
-    //     let node = binding.arena.node(node_id);
-    //     assert!(node.is_some());
-    //     assert_eq!(node.unwrap().get_element_data().unwrap().name, "test");
-    // }
 
     #[test]
     fn register_node_through_document() {

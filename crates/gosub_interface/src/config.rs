@@ -17,9 +17,8 @@ pub use tree_drawer::*;
 
 pub trait ModuleConfiguration:
     Sized
+    + Clone
     + HasCssSystem
-    + HasDocument
-    + HasHtmlParser
     + HasFontManager
     + HasLayouter
     + HasRenderTree

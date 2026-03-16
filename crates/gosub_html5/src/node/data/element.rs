@@ -3,7 +3,7 @@ use crate::node::elements::{
 };
 use crate::node::{HTML_NAMESPACE, MATHML_NAMESPACE, SVG_NAMESPACE};
 use core::fmt::{Debug, Formatter};
-use gosub_interface::config::HasDocument;
+use gosub_interface::config::{HasDocument, HasDocumentFragment};
 
 use gosub_interface::node::{ClassList, ElementDataType};
 use gosub_shared::node::NodeId;
@@ -148,8 +148,7 @@ impl From<&str> for ClassListImpl {
 }
 
 /// Data structure for element nodes
-#[derive(PartialEq, Clone)]
-pub struct ElementData<C: HasDocument> {
+pub struct ElementData<C: HasDocumentFragment> {
     pub node_id: Option<NodeId>,
     /// Name of the element (e.g., div)
     pub name: String,
@@ -168,7 +167,33 @@ pub struct ElementData<C: HasDocument> {
     pub template_contents: Option<C::DocumentFragment>,
 }
 
-impl<C: HasDocument> Debug for ElementData<C> {
+impl<C: HasDocumentFragment> PartialEq for ElementData<C> {
+    fn eq(&self, other: &Self) -> bool {
+        self.node_id == other.node_id
+            && self.name == other.name
+            && self.namespace == other.namespace
+            && self.attributes == other.attributes
+            && self.class_list == other.class_list
+            && self.force_async == other.force_async
+            && self.template_contents == other.template_contents
+    }
+}
+
+impl<C: HasDocumentFragment> Clone for ElementData<C> {
+    fn clone(&self) -> Self {
+        Self {
+            node_id: self.node_id,
+            name: self.name.clone(),
+            namespace: self.namespace.clone(),
+            attributes: self.attributes.clone(),
+            class_list: self.class_list.clone(),
+            force_async: self.force_async,
+            template_contents: self.template_contents.clone(),
+        }
+    }
+}
+
+impl<C: HasDocumentFragment> Debug for ElementData<C> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ElementData");
         debug.field("name", &self.name);
@@ -318,10 +343,7 @@ impl<C: HasDocument> ElementDataType<C> for ElementData<C> {
     }
 
     fn template_contents(&self) -> Option<&C::DocumentFragment> {
-        match &self.template_contents {
-            Some(fragment) => Some(fragment),
-            None => None,
-        }
+        self.template_contents.as_ref()
     }
 
     /// Returns true if the given node is a "formatting" node
@@ -334,7 +356,7 @@ impl<C: HasDocument> ElementDataType<C> for ElementData<C> {
     }
 }
 
-impl<C: HasDocument> ElementData<C> {
+impl<C: HasDocumentFragment> ElementData<C> {
     pub(crate) fn new(
         name: &str,
         namespace: Option<&str>,

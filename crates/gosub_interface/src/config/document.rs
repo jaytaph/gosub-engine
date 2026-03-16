@@ -4,6 +4,17 @@ use crate::html5::Html5Parser;
 use crate::node::{CommentDataType, DocTypeDataType, DocumentDataType, ElementDataType, Node, TextDataType};
 use std::fmt::Debug;
 
+/// Minimal trait for types that have an associated document fragment type.
+/// Used to break the recursive type cycle in ElementData without requiring full HasDocument.
+pub trait HasDocumentFragment: Sized {
+    type DocumentFragment: Clone + Debug + PartialEq + 'static;
+}
+
+/// Blanket impl: all HasDocument types also implement HasDocumentFragment.
+impl<C: HasDocument> HasDocumentFragment for C {
+    type DocumentFragment = C::DocumentFragment;
+}
+
 pub trait HasDocument:
     Sized
     + Clone

@@ -15,7 +15,7 @@ use crate::node::data::element::{ClassListImpl, ElementData};
 use crate::node::data::text::TextData;
 use crate::node::node_impl::{NodeDataTypeInternal, NodeImpl};
 use crate::node::visitor::Visitor;
-use gosub_interface::config::HasDocument;
+use gosub_interface::config::{HasCssSystem, HasDocument, HasDocumentFragment};
 use gosub_interface::node::Node;
 use gosub_interface::node::QuirksMode;
 use gosub_shared::byte_stream::Location;
@@ -23,7 +23,7 @@ use gosub_shared::node::NodeId;
 
 /// Defines a document
 #[derive(Debug)]
-pub struct DocumentImpl<C: HasDocument> {
+pub struct DocumentImpl<C: HasCssSystem + HasDocumentFragment> {
     // pub handle: Weak<DocumentHandle<Self>>,
     /// URL of the given document (if any)
     pub url: Option<Url>,
@@ -39,7 +39,7 @@ pub struct DocumentImpl<C: HasDocument> {
     pub stylesheets: Vec<C::Stylesheet>,
 }
 
-impl<C: HasDocument> PartialEq for DocumentImpl<C> {
+impl<C: HasCssSystem + HasDocumentFragment> PartialEq for DocumentImpl<C> {
     fn eq(&self, other: &Self) -> bool {
         self.url == other.url
             && self.arena == other.arena
@@ -50,7 +50,7 @@ impl<C: HasDocument> PartialEq for DocumentImpl<C> {
     }
 }
 
-impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
+impl<C: HasDocument<Document = Self, DocumentFragment = crate::document::fragment::DocumentFragmentImpl<C>>> Document<C> for DocumentImpl<C> {
     type Node = NodeImpl<C>;
 
     /// Creates a new document without a doc handle
@@ -357,7 +357,7 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
     }
 }
 
-impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
+impl<C: HasDocument<Document = Self, DocumentFragment = crate::document::fragment::DocumentFragmentImpl<C>>> DocumentImpl<C> {
     // Called whenever a node is being mutated in the document.
     fn on_document_node_mutation(&mut self, node: &NodeImpl<C>) {
         // self.on_document_node_mutation_update_id_in_node(node);
@@ -376,19 +376,19 @@ impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
             if is_valid_id_attribute_value(id_value) {
                 match self.named_id_elements.entry(id_value.clone()) {
                     Entry::Vacant(entry) => {
-                        entry.insert(node.id());
+                        entry.insert(node.id);
                     }
                     Entry::Occupied(_) => {}
                 }
             }
         } else {
             // If we don't have an ID attribute in the node, make sure that we remove and "old" id's that might be in the map.
-            self.named_id_elements.retain(|_, id| *id != node.id());
+            self.named_id_elements.retain(|_, id| *id != node.id);
         }
     }
 
     /// Print a node and all its children in a tree-like structure
-    pub fn print_tree(&self, node: &C::Node, prefix: String, last: bool, f: &mut Formatter) {
+    pub fn print_tree(&self, node: &NodeImpl<C>, prefix: String, last: bool, f: &mut Formatter) {
         let mut buffer = prefix.clone();
         if last {
             buffer.push_str("└─ ");
@@ -442,23 +442,23 @@ impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
 
         let len = node.children.len();
         for (i, child_id) in node.children.iter().enumerate() {
-            let child_node = self.node_by_id(*child_id).expect("Child not found");
+            let child_node = self.arena.node_ref(*child_id).expect("Child not found");
             self.print_tree(child_node, buffer.clone(), i == len - 1, f);
         }
     }
 }
 
-impl<C: HasDocument<Document = Self>> Display for DocumentImpl<C> {
+impl<C: HasDocument<Document = Self, DocumentFragment = crate::document::fragment::DocumentFragmentImpl<C>>> Display for DocumentImpl<C> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let root = self.get_root();
+        let root = self.arena.node_ref(gosub_shared::node::NodeId::root()).expect("root node");
         self.print_tree(root, "".to_string(), true, f);
         Ok(())
     }
 }
 
-impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
+impl<C: HasDocument<Document = Self, DocumentFragment = crate::document::fragment::DocumentFragmentImpl<C>>> DocumentImpl<C> {
     /// Fetches a node by named id (string) or returns None when no node with this ID is found
-    pub fn get_node_by_named_id(&self, named_id: &str) -> Option<&C::Node> {
+    pub fn get_node_by_named_id(&self, named_id: &str) -> Option<&NodeImpl<C>> {
         let node_id = self.named_id_elements.get(named_id)?;
         self.arena.node_ref(*node_id)
     }
@@ -498,7 +498,7 @@ impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
         self.arena.peek_next_id()
     }
 
-    pub fn nodes(&self) -> &HashMap<NodeId, C::Node> {
+    pub fn nodes(&self) -> &HashMap<NodeId, NodeImpl<C>> {
         self.arena.nodes()
     }
 }

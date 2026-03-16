@@ -2,13 +2,12 @@ use core::fmt;
 use core::fmt::Debug;
 
 use crate::node::arena::NodeArena;
-use gosub_interface::config::HasDocument;
+use gosub_interface::config::{HasDocumentFragment, HasDocument};
 use gosub_interface::document::DocumentFragment;
 use gosub_shared::node::NodeId;
 
 /// Defines a document fragment which can be attached to for instance a <template> element
-#[derive(PartialEq)]
-pub struct DocumentFragmentImpl<C: HasDocument> {
+pub struct DocumentFragmentImpl<C: HasDocumentFragment> {
     /// Node elements inside this fragment
     arena: NodeArena<C>,
     /// Document handle of the parent
@@ -16,7 +15,13 @@ pub struct DocumentFragmentImpl<C: HasDocument> {
     host: NodeId,
 }
 
-impl<C: HasDocument> Clone for DocumentFragmentImpl<C> {
+impl<C: HasDocumentFragment> PartialEq for DocumentFragmentImpl<C> {
+    fn eq(&self, other: &Self) -> bool {
+        self.host == other.host && self.arena == other.arena
+    }
+}
+
+impl<C: HasDocumentFragment> Clone for DocumentFragmentImpl<C> {
     /// Clones the document fragment
     fn clone(&self) -> Self {
         Self {
@@ -26,13 +31,13 @@ impl<C: HasDocument> Clone for DocumentFragmentImpl<C> {
     }
 }
 
-impl<C: HasDocument> Debug for DocumentFragmentImpl<C> {
+impl<C: HasDocumentFragment> Debug for DocumentFragmentImpl<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DocumentFragment")
     }
 }
 
-impl<C: HasDocument> DocumentFragmentImpl<C> {
+impl<C: HasDocumentFragment> DocumentFragmentImpl<C> {
     /// Creates a new document fragment and attaches it to "host" node inside "handle"
     #[must_use]
     pub(crate) fn new(host: NodeId) -> Self {

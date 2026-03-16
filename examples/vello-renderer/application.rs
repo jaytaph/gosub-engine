@@ -6,7 +6,7 @@ use crate::window::Window;
 use crate::WinitEventLoopHandle;
 use anyhow::anyhow;
 use gosub_instance::{DebugEvent, InstanceMessage};
-use gosub_interface::config::{HasRenderBackend, ModuleConfiguration};
+use gosub_interface::config::{HasDocument, HasHtmlParser, HasRenderBackend, ModuleConfiguration};
 use gosub_interface::instance::{Handles, InstanceId};
 use gosub_interface::render_backend::{NodeDesc, RenderBackend, SizeU32};
 use gosub_interface::request::RequestServerHandle;
@@ -51,7 +51,7 @@ pub struct ActiveState<C: ModuleConfiguration> {
     handles: Handles<C>,
 }
 
-impl<C: ModuleConfiguration> Application<'_, C> {
+impl<C: ModuleConfiguration + HasDocument + HasHtmlParser> Application<'_, C> {
     fn active_state(&self) -> &ActiveState<C> {
         self.active_state
             .as_ref()
@@ -59,7 +59,7 @@ impl<C: ModuleConfiguration> Application<'_, C> {
     }
 }
 
-impl<C: ModuleConfiguration<ChromeHandle = WinitEventLoopHandle<C>>> ApplicationHandler<CustomEventInternal<C>>
+impl<C: ModuleConfiguration<ChromeHandle = WinitEventLoopHandle<C>> + HasDocument + HasHtmlParser> ApplicationHandler<CustomEventInternal<C>>
     for Application<'_, C>
 {
     fn resumed(&mut self, _event_loop: &ActiveEventLoop) {
@@ -208,7 +208,7 @@ impl<C: ModuleConfiguration<ChromeHandle = WinitEventLoopHandle<C>>> Application
     }
 }
 
-impl<'a, C: ModuleConfiguration<ChromeHandle = WinitEventLoopHandle<C>>> Application<'a, C> {
+impl<'a, C: ModuleConfiguration<ChromeHandle = WinitEventLoopHandle<C>> + HasDocument + HasHtmlParser> Application<'a, C> {
     pub fn new(backend: C::RenderBackend, layouter: C::Layouter) -> Self {
         Self {
             windows: HashMap::new(),

@@ -21,7 +21,7 @@ pub trait DocumentBuilder<C: HasDocument> {
         -> C::Document;
 }
 
-pub trait DocumentFragment<C: HasDocument>: Sized + Clone + PartialEq {
+pub trait DocumentFragment<C: HasDocument>: Sized + Clone + Debug + PartialEq {
     fn new(node_id: NodeId) -> Self;
 }
 

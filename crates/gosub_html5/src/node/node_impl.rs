@@ -5,7 +5,7 @@ use crate::node::data::document::DocumentData;
 use crate::node::data::element::ElementData;
 use crate::node::data::text::TextData;
 use core::fmt::Debug;
-use gosub_interface::config::HasDocument;
+use gosub_interface::config::{HasDocument, HasDocumentFragment};
 
 use gosub_interface::node::{Node, NodeData, NodeType, QuirksMode};
 use gosub_shared::byte_stream::Location;
@@ -13,8 +13,7 @@ use gosub_shared::node::NodeId;
 use std::collections::HashMap;
 
 /// Implementation of the NodeDataType trait
-#[derive(Debug, Clone, PartialEq)]
-pub enum NodeDataTypeInternal<C: HasDocument> {
+pub enum NodeDataTypeInternal<C: HasDocumentFragment> {
     /// Represents a document
     Document(DocumentData),
     // Represents a doctype
@@ -27,8 +26,45 @@ pub enum NodeDataTypeInternal<C: HasDocument> {
     Element(ElementData<C>),
 }
 
+impl<C: HasDocumentFragment> Clone for NodeDataTypeInternal<C> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Document(d) => Self::Document(d.clone()),
+            Self::DocType(d) => Self::DocType(d.clone()),
+            Self::Text(d) => Self::Text(d.clone()),
+            Self::Comment(d) => Self::Comment(d.clone()),
+            Self::Element(d) => Self::Element(d.clone()),
+        }
+    }
+}
+
+impl<C: HasDocumentFragment> PartialEq for NodeDataTypeInternal<C> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Document(a), Self::Document(b)) => a == b,
+            (Self::DocType(a), Self::DocType(b)) => a == b,
+            (Self::Text(a), Self::Text(b)) => a == b,
+            (Self::Comment(a), Self::Comment(b)) => a == b,
+            (Self::Element(a), Self::Element(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl<C: HasDocumentFragment> Debug for NodeDataTypeInternal<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Document(_) => write!(f, "Document"),
+            Self::DocType(_) => write!(f, "DocType"),
+            Self::Text(_) => write!(f, "Text"),
+            Self::Comment(_) => write!(f, "Comment"),
+            Self::Element(_) => write!(f, "Element"),
+        }
+    }
+}
+
 /// Node structure that resembles a DOM node
-pub struct NodeImpl<C: HasDocument> {
+pub struct NodeImpl<C: HasDocumentFragment> {
     /// ID of the node, 0 is always the root / document node
     pub id: NodeId,
     /// parent of the node, if any
@@ -43,7 +79,7 @@ pub struct NodeImpl<C: HasDocument> {
     pub location: Location,
 }
 
-impl<C: HasDocument<Document = DocumentImpl<C>>> Node<C> for NodeImpl<C> {
+impl<C: HasDocument<Document = DocumentImpl<C>, DocumentFragment = crate::document::fragment::DocumentFragmentImpl<C>>> Node<C> for NodeImpl<C> {
     type DocumentData = DocumentData;
     type DocTypeData = DocTypeData;
     type TextData = TextData;
@@ -183,13 +219,13 @@ impl<C: HasDocument<Document = DocumentImpl<C>>> Node<C> for NodeImpl<C> {
     }
 }
 
-impl<C: HasDocument<Document = DocumentImpl<C>>> PartialEq for NodeImpl<C> {
+impl<C: HasDocumentFragment> PartialEq for NodeImpl<C> {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id()
+        self.id == other.id
     }
 }
 
-impl<C: HasDocument> Debug for NodeImpl<C> {
+impl<C: HasDocumentFragment> Debug for NodeImpl<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_struct("Node");
         debug.field("id", &self.id);
@@ -200,7 +236,7 @@ impl<C: HasDocument> Debug for NodeImpl<C> {
     }
 }
 
-impl<C: HasDocument> Clone for NodeImpl<C> {
+impl<C: HasDocumentFragment> Clone for NodeImpl<C> {
     fn clone(&self) -> Self {
         NodeImpl {
             id: self.id,
@@ -213,7 +249,83 @@ impl<C: HasDocument> Clone for NodeImpl<C> {
     }
 }
 
-impl<C: HasDocument> NodeImpl<C> {
+impl<C: HasDocumentFragment> NodeImpl<C> {
+    pub fn is_element_node(&self) -> bool {
+        matches!(self.data, NodeDataTypeInternal::Element(_))
+    }
+
+    pub fn is_text_node(&self) -> bool {
+        matches!(self.data, NodeDataTypeInternal::Text(_))
+    }
+
+    pub fn type_of(&self) -> gosub_interface::node::NodeType {
+        match self.data {
+            NodeDataTypeInternal::Document(_) => gosub_interface::node::NodeType::DocumentNode,
+            NodeDataTypeInternal::DocType(_) => gosub_interface::node::NodeType::DocTypeNode,
+            NodeDataTypeInternal::Text(_) => gosub_interface::node::NodeType::TextNode,
+            NodeDataTypeInternal::Comment(_) => gosub_interface::node::NodeType::CommentNode,
+            NodeDataTypeInternal::Element(_) => gosub_interface::node::NodeType::ElementNode,
+        }
+    }
+
+    pub fn get_element_data(&self) -> Option<&ElementData<C>> {
+        if let NodeDataTypeInternal::Element(data) = &self.data {
+            return Some(data);
+        }
+        None
+    }
+
+    pub fn get_element_data_mut(&mut self) -> Option<&mut ElementData<C>> {
+        if let NodeDataTypeInternal::Element(data) = &mut self.data {
+            return Some(data);
+        }
+        None
+    }
+
+    pub fn get_text_data(&self) -> Option<&crate::node::data::text::TextData> {
+        if let NodeDataTypeInternal::Text(data) = &self.data {
+            return Some(data);
+        }
+        None
+    }
+
+    pub fn get_text_data_mut(&mut self) -> Option<&mut crate::node::data::text::TextData> {
+        if let NodeDataTypeInternal::Text(data) = &mut self.data {
+            return Some(data);
+        }
+        None
+    }
+
+    pub fn get_comment_data(&self) -> Option<&crate::node::data::comment::CommentData> {
+        if let NodeDataTypeInternal::Comment(data) = &self.data {
+            return Some(data);
+        }
+        None
+    }
+
+    pub fn get_doctype_data(&self) -> Option<&crate::node::data::doctype::DocTypeData> {
+        if let NodeDataTypeInternal::DocType(data) = &self.data {
+            return Some(data);
+        }
+        None
+    }
+
+    pub fn children(&self) -> &[NodeId] {
+        self.children.as_slice()
+    }
+
+    pub fn parent_id(&self) -> Option<NodeId> {
+        self.parent
+    }
+
+    pub fn location(&self) -> Location {
+        self.location
+    }
+
+    pub fn is_root(&self) -> bool {
+        self.parent.is_none()
+    }
+
     /// create a new `Node`
     #[must_use]
     pub fn new(location: Location, data: NodeDataTypeInternal<C>) -> Self {

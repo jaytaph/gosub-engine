@@ -1,5 +1,5 @@
 use gosub_instance::{DebugEvent, EngineInstance, InstanceHandle, InstanceMessage};
-use gosub_interface::config::ModuleConfiguration;
+use gosub_interface::config::{HasDocument, HasHtmlParser, ModuleConfiguration};
 use gosub_interface::instance::{Handles, InstanceId};
 use gosub_shared::types::Result;
 use slotmap::{DefaultKey, Key, KeyData, SlotMap};
@@ -42,7 +42,7 @@ impl Tabs {
     }
 
     #[allow(unused)]
-    pub(crate) fn from_url<C: ModuleConfiguration>(
+    pub(crate) fn from_url<C: ModuleConfiguration + HasDocument + HasHtmlParser>(
         url: Url,
         layouter: C::Layouter,
         handles: Handles<C>,
@@ -54,7 +54,7 @@ impl Tabs {
         Ok(Self { tabs, active: kti(id) })
     }
 
-    pub fn open<C: ModuleConfiguration>(&mut self, url: Url, layouter: C::Layouter, handles: Handles<C>) -> Result<()> {
+    pub fn open<C: ModuleConfiguration + HasDocument + HasHtmlParser>(&mut self, url: Url, layouter: C::Layouter, handles: Handles<C>) -> Result<()> {
         let id = self
             .tabs
             .try_insert_with_key(|key| EngineInstance::new_on_thread(url.clone(), layouter, kti(key), handles))?;
