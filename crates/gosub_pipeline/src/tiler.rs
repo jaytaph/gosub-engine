@@ -5,8 +5,8 @@ use std::ops::AddAssign;
 use std::sync::{Arc, RwLock};
 use rstar::AABB;
 use rstar::primitives::GeomWithData;
-use crate::common::document::document::Document;
-use crate::common::document::node::{NodeId, NodeType};
+use crate::common::document::node::NodeId;
+use crate::common::document::pipeline_doc::PipelineDocument;
 use crate::common::document::style::{Color as StyleColor, StyleProperty, StyleValue};
 use crate::common::document::style::StyleProperty::BackgroundColor;
 use crate::common::geo::{Coordinate, Dimension, Rect};
@@ -260,9 +260,9 @@ impl TileList {
 
         // Detect canvas color. We paint the whole canvas with the background color from either the html or body nodes.
         let mut bgcolor = None;
-        bgcolor = get_background_color_from_node(self.layer_list.layout_tree.render_tree.doc.html_node_id, &self.layer_list.layout_tree.render_tree.doc);
+        bgcolor = get_background_color_from_node(self.layer_list.layout_tree.render_tree.doc.html_node_id(), self.layer_list.layout_tree.render_tree.doc.as_ref());
         if bgcolor.is_none() {
-            bgcolor = get_background_color_from_node(self.layer_list.layout_tree.render_tree.doc.body_node_id, &self.layer_list.layout_tree.render_tree.doc);
+            bgcolor = get_background_color_from_node(self.layer_list.layout_tree.render_tree.doc.body_node_id(), self.layer_list.layout_tree.render_tree.doc.as_ref());
         }
 
         let mut layer_list = self.layer_list.layers.read().unwrap();
@@ -382,28 +382,12 @@ impl TileList {
     }
 }
 
-fn get_background_color_from_node(node_id: Option<NodeId>, doc: &Document) -> Option<(f32, f32, f32, f32)> {
-    let node_id = match node_id {
-        Some(node_id) => node_id,
-        None => {
-            return None;
-        }
-    };
+fn get_background_color_from_node(node_id: Option<NodeId>, doc: &dyn PipelineDocument) -> Option<(f32, f32, f32, f32)> {
+    let node_id = node_id?;
 
-    let Some(node) = doc.get_node_by_id(node_id) else {
-        return None;
-    };
-
-    let NodeType::Element(data) = &node.node_type else {
-        return None;
-    };
-
-    data.styles.get_property(BackgroundColor).map(|value| {
-        if let StyleValue::Color(color) = value {
-            return convert_color(color);
-        }
-        None
-    });
+    if let Some(StyleValue::Color(color)) = doc.get_style(node_id, BackgroundColor) {
+        return convert_color(&color);
+    }
 
     None
 }

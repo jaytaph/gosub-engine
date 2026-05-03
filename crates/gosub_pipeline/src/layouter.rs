@@ -4,14 +4,16 @@ use std::sync::{Arc, RwLock};
 use rstar::primitives::GeomWithData;
 use crate::layouter::box_model::BoxModel;
 use crate::rendertree_builder::{RenderTree, RenderNodeId};
-use crate::common::document::node::{NodeId as DomNodeId, NodeId};
+use crate::common::document::node::NodeId as DomNodeId;
 use crate::common::font::FontInfo;
 use crate::common::geo::{Coordinate, Dimension};
 use crate::common::media::MediaId;
 
+#[cfg(any(feature = "backend_cairo", feature = "backend_vello"))]
 pub mod taffy;
 pub mod text;
 mod box_model;
+#[cfg(any(feature = "backend_cairo", feature = "backend_vello"))]
 mod css_taffy_converter;
 
 /// ID's for layout elements

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::ops::AddAssign;
 use std::sync::Arc;
-use crate::common::document::document::Document;
-use crate::common::document::node::{Node, NodeType, NodeId};
-use crate::common::document::style::{StyleProperty, StyleValue, Display as CssDisplay};
+use gosub_shared::node::NodeId;
+use crate::common::document::pipeline_doc::{PipelineDocument, PipelineNodeKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RenderNodeId(u64);
@@ -20,7 +19,7 @@ impl RenderNodeId {
 
 impl From<NodeId> for RenderNodeId {
     fn from(node_id: NodeId) -> Self {
-        Self(node_id.to_u64())
+        Self(u64::from(node_id))
     }
 }
 
@@ -44,11 +43,10 @@ pub struct RenderNode {
 }
 
 
-/// A RenderTree holds both the DOM and the render tree. This tree holds all the visible nodes in
-/// the DOM.
+/// A RenderTree holds a filtered view of the DOM — only the nodes that should be rendered.
 #[derive(Clone)]
 pub struct RenderTree {
-    pub doc: Arc<Document>,
+    pub doc: Arc<dyn PipelineDocument>,
     pub arena: HashMap<RenderNodeId, RenderNode>,
     pub root_id: Option<RenderNodeId>,
 }
@@ -56,7 +54,6 @@ pub struct RenderTree {
 impl std::fmt::Debug for RenderTree {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RenderTree")
-            // .field("arena", &self.arena)
             .field("root_id", &self.root_id)
             .finish()
     }
@@ -89,73 +86,47 @@ impl RenderTree {
             self.print_node(*child_id, level + 1);
         }
     }
-
-    pub(crate) fn get_document_node_by_render_id(&self, render_node_id: RenderNodeId) -> Option<&Node> {
-        let Some(node) = self.arena.get(&render_node_id) else {
-            return None;
-        };
-
-        let Some(doc_node) = self.doc.get_node_by_id(NodeId::new(node.node_id.to_u64())) else {
-            return None;
-        };
-
-        Some(doc_node)
-    }
 }
 
-const INVISIBLE_ELEMENTS: [&str; 6] = [ "head",  "style",  "script",  "meta",  "link",  "title" ];
+const INVISIBLE_ELEMENTS: [&str; 6] = ["head", "style", "script", "meta", "link", "title"];
 
 impl RenderTree {
-    pub fn new(doc: Arc<Document>) -> Self {
+    pub fn new(doc: Arc<dyn PipelineDocument>) -> Self {
         RenderTree {
-            doc: doc.clone(),
+            doc,
             arena: HashMap::new(),
             root_id: None,
         }
     }
 
     pub fn parse(&mut self) {
-        let Some(root_id) = self.doc.root_id else {
+        let Some(root_id) = self.doc.root() else {
             panic!("Document has no root node");
         };
 
-        let doc = &self.doc;
         match self.build_rendertree(root_id) {
             Some(render_node_id) => self.root_id = Some(render_node_id),
             None => panic!("Failed to build rendertree"),
         }
     }
 
-    fn is_visible(&self, node: &Node) -> bool {
-        match &node.node_type {
-            NodeType::Comment(..) => false,
-            NodeType::Text(..) => true,
-            NodeType::Element(element) => {
-                // Check element name
-                if INVISIBLE_ELEMENTS.contains(&element.tag_name.as_str()) {
-                    return false;
-                }
-
-                match element.get_style(StyleProperty::Display) {
-                    Some(StyleValue::Display(display)) => {
-                        if *display == CssDisplay::None {
-                            return false;
-                        }
+    fn is_visible(&self, id: NodeId) -> bool {
+        match self.doc.node_kind(id) {
+            PipelineNodeKind::Comment => false,
+            PipelineNodeKind::Text => true,
+            PipelineNodeKind::Element => {
+                if let Some(tag) = self.doc.tag_name(id) {
+                    if INVISIBLE_ELEMENTS.contains(&tag.as_str()) {
+                        return false;
                     }
-                    _ => {}
                 }
-
-                true
+                !self.doc.is_display_none(id)
             }
         }
     }
 
     fn build_rendertree(&mut self, node_id: NodeId) -> Option<RenderNodeId> {
-        let Some(node) = self.doc.get_node_by_id(node_id) else {
-            return None;
-        };
-
-        if !self.is_visible(node) {
+        if !self.is_visible(node_id) {
             return None;
         }
 
@@ -164,7 +135,7 @@ impl RenderTree {
             children: Vec::new(),
         };
 
-        let children = node.children.clone();
+        let children = self.doc.children(node_id);
         for child_id in children {
             if let Some(render_child) = self.build_rendertree(child_id) {
                 render_node.children.push(render_child);

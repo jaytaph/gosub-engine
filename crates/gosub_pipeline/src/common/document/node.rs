@@ -1,9 +1,8 @@
-use std::cmp::PartialEq;
 use std::collections::HashMap;
-use std::ops::AddAssign;
 use crate::common::document::document::Document;
 use crate::common::document::style::{StylePropertyList, StyleValue, StyleProperty, Display};
-use crate::rendertree_builder::RenderNodeId;
+
+pub use gosub_shared::node::NodeId;
 
 /// Map of attributes for a html element (a href, src, data-*, etc)
 #[derive(Debug, Clone)]
@@ -120,56 +119,6 @@ pub enum NodeType {
     Element(ElementData),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd)]
-pub struct NodeId(u64);
-
-#[allow(unused)]
-impl NodeId {
-    pub(crate) fn is_greater_than(&self, node_id: u64) -> bool {
-        self.0 > node_id
-    }
-    pub(crate) fn is_less_than(&self, node_id: u64) -> bool {
-        self.0 < node_id
-    }
-    pub(crate) fn is_less_than_equal(&self, node_id: u64) -> bool {
-        self.0 <= node_id
-    }
-    pub(crate) fn is_greater_than_equal(&self, node_id: u64) -> bool {
-        self.0 >= node_id
-    }
-    pub(crate) fn is_equal(&self, node_id: u64) -> bool {
-        self.0 == node_id
-    }
-}
-
-impl NodeId {
-    pub fn to_u64(&self) -> u64 {
-        self.0
-    }
-
-    pub const fn new(val: u64) -> Self {
-        Self(val)
-    }
-}
-
-/// RenderNodeId and NodeId are interchangeable. This is a convenience function to convert between the two.
-impl From<RenderNodeId> for NodeId {
-    fn from(node_id: RenderNodeId) -> Self {
-        Self(node_id.to_u64())
-    }
-}
-
-impl AddAssign<i32> for NodeId {
-    fn add_assign(&mut self, rhs: i32) {
-        self.0 += rhs as u64;
-    }
-}
-
-impl std::fmt::Display for NodeId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "NodeID({})", self.0)
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct Node {
