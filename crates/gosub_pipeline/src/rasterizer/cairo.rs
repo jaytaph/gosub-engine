@@ -3,12 +3,15 @@ use crate::painter::commands::PaintCommand;
 use crate::rasterizer::Rasterable;
 use crate::common::texture::TextureId;
 use crate::common::get_texture_store;
-use crate::rasterizer::cairo::text::pango::do_paint_text;
 use crate::tiler::Tile;
 
 mod rectangle;
 mod brush;
+mod svg;
 mod text;
+
+#[cfg(feature = "text_pango")]
+use crate::rasterizer::cairo::text::pango::do_paint_text;
 
 pub struct CairoRasterizer {}
 
@@ -32,18 +35,18 @@ impl Rasterable for CairoRasterizer {
                 for command in &element.paint_commands {
                     match command {
                         PaintCommand::Svg(command) => {
-                            svg::do_paint_svg(&cr.clone(), &tile, &command);
+                            svg::do_paint_svg(&cr.clone(), tile, &command.rect, command.media_id);
                         }
                         PaintCommand::Rectangle(command) => {
-                            rectangle::do_paint_rectangle(&cr.clone(), &tile, &command);
+                            rectangle::do_paint_rectangle(&cr.clone(), tile, command);
                         }
                         PaintCommand::Text(command) => {
-                            match do_paint_text(&cr.clone(), &tile, &command) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    println!("Failed to paint text: {:?}", e);
-                                }
+                            #[cfg(feature = "text_pango")]
+                            if let Err(e) = do_paint_text(&cr.clone(), tile, command) {
+                                log::warn!("Failed to paint text: {:?}", e);
                             }
+                            #[cfg(not(feature = "text_pango"))]
+                            log::warn!("No text backend enabled for Cairo, skipping text command");
                         }
                     }
                 }
