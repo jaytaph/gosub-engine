@@ -79,10 +79,10 @@ impl MediaStore {
 
         let result = self.load_media_from_source(src);
 
-        // Store it in cache
-        if let Ok(media_id) = result{
+        if let Ok(media_id) = result {
             let mut cache = self.cache.write().expect("Failed to lock cache");
-            cache.insert(h, media_id);
+            // Another thread may have inserted while we were loading — don't overwrite
+            cache.entry(h).or_insert(media_id);
         }
 
         result
