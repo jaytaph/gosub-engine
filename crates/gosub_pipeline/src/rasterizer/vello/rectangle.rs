@@ -30,10 +30,10 @@ pub(crate) fn do_paint_rectangle(scene: &mut vello::Scene, rect: &Rectangle, aff
         BorderStyle::Dashed => draw_single_border(scene, rect, affine, vec![50.0, 10.0, 10.0, 10.0]),
         BorderStyle::Dotted => draw_single_border(scene, rect, affine, vec![10.0, 10.0]),
         BorderStyle::Double => draw_double_border(scene, rect, affine),
-        BorderStyle::Groove => { unimplemented!() }
-        BorderStyle::Ridge => { unimplemented!() }
-        BorderStyle::Inset => { unimplemented!() }
-        BorderStyle::Outset => { unimplemented!() }
+        BorderStyle::Groove | BorderStyle::Ridge | BorderStyle::Inset | BorderStyle::Outset => {
+            log::warn!("Border style {:?} not yet implemented, falling back to solid", rect.border().style());
+            draw_single_border(scene, rect, affine, vec![])
+        }
         BorderStyle::Hidden => {
             // Don't display anything. But the border still takes up space. This is already
             // calculated in the box model by the layouter.
