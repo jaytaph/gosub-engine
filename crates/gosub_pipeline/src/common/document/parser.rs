@@ -2,6 +2,7 @@ use crate::common::document::style::TextAlign;
 use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use crate::common::document::document::Document;
 use crate::common::document::node::{AttrMap, NodeId, NodeType};
 use crate::common::document::style::{Color, Display, FontWeight, StyleProperty, StylePropertyList, StyleValue, TextWrap, Unit};
@@ -38,10 +39,12 @@ struct DomRoot {
     children: Vec<DomNode>,
 }
 
+static SPACE_REGEX: OnceLock<Regex> = OnceLock::new();
+
 // Text is "as-is" from the JSON, but we don't want text with multiple spaces and newlines.
 fn clean_text(input: &str) -> String {
     let no_newlines = input.replace('\n', " ");
-    let space_regex = Regex::new(r"\s{2,}").unwrap();
+    let space_regex = SPACE_REGEX.get_or_init(|| Regex::new(r"\s{2,}").unwrap());
     space_regex.replace_all(&no_newlines, " ").to_string()
 }
 
@@ -53,11 +56,12 @@ fn create_dom_from_json(doc: &mut Document, node: &DomNode, parent_id: Option<No
 
     if let Some(text) = &node.text {
         // When we encounter text, we don't have any style, but we need to use the styles from the parent.
-        let parent_node = doc.get_node_by_id(parent_id.unwrap()).unwrap();
-        let parent_styles = match &parent_node.node_type {
-            NodeType::Element(parent_element) => Some(parent_element.styles.clone()),
-            _ => None,
-        };
+        let parent_styles = parent_id
+            .and_then(|pid| doc.get_node_by_id(pid))
+            .and_then(|parent_node| match &parent_node.node_type {
+                NodeType::Element(parent_element) => Some(parent_element.styles.clone()),
+                _ => None,
+            });
         return Some(doc.new_text(parent_id, clean_text(text).as_str(), parent_styles));
     }
 
@@ -78,9 +82,8 @@ fn create_dom_from_json(doc: &mut Document, node: &DomNode, parent_id: Option<No
     // }
 
     for child in &node.children {
-        match create_dom_from_json(doc, child, Some(node_id)) {
-            Some(child_node_id) => doc.add_child(node_id, child_node_id),
-            None => {}
+        if let Some(child_node_id) = create_dom_from_json(doc, child, Some(node_id)) {
+            doc.add_child(node_id, child_node_id);
         }
     }
 
