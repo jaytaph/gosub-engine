@@ -47,8 +47,8 @@ pub fn compose_layer(cr: &cairo::Context, layer_id: LayerId) {
         cr.rectangle(
             tile.rect.x,
             tile.rect.y,
-            tile.rect.height,
             tile.rect.width,
+            tile.rect.height,
         );
         _ = cr.set_source_surface(surface, tile.rect.x, tile.rect.y);
         _ = cr.fill();
