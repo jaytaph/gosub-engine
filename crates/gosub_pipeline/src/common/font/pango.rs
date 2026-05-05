@@ -9,14 +9,17 @@ pub fn find_available_font(families: &str, ctx: &pango::Context) -> String {
     let available_fonts: Vec<String> = ctx.list_families().iter().map(|f| f.name().to_ascii_lowercase()).collect();
 
     for font in families.split(',') {
+        let font_name = font.trim().replace('"', "");
 
-        // System-ui is a special font that should be handled by us.
-        if font == "system-ui" {
-            return "Ubuntu Sans".into();
-            // return get_system_ui_font();
+        // system-ui is a special keyword resolved via the desktop environment
+        if font_name.eq_ignore_ascii_case("system-ui") {
+            let system_font = get_system_ui_font();
+            if available_fonts.contains(&system_font.to_ascii_lowercase()) {
+                return system_font;
+            }
+            continue;
         }
 
-        let font_name = font.trim().replace('"', "");
         if available_fonts.contains(&font_name.to_ascii_lowercase()) {
             return font_name;
         }
