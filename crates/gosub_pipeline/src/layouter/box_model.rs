@@ -45,7 +45,7 @@ impl BoxModel {
             x: border_box.x - margin.left,
             y: border_box.y - margin.top,
             width: border_box.width + margin.left + margin.right,
-            height: border_box.height - margin.top + margin.bottom,
+            height: border_box.height + margin.top + margin.bottom,
         };
         let border_box = border_box;
         let padding_box = geo::Rect {
