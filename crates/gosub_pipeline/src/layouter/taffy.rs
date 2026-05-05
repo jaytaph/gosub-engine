@@ -219,7 +219,6 @@ impl TaffyLayouter {
         element_node: &mut LayoutElementNode,
         leaf_id: TaffyNodeId,
     ) {
-        println!("Processing inline elements: {:?}", current_inline_group.len());
 
         // No inline elements to process
         if current_inline_group.is_empty() {
@@ -333,12 +332,9 @@ impl TaffyLayouter {
 
             // Don't add inline elements to the taffy tree yet. We need to group them first and possibly wrap inside a block
             if child_node.is_inline_element() || child_node.is_text() {
-                println!("Pushing element as inline: {:?}", child_node.node_id);
                 current_inline_group.push((child_layout_element_id, child_taffy_id));
                 continue;
             }
-
-            println!("Element {:?} is not an inline", child_node.node_id);
 
             self.process_inlines(
                 &mut current_inline_group,
@@ -393,7 +389,6 @@ impl TaffyLayouter {
                     let src = data.get_attribute("src").unwrap();
                     let src = to_absolute_url(src, base_url);
 
-                    println!("Loading (image) resource: {}", src);
 
                     let media_store = get_media_store();
                     let Ok(media_id) = media_store.read().unwrap().load_media(src.as_str()) else {
@@ -492,8 +487,8 @@ impl TaffyLayouter {
                 let alignment = match node_style.get_property(StyleProperty::TextAlign) {
                     Some(StyleValue::TextAlign(value)) => match value {
                         TextAlign::Center => FontAlignment::Center,
-                        TextAlign::Right => FontAlignment::Start,
-                        TextAlign::Left => FontAlignment::End,
+                        TextAlign::Right => FontAlignment::End,
+                        TextAlign::Left => FontAlignment::Start,
                         TextAlign::Justify => FontAlignment::Justify,
                         TextAlign::Start => FontAlignment::Start,
                         TextAlign::End => FontAlignment::End,

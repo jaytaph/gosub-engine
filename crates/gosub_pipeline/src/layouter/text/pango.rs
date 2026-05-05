@@ -9,7 +9,6 @@ use crate::layouter::text::Alignment;
 /// Retrieves the pango layout for the given text, font family, font size and maximum width.
 /// it will wrap any long lines based on the pixels found in width.
 pub fn get_text_layout(text: &str, font_family: &str, font_size: f64, font_weight: usize, line_height: f64, max_width: f64, alignment: Alignment) -> Result<Dimension, Error> {
-    println!("get_text_layout: text: {}, font_family: {}, font_size: {}, font_weight: {}, line_height: {}, max_width: {}, alignment: {:?}", text, font_family, font_size, font_weight, line_height, max_width, alignment);
     let surface = ImageSurface::create(Format::ARgb32, 1, 1)?;
     let cr = Context::new(&surface)?;
     let layout = create_layout(&cr);
