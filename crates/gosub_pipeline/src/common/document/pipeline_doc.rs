@@ -130,7 +130,7 @@ where
     pub doc: Arc<C::Document>,
     /// Per-node style cache. Populated lazily; valid for the lifetime of one pipeline run.
     /// The adapter is recreated each render, so stale entries are never an issue.
-    style_cache: Mutex<HashMap<NodeId, Arc<StylePropertyList>>>,
+    style_cache: Mutex<HashMap<NodeId, StylePropertyList>>,
 }
 
 impl<C> GosubDocumentAdapter<C>
@@ -145,11 +145,11 @@ where
     }
 
     /// Returns the full computed style list for `id`, fetching from cache when possible.
-    fn cached_styles(&self, id: NodeId) -> Arc<StylePropertyList> {
+    fn cached_styles(&self, id: NodeId) -> StylePropertyList {
         if let Some(cached) = self.style_cache.lock().get(&id) {
             return cached.clone();
         }
-        let list = Arc::new(self.compute_styles(id));
+        let list = self.compute_styles(id);
         self.style_cache.lock().insert(id, list.clone());
         list
     }
@@ -254,7 +254,7 @@ where
                 let text = self.doc.text_value(id).unwrap_or("").to_string();
                 // Text nodes inherit styles from their parent element
                 let style = parent_id
-                    .map(|pid| (*self.cached_styles(pid)).clone())
+                    .map(|pid| self.cached_styles(pid))
                     .unwrap_or_default();
                 NodeType::Text(text, style)
             }
@@ -270,7 +270,7 @@ where
                         attr_map.set(k, v);
                     }
                 }
-                let styles = (*self.cached_styles(id)).clone();
+                let styles = self.cached_styles(id);
                 let element_data = ElementData::new(tag_name, Some(attr_map), false, Some(styles));
                 NodeType::Element(element_data)
             }
