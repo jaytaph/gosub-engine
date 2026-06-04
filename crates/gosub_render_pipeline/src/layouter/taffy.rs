@@ -77,6 +77,7 @@ impl TaffyContext {
             text: text.to_string(),
             text_offset,
             no_wrap,
+            available_width: 0.0,
         })
     }
 
@@ -271,7 +272,8 @@ impl CanLayout for TaffyLayouter {
         // the taffy layout to a box model layout tree. This makes the rest of the pipeline
         // layout-engine agnostic.
         let root_id = layout_tree.root_id;
-        self.populate_boxmodel(&mut layout_tree, root_id, Coordinate::ZERO);
+        let root_width = layout_tree.root_dimension.width;
+        self.populate_boxmodel(&mut layout_tree, root_id, Coordinate::ZERO, root_width);
 
         // get dimension of the root node
         if let Some(root) = layout_tree.get_node_by_id(root_id) {
@@ -286,7 +288,13 @@ impl CanLayout for TaffyLayouter {
 
 impl TaffyLayouter {
     // Populate the layout tree with the box models that we now can generate
-    fn populate_boxmodel(&self, layout_tree: &mut LayoutTree, layout_node_id: LayoutElementId, offset: Coordinate) {
+    fn populate_boxmodel(
+        &self,
+        layout_tree: &mut LayoutTree,
+        layout_node_id: LayoutElementId,
+        offset: Coordinate,
+        parent_content_width: f64,
+    ) {
         let Some(taffy_node_id) = self.layout_taffy_mapping.get(&layout_node_id) else {
             log::warn!("No taffy mapping for layout node {:?}", layout_node_id);
             return;
@@ -302,6 +310,13 @@ impl TaffyLayouter {
             return;
         };
         el.box_model = taffy_layout_to_boxmodel(&layout, offset);
+        // The parent's content width is the true word-wrap limit for text children.
+        // Using the text node's own measured width (rect_w) causes premature wrapping
+        // because Skia's font metrics differ slightly from Parley's.
+        if let ElementContext::Text(ref mut text_ctx) = el.context {
+            text_ctx.available_width = parent_content_width;
+        }
+        let my_content_width = el.box_model.content_box.width;
         let child_ids = el.children.clone();
 
         // Absolute position of this node's content area — used as the base offset for direct children.
@@ -325,6 +340,7 @@ impl TaffyLayouter {
                 layout_tree,
                 child_id,
                 Coordinate::new(children_offset.x + anon_offset.x, children_offset.y + anon_offset.y),
+                my_content_width,
             );
         }
     }
