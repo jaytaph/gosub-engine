@@ -26,4 +26,4 @@ gosub_render_pipeline = { path = "../../crates/gosub_render_pipeline", features 
 metal = "0.28"
 cocoa = "0.26"
 objc = "0.2"
-core-graphics-types = "0.3"
+core-graphics-types = "0.2"
