@@ -28,7 +28,7 @@ use parking_lot::RwLock;
 use skia_safe::gpu::ganesh::surface_ganesh;
 use skia_safe::gpu::{self, gl::FramebufferInfo, DirectContext, SurfaceOrigin};
 use skia_safe::{Color4f, ColorType, Font, FontMgr, FontStyle, ImageInfo, Paint, Rect as SkRect, Surface};
-use std::ffi::CString;
+use std::ffi::{c_void, CString};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
@@ -57,10 +57,10 @@ static TOKIO_RT: Lazy<Runtime> = Lazy::new(|| {
 
 // ── GL state kept on the main thread ─────────────────────────────────────────
 
+#[allow(dead_code)]
 struct GlState {
     gl_context: PossiblyCurrentContext,
     gl_surface: GlSurface_<WindowSurface>,
-    #[allow(dead_code)]
     gl_config: Config,
     direct_context: DirectContext,
 }
@@ -433,13 +433,13 @@ fn draw_address_bar(canvas: &skia_safe::Canvas, win_w: u32, h: i32, url: &str, f
     paint.set_stroke_width(1.0);
     canvas.draw_round_rect(SkRect::from_xywh(6.5, 5.5, w - 13.0, hf - 11.0), 4.0, 4.0, &paint);
 
-    let typeface = FontMgr::new()
-        .legacy_make_typeface(None, FontStyle::normal())
-        .unwrap_or_else(|| {
-            FontMgr::new()
-                .legacy_make_typeface("sans-serif", FontStyle::normal())
+    thread_local! { static FONT_MGR: FontMgr = FontMgr::new(); }
+    let typeface = FONT_MGR.with(|fm| {
+        fm.legacy_make_typeface(None, FontStyle::normal()).unwrap_or_else(|| {
+            fm.legacy_make_typeface("sans-serif", FontStyle::normal())
                 .expect("typeface")
-        });
+        })
+    });
     let font = Font::new(typeface, 14.0);
     paint.set_color4f(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
     paint.set_style(skia_safe::PaintStyle::Fill);
@@ -505,10 +505,10 @@ fn main() {
     // Build Skia DirectContext using the GL interface.
     let interface = skia_safe::gpu::gl::Interface::new_load_with(|name| {
         let c = CString::new(name).unwrap_or_default();
-        gl_display.get_proc_address(&c)
+        gl_display.get_proc_address(&c) as *const c_void
     })
     .expect("GL interface");
-    let direct_context = gpu::direct_contexts::make_gl(interface, None).expect("Skia DirectContext");
+    let direct_context = skia_safe::gpu::direct_contexts::make_gl(interface, None).expect("Skia DirectContext");
 
     let gl_state = GlState {
         gl_context,

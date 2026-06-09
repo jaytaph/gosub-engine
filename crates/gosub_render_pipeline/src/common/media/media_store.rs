@@ -7,8 +7,25 @@ use parking_lot::RwLock;
 use resvg::usvg;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use url::Url;
+
+/// Return `usvg::Options` backed by a shared fontdb that has system fonts loaded.
+///
+/// The database is built once the first time this is called and then reused,
+/// so system font discovery only happens once per process.
+fn svg_options() -> usvg::Options<'static> {
+    static FONTDB: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
+    let fontdb = Arc::clone(FONTDB.get_or_init(|| {
+        let mut db = usvg::fontdb::Database::new();
+        db.load_system_fonts();
+        Arc::new(db)
+    }));
+    usvg::Options {
+        fontdb,
+        ..Default::default()
+    }
+}
 
 const DEFAULT_SVG_ID: MediaId = MediaId::new(0);
 const DEFAULT_IMAGE_ID: MediaId = MediaId::new(1);
@@ -47,7 +64,7 @@ impl MediaStore {
 
         // Add "default svg" to the store.
         let default_svg_tree =
-            usvg::Tree::from_data(DEFAULT_SVG_DATA, &usvg::Options::default()).expect("Failed to load default svg");
+            usvg::Tree::from_data(DEFAULT_SVG_DATA, &svg_options()).expect("Failed to load default svg");
         let mut entries = store.entries.write();
         let media = Media::svg("gosub://default/svg", Svg::new(default_svg_tree));
         entries.insert(DEFAULT_SVG_ID, Arc::new(media));
@@ -67,6 +84,10 @@ impl MediaStore {
 
     /// Load the given media from src into the media store, and return the media ID. Will also store the media(id) in cache
     /// so the next call with the same src will return the same media ID without reloading.
+    ///
+    /// If the resource cannot be fetched or decoded, the default placeholder for the detected media
+    /// type is returned and the failure is cached so subsequent calls with the same URL skip the
+    /// network entirely.
     pub fn load_media(&self, src: &str) -> anyhow::Result<MediaId> {
         // Check if the media from src is already loaded into the cache. If so, return that
         let h = hash_from_string(src);
@@ -79,13 +100,24 @@ impl MediaStore {
 
         let result = self.load_media_from_source(src);
 
-        if let Ok(media_id) = result {
-            let mut cache = self.cache.write();
-            // Another thread may have inserted while we were loading — don't overwrite
-            cache.entry(h).or_insert(media_id);
-        }
+        let media_id = match result {
+            Ok(media_id) => media_id,
+            Err(e) => {
+                log::warn!("Failed to load media from '{}': {}", src, e);
+                // Cache the failure as the default image placeholder so the same URL is
+                // never re-fetched in this session (avoids repeated blocking I/O).
+                let fallback_id = DEFAULT_IMAGE_ID;
+                let mut cache = self.cache.write();
+                cache.entry(h).or_insert(fallback_id);
+                return Ok(fallback_id);
+            }
+        };
 
-        result
+        let mut cache = self.cache.write();
+        // Another thread may have inserted while we were loading — don't overwrite
+        cache.entry(h).or_insert(media_id);
+
+        Ok(media_id)
     }
 
     pub fn load_media_from_data(&self, media_type: MediaType, data: &[u8]) -> anyhow::Result<MediaId> {
@@ -99,7 +131,7 @@ impl MediaStore {
 
         let media_id = match media_type {
             MediaType::Svg => {
-                let svg_tree = match usvg::Tree::from_data(data, &usvg::Options::default()) {
+                let svg_tree = match usvg::Tree::from_data(data, &svg_options()) {
                     Ok(tree) => tree,
                     Err(_) => {
                         return Err(anyhow::anyhow!("Failed to parse SVG data"));
@@ -151,7 +183,7 @@ impl MediaStore {
 
         let media = match media_type {
             MediaType::Svg => {
-                let svg_tree = match usvg::Tree::from_data(&raw_data, &usvg::Options::default()) {
+                let svg_tree = match usvg::Tree::from_data(&raw_data, &svg_options()) {
                     Ok(tree) => tree,
                     Err(_) => {
                         return Err(anyhow::anyhow!("Failed to parse SVG data"));
@@ -210,6 +242,13 @@ impl MediaStore {
                 }
             }
         }
+    }
+
+    /// Returns true when `media_id` is one of the built-in fallback placeholders
+    /// (used when a resource failed to load). Callers can use this to avoid
+    /// propagating the placeholder's intrinsic pixel dimensions into layout.
+    pub fn is_placeholder(&self, media_id: MediaId) -> bool {
+        media_id == DEFAULT_IMAGE_ID || media_id == DEFAULT_SVG_ID
     }
 
     pub fn update_svg(&self, media_id: MediaId, media: Arc<Media>) {

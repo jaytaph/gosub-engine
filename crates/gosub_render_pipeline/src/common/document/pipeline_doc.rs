@@ -5,7 +5,7 @@ use crate::common::document::style::{
 };
 use cow_utils::CowUtils;
 use gosub_interface::config::HasDocument;
-use gosub_interface::css3::{CssProperty, CssPropertyMap, CssSystem};
+use gosub_interface::css3::{CssProperty, CssPropertyMap, CssSystem, CssValue};
 use gosub_interface::document::Document as _;
 use gosub_interface::node::NodeType as GosubNodeType;
 use gosub_shared::node::NodeId;
@@ -39,6 +39,15 @@ pub trait PipelineDocument: Send + Sync {
 
     /// Returns the own (explicitly-set) value for `prop` on node `id`, without recursing.
     fn get_own_style(&self, id: NodeId, prop: &StyleProperty) -> Option<Value>;
+
+    /// Discard the computed-style cache so the next `get_own_style` call re-evaluates
+    /// CSS selectors (including `:hover`) from scratch.  No-op for backends that do
+    /// not cache styles.
+    fn clear_style_cache(&self) {}
+
+    /// Discard cached computed styles for specific nodes only. More efficient than
+    /// `clear_style_cache` for hover repaints where only a few elements changed.
+    fn invalidate_style_for_nodes(&self, _ids: &[NodeId]) {}
 
     /// Returns the computed value for `prop` on node `id`:
     ///  1. own value if set,
@@ -202,6 +211,11 @@ where
     }
 
     fn compute_styles(&self, id: NodeId) -> NodeStyle {
+        // CSS selectors cannot target text nodes — only elements. Skip the full
+        // stylesheet scan for text nodes; they inherit everything from their parent.
+        if self.doc.node_type(id) == GosubNodeType::TextNode {
+            return NodeStyle::new();
+        }
         let sheets = self.doc.stylesheets();
         let Some(mut prop_map) = C::CssSystem::properties_from_node::<C>(&*self.doc, id, sheets) else {
             return NodeStyle::new();
@@ -274,6 +288,17 @@ where
         self.cached_styles(id).get_own(prop).cloned()
     }
 
+    fn clear_style_cache(&self) {
+        self.style_cache.lock().clear();
+    }
+
+    fn invalidate_style_for_nodes(&self, ids: &[NodeId]) {
+        let mut cache = self.style_cache.lock();
+        for id in ids {
+            cache.remove(id);
+        }
+    }
+
     fn html_node_id(&self) -> Option<NodeId> {
         let root = self.doc.root();
         self.find_child_by_tag(root, "html")
@@ -332,15 +357,6 @@ where
 
 // ── build_node_style — converts CssPropertyMap into NodeStyle ─────────────────
 
-fn str_to_unit(s: &str) -> Unit {
-    match s {
-        "em" => Unit::Em,
-        "rem" => Unit::Rem,
-        "%" => Unit::Percent,
-        _ => Unit::Px,
-    }
-}
-
 fn str_to_border_style(s: &str) -> BorderStyle {
     match s {
         "hidden" => BorderStyle::Hidden,
@@ -359,6 +375,60 @@ fn str_to_border_style(s: &str) -> BorderStyle {
 fn build_node_style<S: CssSystem>(prop_map: &S::PropertyMap) -> NodeStyle {
     let mut style = NodeStyle::new();
 
+    // --- border-radius shorthand expansion (before individual corners so they can override) ---
+    // CSS: 1 value → all corners; 2 → TL+BR / TR+BL; 3 → TL / TR+BL / BR; 4 → TL TR BR BL
+    if let Some(br) = prop_map.get("border-radius") {
+        let corners: [StyleProperty; 4] = [
+            StyleProperty::BorderTopLeftRadius,
+            StyleProperty::BorderTopRightRadius,
+            StyleProperty::BorderBottomRightRadius,
+            StyleProperty::BorderBottomLeftRadius,
+        ];
+
+        if br.as_unit().is_some() {
+            // Single value: all four corners the same.
+            // Use unit_to_px() so that rem/em values are converted — otherwise
+            // `border-radius: 0.25rem` would be stored as 0.25 and treated as
+            // 0.25 px (invisible) when get_style_f32 ignores the unit.
+            let px = br.unit_to_px();
+            if px > 0.0 {
+                let val = Value::Unit(px, Unit::Px);
+                for c in &corners {
+                    style.set(c.clone(), val.clone());
+                }
+            }
+        } else if let Some(list) = br.as_list() {
+            // Extract numeric values from the list, converting all units to px.
+            let vals: Vec<Value> = list
+                .iter()
+                .filter_map(|cv| {
+                    if cv.as_unit().is_some() {
+                        let px = cv.unit_to_px();
+                        Some(Value::Unit(px, Unit::Px))
+                    } else if let Some(v) = cv.as_number() {
+                        Some(Value::Unit(v, Unit::Px))
+                    } else {
+                        cv.as_percentage().map(|v| Value::Unit(v, Unit::Percent))
+                    }
+                })
+                .collect();
+
+            // Apply the CSS border-radius shorthand expansion pattern
+            let expanded: [Value; 4] = match vals.len() {
+                2 => [vals[0].clone(), vals[1].clone(), vals[0].clone(), vals[1].clone()],
+                3 => [vals[0].clone(), vals[1].clone(), vals[2].clone(), vals[1].clone()],
+                4.. => [vals[0].clone(), vals[1].clone(), vals[2].clone(), vals[3].clone()],
+                _ => {
+                    let v = vals.first().cloned().unwrap_or(Value::Unit(0.0, Unit::Px));
+                    [v.clone(), v.clone(), v.clone(), v]
+                }
+            };
+            for (c, v) in corners.iter().zip(expanded.iter()) {
+                style.set(c.clone(), v.clone());
+            }
+        }
+    }
+
     // --- Unit-based properties ---
     let unit_props: &[(&str, StyleProperty)] = &[
         ("font-size", StyleProperty::FontSize),
@@ -376,11 +446,22 @@ fn build_node_style<S: CssSystem>(prop_map: &S::PropertyMap) -> NodeStyle {
         ("border-right-width", StyleProperty::BorderRightWidth),
         ("border-bottom-width", StyleProperty::BorderBottomWidth),
         ("border-left-width", StyleProperty::BorderLeftWidth),
+        // Logical margin aliases — used by some frameworks instead of physical sides
+        ("margin-block-start", StyleProperty::MarginTop),
+        ("margin-block-end", StyleProperty::MarginBottom),
+        ("margin-inline-start", StyleProperty::MarginLeft),
+        ("margin-inline-end", StyleProperty::MarginRight),
+        ("padding-block-start", StyleProperty::PaddingTop),
+        ("padding-block-end", StyleProperty::PaddingBottom),
+        ("padding-inline-start", StyleProperty::PaddingLeft),
+        ("padding-inline-end", StyleProperty::PaddingRight),
         ("min-width", StyleProperty::MinWidth),
         ("min-height", StyleProperty::MinHeight),
         ("max-width", StyleProperty::MaxWidth),
         ("max-height", StyleProperty::MaxHeight),
         ("gap", StyleProperty::Gap),
+        ("column-gap", StyleProperty::Gap), // column-gap alone maps to horizontal gap
+        ("row-gap", StyleProperty::Gap),    // row-gap alone maps to vertical gap
         ("border-top-left-radius", StyleProperty::BorderTopLeftRadius),
         ("border-top-right-radius", StyleProperty::BorderTopRightRadius),
         ("border-bottom-left-radius", StyleProperty::BorderBottomLeftRadius),
@@ -391,10 +472,32 @@ fn build_node_style<S: CssSystem>(prop_map: &S::PropertyMap) -> NodeStyle {
         ("inset-inline-start", StyleProperty::InsetInlineStart),
         ("inset-inline-end", StyleProperty::InsetInlineEnd),
     ];
+    // Pre-compute the element's font-size so ch/ex units can use it below.
+    // unit_to_px() resolves em/rem with 16px base, giving a close enough value.
+    let font_size_for_ch = prop_map
+        .get("font-size")
+        .filter(|fp| fp.as_unit().is_some())
+        .map(|fp| fp.unit_to_px())
+        .unwrap_or(16.0_f32);
+
     for (css_name, prop) in unit_props {
         if let Some(p) = prop_map.get(css_name) {
-            if let Some((val, unit_str)) = p.as_unit() {
-                style.set(prop.clone(), Value::Unit(val, str_to_unit(unit_str)));
+            if p.as_unit().is_some() {
+                // Convert em/rem to px now so downstream code (get_style_f32) can
+                // treat all Unit values as pixels without knowing the unit.
+                // Also handle font-relative units that unit_to_px() ignores:
+                //   ch  ≈ 0.45 × font-size  (width of "0" in the current font)
+                //   ex  ≈ 0.50 × font-size  (x-height)
+                //   ic  ≈ 1.00 × font-size  (CJK ideograph width)
+                //   lh  ≈ 1.40 × font-size  (line-height)
+                let px = match p.as_unit() {
+                    Some((v, "ch")) => v * font_size_for_ch * 0.45,
+                    Some((v, "ex")) => v * font_size_for_ch * 0.50,
+                    Some((v, "ic")) => v * font_size_for_ch,
+                    Some((v, "lh")) => v * font_size_for_ch * 1.40,
+                    _ => p.unit_to_px(),
+                };
+                style.set(prop.clone(), Value::Unit(px, Unit::Px));
             } else if let Some(pct) = p.as_percentage() {
                 style.set(prop.clone(), Value::Unit(pct, Unit::Percent));
             } else if let Some(val) = p.as_number() {
@@ -407,8 +510,8 @@ fn build_node_style<S: CssSystem>(prop_map: &S::PropertyMap) -> NodeStyle {
 
     // --- line-height: unitless number is a font-size multiplier, not pixels ---
     if let Some(p) = prop_map.get("line-height") {
-        if let Some((val, unit_str)) = p.as_unit() {
-            style.set(StyleProperty::LineHeight, Value::Unit(val, str_to_unit(unit_str)));
+        if p.as_unit().is_some() {
+            style.set(StyleProperty::LineHeight, Value::Unit(p.unit_to_px(), Unit::Px));
         } else if let Some(val) = p.as_number() {
             style.set(StyleProperty::LineHeight, Value::Number(val));
         } else if let Some(s) = p.as_string() {
@@ -438,10 +541,7 @@ fn build_node_style<S: CssSystem>(prop_map: &S::PropertyMap) -> NodeStyle {
                 }
             }
             if let Some((r, g, b, a)) = p.parse_color() {
-                style.set(
-                    prop.clone(),
-                    Value::Color(r as u8, g as u8, b as u8, (a / 255.0 * 255.0) as u8),
-                );
+                style.set(prop.clone(), Value::Color(r as u8, g as u8, b as u8, a as u8));
             }
         }
     }
@@ -565,9 +665,30 @@ fn build_node_style<S: CssSystem>(prop_map: &S::PropertyMap) -> NodeStyle {
         }
     }
 
+    // --- font-family: stored as List([String("Arial"), Comma, String("sans-serif")]) ---
+    // We reconstruct the CSS font-family stack string so that downstream code (parley's
+    // FontFamily::Source) can parse it with FontFamilyName::parse_css_list().
+    if let Some(p) = prop_map.get("font-family") {
+        if let Some(s) = p.as_string() {
+            // Single family: font-family: Arial
+            style.set(StyleProperty::FontFamily, Value::Keyword(intern(s)));
+        } else if let Some(list) = p.as_list() {
+            // Multi-family list: font-family: "Arial", sans-serif
+            // Build "Arial, sans-serif" — parley will parse this as a CSS fallback stack.
+            let names: String = list
+                .iter()
+                .filter(|v| !v.is_comma())
+                .filter_map(|v| v.as_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            if !names.is_empty() {
+                style.set(StyleProperty::FontFamily, Value::Keyword(intern(&names)));
+            }
+        }
+    }
+
     // --- Keyword properties ---
     let kw_props: &[(&str, StyleProperty)] = &[
-        ("font-family", StyleProperty::FontFamily),
         ("position", StyleProperty::Position),
         ("flex-direction", StyleProperty::FlexDirection),
         ("flex-wrap", StyleProperty::FlexWrap),

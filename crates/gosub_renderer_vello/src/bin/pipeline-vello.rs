@@ -454,7 +454,7 @@ fn do_rasterize(
             continue;
         };
 
-        let rasterizer_renderer = match Renderer::new(
+        let rasterizer_renderer = Renderer::new(
             device,
             RendererOptions {
                 use_cpu: false,
@@ -462,13 +462,8 @@ fn do_rasterize(
                 num_init_threads: None,
                 pipeline_cache: None,
             },
-        ) {
-            Ok(r) => r,
-            Err(e) => {
-                log::error!("rasterizer Renderer::new failed: {e:?}");
-                return;
-            }
-        };
+        )
+        .unwrap_or_else(|e| panic!("rasterizer Renderer::new failed: {e:?}"));
         let resources = Arc::new(WgpuResources {
             device: Arc::new(device.clone()),
             queue: Arc::new(queue.clone()),

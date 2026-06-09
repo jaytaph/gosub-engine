@@ -138,10 +138,6 @@ pub use engine::storage;
 #[doc(inline)]
 pub use crate::engine::config::EngineConfig;
 
-#[doc(inline)]
-pub use crate::engine::cookies::SameSiteContext;
-pub use crate::engine::cookies::ThirdPartyCookiePolicy;
-
 /// Public `events` namespace with the enums/structs:
 pub mod events {
     pub use crate::engine::events::{EngineCommand, EngineEvent, IoCommand, MouseButton, TabCommand};
@@ -163,6 +159,6 @@ pub fn init_gtk_resources() {
     #[cfg(feature = "backend_cairo_pango")]
     {
         gtk4::init().expect("GTK init failed — on headless systems set GDK_BACKEND=offscreen");
-        gosub_renderer_cairo::font::pango::init_system_ui_font();
+        gosub_renderer_cairo::font::pango::init();
     }
 }

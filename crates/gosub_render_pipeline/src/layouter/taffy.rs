@@ -13,7 +13,8 @@ use crate::layouter::{
     LayoutElementNode, LayoutTree,
 };
 use crate::rendertree_builder::{RenderNodeId, RenderTree};
-use parking_lot::RwLock;
+use gosub_fontmanager::ParleyFontSystem;
+use parking_lot::{Mutex, RwLock};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,6 +23,11 @@ use taffy::NodeId as TaffyNodeId;
 
 const DEFAULT_FONT_SIZE: f64 = 16.0;
 const DEFAULT_FONT_FAMILY: &str = "sans-serif";
+
+// Cache key: (text, font_family, size_bits, line_height_bits, weight, max_width_bits).
+// Floats are stored as their bit pattern so the tuple is Hash + Eq.
+type MeasureKey = (String, String, u32, u32, i32, u32);
+
 
 /// Layouter structure that uses taffy as layout engine
 pub struct TaffyLayouter {
@@ -39,6 +45,14 @@ pub struct TaffyLayouter {
     anon_container_map: HashMap<LayoutElementId, TaffyNodeId>,
     /// Media store for loading images/SVGs during layout
     media_store: MediaStore,
+    /// Shared font system used for text measurement. Locking once per measurement
+    /// call avoids keeping the guard alive across the full layout pass, which lets
+    /// other threads (e.g. the rasterizer) access the font collection between calls.
+    font_system: Arc<Mutex<ParleyFontSystem>>,
+    /// Memoized text measurements. Taffy calls the measure function 2-4× per node
+    /// (MinContent, MaxContent, actual width). Caching by (text, font, max_width)
+    /// eliminates the redundant Parley shaping calls.
+    measure_cache: HashMap<MeasureKey, Size<f32>>,
 }
 
 /// Context structures to pass to taffy measure functions so we can calculate the size of the text or images.
@@ -63,6 +77,7 @@ impl TaffyContext {
             text: text.to_string(),
             text_offset,
             no_wrap,
+            available_width: 0.0,
         })
     }
 
@@ -92,14 +107,30 @@ impl Default for TaffyLayouter {
 }
 
 impl TaffyLayouter {
+    /// Create a layouter with its own font system.
+    ///
+    /// To share the font collection with other components (e.g. a `VelloRasterizer`)
+    /// use [`TaffyLayouter::with_font_system`] and pass the same `Arc` to both.
     pub fn new() -> Self {
+        Self::with_font_system(Arc::new(Mutex::new(ParleyFontSystem::new())))
+    }
+
+    /// Create a layouter that shares an existing font system.
+    pub fn with_font_system(font_system: Arc<Mutex<ParleyFontSystem>>) -> Self {
         Self {
             tree: TaffyTree::new(),
             root_id: TaffyNodeId::new(0),
             layout_taffy_mapping: HashMap::new(),
             anon_container_map: HashMap::new(),
             media_store: MediaStore::new(),
+            font_system,
+            measure_cache: HashMap::new(),
         }
+    }
+
+    /// Expose the font system so callers can share it with other components.
+    pub fn font_system(&self) -> Arc<Mutex<ParleyFontSystem>> {
+        Arc::clone(&self.font_system)
     }
 
     pub fn print_tree(&mut self) {
@@ -136,16 +167,26 @@ impl CanLayout for TaffyLayouter {
             None => Size::MAX_CONTENT,
         };
 
+        // Clone the Arc and take the measure cache so the closure can capture them
+        // without holding a borrow of `self` while `self.tree` is mutably borrowed.
+        let font_system = Arc::clone(&self.font_system);
+        let mut measure_cache: HashMap<MeasureKey, Size<f32>> = std::mem::take(&mut self.measure_cache);
+
         // Compute the layout with a measure function
         if let Err(e) = self
             .tree
             .compute_layout_with_measure(self.root_id, size, |v_kd, v_as, v_ni, v_nc, v_s| {
+                // If taffy already knows both dimensions, no measurement needed.
+                if let (Some(w), Some(h)) = (v_kd.width, v_kd.height) {
+                    return Size { width: w, height: h };
+                }
+
                 match v_nc {
                     // Calculate text node
                     Some(TaffyContext::Text(text_ctx)) => {
                         let max_width = if text_ctx.no_wrap {
                             // white-space: nowrap — measure at unlimited width so text never wraps
-                            1_000_000_000.0
+                            1_000_000_000.0_f64
                         } else {
                             match v_as.width {
                                 AvailableSpace::Definite(width) => width as f64,
@@ -153,9 +194,33 @@ impl CanLayout for TaffyLayouter {
                                 AvailableSpace::MinContent => 0.0,
                             }
                         };
-                        // Calculate the text layout dimensions and return it to taffy
-                        let text_layout =
-                            get_text_layout(text_ctx.text.as_str(), &text_ctx.font_info, max_width, dpi_scale_factor);
+
+                        let cache_key: MeasureKey = (
+                            text_ctx.text.clone(),
+                            text_ctx.font_info.family.clone(),
+                            (text_ctx.font_info.size as f32).to_bits(),
+                            (text_ctx.font_info.line_height as f32).to_bits(),
+                            text_ctx.font_info.weight,
+                            (max_width as f32).to_bits(),
+                        );
+                        if let Some(&cached) = measure_cache.get(&cache_key) {
+                            return cached;
+                        }
+
+                        // Acquire the font context for this measurement. The lock is
+                        // released immediately after the call so other callers
+                        // (e.g. the rasterizer) can interleave without contention.
+                        let text_layout = {
+                            let mut fs = font_system.lock();
+                            let font_cx = fs.font_cx_mut();
+                            get_text_layout(
+                                text_ctx.text.as_str(),
+                                &text_ctx.font_info,
+                                max_width,
+                                dpi_scale_factor,
+                                font_cx,
+                            )
+                        };
                         match text_layout {
                             Ok(text_layout) => {
                                 // Ceil width to the nearest CSS pixel. Parley returns a fractional
@@ -176,12 +241,14 @@ impl CanLayout for TaffyLayouter {
                                     width += (text_ctx.font_info.size * 0.3) as f32;
                                 }
 
-                                Size {
+                                let result = Size {
                                     width,
                                     // Ceil height so the layout height matches the integer-pixel surface
                                     // that pango creates (prevents descenders from overflowing the box).
                                     height: text_layout.height.ceil() as f32,
-                                }
+                                };
+                                measure_cache.insert(cache_key, result);
+                                result
                             }
                             Err(_) => Size::ZERO,
                         }
@@ -196,14 +263,17 @@ impl CanLayout for TaffyLayouter {
             })
         {
             log::error!("Failed to compute taffy layout: {:?}", e);
+            self.measure_cache = measure_cache;
             return layout_tree;
         }
+        self.measure_cache = measure_cache;
 
         // Since we are not interested in taffy layout after this stage in the pipeline, we convert
         // the taffy layout to a box model layout tree. This makes the rest of the pipeline
         // layout-engine agnostic.
         let root_id = layout_tree.root_id;
-        self.populate_boxmodel(&mut layout_tree, root_id, Coordinate::ZERO);
+        let root_width = layout_tree.root_dimension.width;
+        self.populate_boxmodel(&mut layout_tree, root_id, Coordinate::ZERO, root_width);
 
         // get dimension of the root node
         if let Some(root) = layout_tree.get_node_by_id(root_id) {
@@ -218,7 +288,13 @@ impl CanLayout for TaffyLayouter {
 
 impl TaffyLayouter {
     // Populate the layout tree with the box models that we now can generate
-    fn populate_boxmodel(&self, layout_tree: &mut LayoutTree, layout_node_id: LayoutElementId, offset: Coordinate) {
+    fn populate_boxmodel(
+        &self,
+        layout_tree: &mut LayoutTree,
+        layout_node_id: LayoutElementId,
+        offset: Coordinate,
+        parent_content_width: f64,
+    ) {
         let Some(taffy_node_id) = self.layout_taffy_mapping.get(&layout_node_id) else {
             log::warn!("No taffy mapping for layout node {:?}", layout_node_id);
             return;
@@ -234,7 +310,26 @@ impl TaffyLayouter {
             return;
         };
         el.box_model = taffy_layout_to_boxmodel(&layout, offset);
+        // For text nodes, available_width is the wrap limit passed to the renderer.
+        // Use the parent element's content width (supplied by our caller), which is the
+        // most accurate available constraint for text that lives directly in a block box.
+        if let ElementContext::Text(ref mut text_ctx) = el.context {
+            text_ctx.available_width = parent_content_width;
+        }
+        let my_content_width = el.box_model.content_box.width;
         let child_ids = el.children.clone();
+
+        // Inline elements (those placed in an anonymous flex container by their parent) do not
+        // establish a new containing block. Their children should inherit the enclosing block's
+        // content width so that Skia uses the same wrap boundary that Parley used during layout.
+        // Without this, Skia receives the inline element's shrunk natural width and wraps text
+        // that Parley measured as a single line, causing height mismatches and overlapping content.
+        let is_inline_node = self.anon_container_map.contains_key(&layout_node_id);
+        let content_width_for_children = if is_inline_node {
+            parent_content_width
+        } else {
+            my_content_width
+        };
 
         // Absolute position of this node's content area — used as the base offset for direct children.
         let children_offset = Coordinate::new(offset.x + layout.location.x as f64, offset.y + layout.location.y as f64);
@@ -257,12 +352,14 @@ impl TaffyLayouter {
                 layout_tree,
                 child_id,
                 Coordinate::new(children_offset.x + anon_offset.x, children_offset.y + anon_offset.y),
+                content_width_for_children,
             );
         }
     }
 
     /// Generate the layout tree from the render tree
     fn generate_tree(&mut self, render_tree: RenderTree, root_id: RenderNodeId) -> LayoutTree {
+        self.measure_cache.clear();
         self.tree = TaffyTree::new();
         // Taffy's built-in rounding snaps layout values to integer CSS pixels, which causes
         // text containers to lose sub-pixel width (e.g. 52.344 → 52.0). This makes pango
@@ -318,6 +415,10 @@ impl TaffyLayouter {
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::Wrap,
             align_self: Some(AlignSelf::FlexStart),
+            // FlexStart ensures multi-row intrinsic height = sum of all row heights.
+            // Taffy's default (None = Stretch) fails to include wrapped rows in the
+            // container's auto height, causing rows beyond the first to overflow.
+            align_content: Some(AlignContent::FlexStart),
             gap: Size {
                 width: LengthPercentage::length(0.0),
                 height: LengthPercentage::length(0.0),
@@ -365,6 +466,11 @@ impl TaffyLayouter {
             return None;
         };
 
+        // Flex and grid containers are formatting contexts where ALL children — inline or block —
+        // are direct layout participants. Wrapping inline children in an anonymous flex container
+        // would insert an extra level that breaks the parent's `gap`, `align-items`, etc.
+        let parent_is_flex_or_grid = matches!(taffy_style.display, Display::Flex | Display::Grid);
+
         // The context will be moved to the taffy tree, so we need to convert it before that happens.
         let element_context = match taffy_context {
             Some(ref ctx) => to_element_context(Some(ctx)),
@@ -410,6 +516,20 @@ impl TaffyLayouter {
             let Some(child_node) = layout_tree.render_tree.get_document_node_by_render_id(*child_id) else {
                 continue;
             };
+
+            // In a flex/grid parent every child is a direct layout participant — inline or block —
+            // so skip the anonymous-container wrapping and add them straight to the parent.
+            if parent_is_flex_or_grid {
+                // Still discard pure-whitespace text nodes; they carry no visual content.
+                if let NodeType::Text(text) = &child_node.node_type {
+                    if text.trim().is_empty() {
+                        continue;
+                    }
+                }
+                self.tree.add_child(leaf_id, child_taffy_id).unwrap();
+                element_node.children.push(child_layout_element_id);
+                continue;
+            }
 
             // Don't add inline elements to the taffy tree yet. We need to group them first and possibly wrap inside a block
             if child_node.is_inline_element() || child_node.is_inline_block_element() || child_node.is_text() {
@@ -474,6 +594,7 @@ impl TaffyLayouter {
     /// Extracts taffy variables based the DOM node. It will generate the taffy style based on the node CSS properties,
     /// any context that might be needed (images, svg, text).
     fn extract_taffy_data(&self, layout_tree: &LayoutTree, dom_node: &Node) -> Option<(Option<TaffyContext>, Style)> {
+
         let mut taffy_context = None;
         let mut taffy_style = Style::default();
 
@@ -502,13 +623,22 @@ impl TaffyLayouter {
                     };
 
                     let media = self.media_store.get(media_id, MediaType::Image);
+                    // When the media is a placeholder (load failed), use a small fixed
+                    // size so the broken-image icon doesn't blow up the layout. The
+                    // rasterizer scales the icon to whatever rect the element actually
+                    // occupies, so display quality is unaffected.
+                    let is_placeholder = self.media_store.is_placeholder(media_id);
                     taffy_context = match media.borrow() {
                         Media::Svg(_) => Some(TaffyContext::svg(src.as_str(), media_id, dom_node.node_id)),
                         Media::Image(media_image) => {
-                            let dimension = geo::Dimension::new(
-                                media_image.image.width() as f64,
-                                media_image.image.height() as f64,
-                            );
+                            let dimension = if is_placeholder {
+                                geo::Dimension::new(32.0, 32.0)
+                            } else {
+                                geo::Dimension::new(
+                                    media_image.image.width() as f64,
+                                    media_image.image.height() as f64,
+                                )
+                            };
                             Some(TaffyContext::image(src.as_str(), media_id, dimension, dom_node.node_id))
                         }
                     }
@@ -516,7 +646,6 @@ impl TaffyLayouter {
 
                 if data.tag_name.eq_ignore_ascii_case("svg") {
                     let inner_html = layout_tree.render_tree.doc.inner_html(dom_node.node_id);
-
                     match self
                         .media_store
                         .load_media_from_data(MediaType::Svg, inner_html.into_bytes().as_slice())
@@ -680,8 +809,14 @@ fn to_absolute_url(uri: &str, base_uri: &str) -> String {
         return uri.to_string();
     }
 
-    // We have a relative path, so we need to prepend the base URL
-    // Make sure we don't have double slashes
+    // Protocol-relative URL (e.g. "//cdn.example.com/img.png"): inherit the scheme from base_uri.
+    if uri.starts_with("//") {
+        let scheme = base_uri.split("://").next().unwrap_or("https");
+        return format!("{}:{}", scheme, uri);
+    }
+
+    // We have a relative path, so we need to prepend the base URL.
+    // Avoid double slashes at the join point.
     if base_uri.ends_with('/') && uri.starts_with('/') {
         return format!("{}{}", base_uri, &uri[1..]);
     }

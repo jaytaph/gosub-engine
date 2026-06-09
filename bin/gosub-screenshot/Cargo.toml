@@ -1,14 +1,14 @@
 [package]
-name = "example-pipeline-screenshot"
+name = "gosub-screenshot"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "pipeline-screenshot"
+name = "gosub-screenshot"
 path = "main.rs"
 
 [dependencies]
-gosub_engine = { path = "../../crates/gosub_engine", features = ["backend_cairo"] }
+gosub_engine = { path = "../../crates/gosub_engine", features = ["backend_cairo_pango"] }
 gosub_render_pipeline = { path = "../../crates/gosub_render_pipeline", features = ["backend_cairo"] }
 cairo-rs = "0.22"
 image = "0.25"

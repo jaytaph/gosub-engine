@@ -1,4 +1,3 @@
-use crate::cookies::SameSiteContext;
 use crate::engine::errors::NavigationError;
 use crate::engine::events::{EngineEvent, NavigationEvent, TabInternalCommand};
 use crate::engine::resource_pipeline::ResourcePipelines;
@@ -18,7 +17,7 @@ use crate::zone::{ZoneContext, ZoneId};
 use anyhow::{anyhow, Context};
 use gosub_render_pipeline::render::backend::{ErasedSurface, PresentMode, RenderBackend, RgbaImage, SurfaceSize};
 use gosub_render_pipeline::render::{DevicePixelRatio, Viewport};
-use http::{HeaderMap, Method};
+use http::Method;
 use std::sync::Arc;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot};
@@ -251,11 +250,20 @@ impl TabWorker {
                     if self.handle_tab_command(cmd).is_break() {
                         break;
                     }
+                    // If the command (e.g. hover change) requested an immediate render,
+                    // call tick_draw now instead of waiting up to 1/fps seconds for the tick.
+                    if std::mem::replace(&mut self.runtime.render_now, false) {
+                        if let Err(e) = self.tick_draw().await {
+                            self.state = TabState::Failed(format!("Tab {:?} immediate render error: {}", self.tab_id, e));
+                            self.runtime.dirty = true;
+                        }
+                    }
                 }
             }
         }
 
-        self.send_event(EngineEvent::TabClosed {
+        // Receiver may already be gone at shutdown; that is expected.
+        let _ = self.zone_context.event_tx.send(EngineEvent::TabClosed {
             tab_id: self.tab_id,
             zone_id: self.zone_id,
         });
@@ -386,14 +394,18 @@ impl TabWorker {
             TabCommand::MouseMove { x: _x, y: _y } => {
                 #[cfg(feature = "pipeline")]
                 {
-                    let (dirty, link_url) = self.context.update_hover(_x as f64, _y as f64);
-                    if dirty {
-                        self.runtime.dirty = true;
+                    // Process the hit-test immediately so hover doesn't wait for the next tick.
+                    let (visual_dirty, url_changed, link_url) = self.context.update_hover(_x as f64, _y as f64);
+                    if url_changed {
+                        self.send_event(EngineEvent::HoverUrl {
+                            tab_id: self.tab_id,
+                            url: link_url,
+                        });
                     }
-                    self.send_event(EngineEvent::HoverUrl {
-                        tab_id: self.tab_id,
-                        url: link_url,
-                    });
+                    if visual_dirty {
+                        self.runtime.dirty = true;
+                        self.runtime.render_now = true;
+                    }
                 }
                 #[cfg(not(feature = "pipeline"))]
                 {
@@ -530,31 +542,21 @@ impl TabWorker {
             },
         });
 
-        // Attach cookies for the navigation request.
-        let mut fetch_headers = HeaderMap::new();
-        if let Some(cookie_str) =
-            self.services
-                .cookie_jar
-                .read()
-                .get_request_cookies(&url, Some(&url), SameSiteContext::SameSite)
-        {
-            if let Ok(val) = cookie_str.parse() {
-                fetch_headers.insert(http::header::COOKIE, val);
-            }
-        }
-
         let req = FetchRequest {
             reference: RequestReference::Navigation(nav_id),
             req_id: RequestId::new(),
             key_data: FetchKeyData {
                 url: url.clone(),
                 method: Method::GET,
-                headers: fetch_headers,
+                headers: Default::default(),
             },
             priority: Priority::High,
             kind: ResourceKind::Document,
             initiator: Initiator::Navigation,
-            streaming: true,
+            // Use buffered mode so the full document body is available before parsing.
+            // The streaming path has a race where SharedBody can close before parse_stream
+            // subscribes, causing truncated HTML (only the 5 KB peek buffer is parsed).
+            streaming: false,
             auto_decode: true,
             max_bytes: None,
         };
@@ -565,7 +567,6 @@ impl TabWorker {
         let zone_id = self.zone_id;
         let io_tx = self.zone_context.io_tx.clone();
         let event_tx = self.zone_context.event_tx.clone();
-        let cookie_jar = self.services.cookie_jar.clone();
 
         let span = tracing::info_span!(
             "tab_nav",
@@ -615,13 +616,6 @@ impl TabWorker {
                     }
                 }
             };
-
-            // Store Set-Cookie headers from the navigation response.
-            if let Some(meta) = fetch_result.meta() {
-                cookie_jar
-                    .write()
-                    .store_response_cookies(&meta.final_url, &meta.headers, Some(&url));
-            }
 
             let ua_policy = UaPolicy {
                 enable_sniffing: false,
@@ -732,8 +726,9 @@ impl TabWorker {
     }
 
     /// Do a draw tick. This will be called based on the FPS that is requested
-    #[allow(unreachable_code)] // cfg-conditional tile-cache returns make the display-list path unreachable for some feature combos
+    #[allow(unreachable_code)]
     async fn tick_draw(&mut self) -> anyhow::Result<()> {
+
         // Skip rendering when nothing has changed to avoid burning CPU at the tick rate.
         if !self.runtime.dirty {
             return Ok(());
@@ -780,11 +775,7 @@ impl TabWorker {
         }
 
         // Vello: same TileCache path as Skia. Extract wgpu resources from the backend on first use.
-        #[cfg(all(
-            feature = "pipeline",
-            feature = "backend_vello",
-            not(any(feature = "backend_cairo", feature = "backend_skia"))
-        ))]
+        #[cfg(all(feature = "pipeline", feature = "backend_vello"))]
         {
             if self.context.vello_resources.is_none() {
                 self.context.vello_resources = self.zone_context.render_backend.wgpu_resources();
