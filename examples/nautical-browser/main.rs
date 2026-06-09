@@ -5,8 +5,8 @@
 //! Usage: cargo run -p example-nautical-browser [-- path/to/background.png]
 
 use skia_safe::{
-    surfaces, Canvas, Color4f, Contains, Font, FontMgr, FontStyle, Image, Paint, PaintStyle, Path,
-    Rect as SkRect,
+    surfaces, AlphaType, Canvas, Color4f, ColorType, Contains, Font, FontMgr, FontStyle, Image,
+    ImageInfo, Paint, PaintStyle, Path, Rect as SkRect,
 };
 use softbuffer::Surface as SbSurface;
 use std::num::NonZeroU32;
@@ -140,7 +140,14 @@ impl BrowserApp {
             return;
         };
 
-        let Some(mut skia_surf) = surfaces::raster_n32_premul((win_w as i32, win_h as i32)) else {
+        // Use explicit RGBA8888 so byte order is consistent on macOS and Linux.
+        let info = ImageInfo::new(
+            (win_w as i32, win_h as i32),
+            ColorType::RGBA8888,
+            AlphaType::Premul,
+            None,
+        );
+        let Some(mut skia_surf) = surfaces::raster(&info, None, None) else {
             return;
         };
         let canvas = skia_surf.canvas();
@@ -155,16 +162,16 @@ impl BrowserApp {
             self.hovered,
         );
 
-        // Blit Skia N32/BGRA (little-endian) to softbuffer 0x00RRGGBB
+        // Blit RGBA8888 → softbuffer 0x00RRGGBB.
         if let Some(pixmap) = canvas.peek_pixels() {
             if let Some(bytes) = pixmap.bytes() {
                 let stride = pixmap.row_bytes();
                 for row in 0..win_h as usize {
                     for col in 0..win_w as usize {
                         let off = row * stride + col * 4;
-                        let b = bytes[off] as u32;
+                        let r = bytes[off] as u32;
                         let g = bytes[off + 1] as u32;
-                        let r = bytes[off + 2] as u32;
+                        let b = bytes[off + 2] as u32;
                         buf[row * win_w as usize + col] = (r << 16) | (g << 8) | b;
                     }
                 }
