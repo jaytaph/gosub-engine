@@ -24,6 +24,7 @@ members = [
     "examples/winit-skia",
     "examples/winit-skia-gpu",
     "examples/winit-skia-gpu-metal",
+    "examples/nautical-browser",
     "examples/winit-vello",
     "bin/gosub-screenshot",
 ]
