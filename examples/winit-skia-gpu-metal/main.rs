@@ -17,7 +17,9 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 mod metal_app {
+    #[allow(deprecated)]
     use cocoa::appkit::NSView;
+    #[allow(deprecated)]
     use cocoa::base::{id as CocoaId, YES};
     use core_graphics_types::geometry::CGSize;
     use gosub_engine::events::{EngineEvent, MouseButton, NavigationEvent, TabCommand};
@@ -27,6 +29,7 @@ mod metal_app {
     use gosub_engine::GosubEngine;
     use gosub_render_pipeline::render::backend::{CachedTile, ExternalHandle};
     use gosub_render_pipeline::render::DefaultCompositor;
+    use metal::foreign_types::{ForeignType, ForeignTypeRef};
     use metal::{CommandQueue, Device, MetalLayer};
     use once_cell::sync::Lazy;
     use parking_lot::RwLock;
@@ -86,6 +89,7 @@ mod metal_app {
             // Attach the CAMetalLayer to the winit NSView.
             let raw = window.window_handle().expect("window handle").as_raw();
             if let RawWindowHandle::AppKit(appkit) = raw {
+                #[allow(deprecated)]
                 unsafe {
                     let ns_view: CocoaId = appkit.ns_view.as_ptr() as _;
                     let layer_ptr = layer.as_ptr() as CocoaId;
@@ -98,7 +102,6 @@ mod metal_app {
                 mtl::BackendContext::new(
                     device.as_ptr() as mtl::Handle,
                     queue.as_ptr() as mtl::Handle,
-                    std::ptr::null(),
                 )
             };
             let context = gpu::direct_contexts::make_metal(&backend, None)
@@ -488,6 +491,7 @@ mod metal_app {
         let win_attrs = WindowAttributes::default()
             .with_title("Gosub Browser — winit + Skia Metal")
             .with_inner_size(LogicalSize::new(1024u32, 768u32));
+        #[allow(deprecated)]
         let window = event_loop.create_window(win_attrs).expect("window");
 
         let size = window.inner_size();
