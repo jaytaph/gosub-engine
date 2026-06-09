@@ -23,6 +23,7 @@ members = [
     "examples/winit-cairo",
     "examples/winit-skia",
     "examples/winit-skia-gpu",
+    "examples/winit-skia-gpu-metal",
     "examples/winit-vello",
     "bin/gosub-screenshot",
 ]
