@@ -329,7 +329,7 @@ fn draw_content(canvas: &Canvas, win_w: f32, win_h: f32, toolbar_h: f32, image: 
 fn draw_toolbar(canvas: &Canvas, win_w: f32, h: f32, url: &str, focused: bool, hovered: HitZone) {
     canvas.draw_rect(
         SkRect::from_xywh(0.0, 0.0, win_w, h),
-        &Paint::new(Color4f::new(0.11, 0.126, 0.153, 1.0), None),
+        &Paint::new(Color4f::new(0.047, 0.082, 0.188, 1.0), None),
     );
     canvas.draw_rect(
         SkRect::from_xywh(0.0, h - 1.0, win_w, 1.0),
@@ -404,7 +404,7 @@ fn draw_refresh(canvas: &Canvas, rect: SkRect, hovered: bool) {
 }
 
 fn draw_url_bar(canvas: &Canvas, rect: SkRect, url: &str, focused: bool) {
-    let mut bg = Paint::new(Color4f::new(0.157, 0.18, 0.22, 1.0), None);
+    let mut bg = Paint::new(Color4f::new(0.08, 0.13, 0.28, 1.0), None);
     bg.set_anti_alias(true);
     canvas.draw_round_rect(rect, 6.0, 6.0, &bg);
 
