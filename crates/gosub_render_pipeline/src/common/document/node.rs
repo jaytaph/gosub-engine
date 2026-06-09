@@ -1,4 +1,3 @@
-use crate::common::document::document::Document;
 use crate::common::document::style::{Display, NodeStyle, StyleProperty, Value};
 use std::collections::HashMap;
 
@@ -181,40 +180,19 @@ impl Node {
     }
 }
 
-impl Node {
-    pub fn new_text(doc: &Document, parent_id: Option<NodeId>, text: String) -> Node {
-        Node {
-            node_id: doc.next_node_id(),
-            parent_id,
-            children: vec![],
-            node_type: NodeType::Text(text),
-        }
-    }
-
-    pub fn new_comment(doc: &Document, parent_id: Option<NodeId>, comment: String) -> Node {
-        Node {
-            node_id: doc.next_node_id(),
-            parent_id,
-            children: vec![],
-            node_type: NodeType::Comment(comment),
-        }
-    }
-
-    pub fn new_element(
-        doc: &Document,
-        parent_id: Option<NodeId>,
-        tag_name: String,
-        attributes: Option<AttrMap>,
-        self_closing: bool,
-        style: Option<NodeStyle>,
-    ) -> Node {
-        Node {
-            node_id: doc.next_node_id(),
-            parent_id,
-            children: vec![],
-            node_type: NodeType::Element(ElementData::new(tag_name, attributes, self_closing, style)),
-        }
-    }
+/// Returns true if `tag` is an HTML element that is inline by spec when no CSS is applied.
+/// Block-level elements (`div`, `p`, `h1`–`h6`, `li`, `section`, etc.) return false so that
+/// missing `display` in NodeStyle (e.g. from a UA-stylesheet gap) does not accidentally put
+/// them into an inline formatting context.
+fn is_intrinsically_inline(tag: &str) -> bool {
+    matches!(
+        tag.to_ascii_lowercase().as_str(),
+        "a" | "abbr" | "acronym" | "b" | "bdo" | "big" | "br" | "button" | "cite"
+            | "code" | "dfn" | "em" | "i" | "img" | "input" | "kbd" | "label"
+            | "map" | "object" | "output" | "q" | "samp" | "select" | "small"
+            | "span" | "strong" | "sub" | "sup" | "textarea" | "time" | "tt"
+            | "u" | "var"
+    )
 }
 
 /// Returns true if `tag` is an HTML element that is inline by spec when no CSS is applied.
