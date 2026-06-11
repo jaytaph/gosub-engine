@@ -1,0 +1,151 @@
+[package]
+name = "example-browser"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# One crate, ten browser binaries: each [[bin]] pairs a UI toolkit (gtk4/winit/egui)
+# with a render backend (cairo/skia/skia-gpu/vello).
+#
+# IMPORTANT — build bins grouped per backend. The engine selects its rasterizer at
+# compile time (cairo > skia > vello), so one cargo invocation must only enable
+# bins that share a backend:
+#
+#   cargo build -p example-browser --no-default-features --features gtk4-cairo,winit-cairo,egui-cairo
+#   cargo build -p example-browser --no-default-features --features gtk4-skia,winit-skia,egui-skia
+#   cargo build -p example-browser --no-default-features --features gtk4-skia-gpu,winit-skia-gpu
+#   cargo build -p example-browser --no-default-features --features winit-vello,egui-vello
+#
+# Mixing backends in one invocation compiles, but the cairo path wins inside the
+# engine and the other bins will render blank.
+
+[lib]
+name = "example_browser"
+path = "src/lib.rs"
+
+[features]
+# Default: the cairo trio — one engine flavor, all three render correctly.
+default = ["gtk4-cairo", "winit-cairo", "egui-cairo"]
+
+# Toolkit layer
+toolkit-gtk4 = ["dep:gtk4", "gosub_engine/gtk4"]
+toolkit-winit = ["dep:winit", "gosub_engine/winit"]
+toolkit-egui = ["dep:eframe", "dep:egui", "gosub_engine/ui_eframe"]
+
+# Backend layer
+backend-cairo = ["dep:cairo-rs", "gosub_engine/backend_cairo_pango", "gosub_render_pipeline/backend_cairo"]
+backend-skia = ["dep:skia-safe", "gosub_engine/backend_skia", "gosub_render_pipeline/backend_skia"]
+backend-skia-gpu = ["backend-skia", "skia-safe/gl", "gosub_render_pipeline/backend_skia_gl"]
+backend-vello = ["dep:vello", "dep:wgpu", "gosub_engine/backend_vello", "gosub_render_pipeline/backend_vello"]
+
+# One feature per binary (used as required-features on the [[bin]] targets)
+gtk4-cairo = ["toolkit-gtk4", "backend-cairo"]
+gtk4-skia = ["toolkit-gtk4", "backend-skia"]
+gtk4-skia-gpu = ["toolkit-gtk4", "backend-skia-gpu"]
+winit-cairo = ["toolkit-winit", "backend-cairo", "dep:softbuffer"]
+winit-skia = ["toolkit-winit", "backend-skia", "dep:softbuffer"]
+winit-skia-gpu = ["toolkit-winit", "backend-skia-gpu", "dep:glutin", "dep:glutin-winit", "dep:raw-window-handle"]
+winit-vello = ["toolkit-winit", "backend-vello"]
+egui-cairo = ["toolkit-egui", "backend-cairo"]
+egui-skia = ["toolkit-egui", "backend-skia"]
+egui-vello = ["toolkit-egui", "backend-vello"]
+
+[dependencies]
+# always-on (shared common/ code)
+gosub_engine = { path = "../../crates/gosub_engine" }
+gosub_render_pipeline = { path = "../../crates/gosub_render_pipeline" }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time"] }
+url = { workspace = true }
+uuid = { workspace = true, features = ["v4", "macro-diagnostics"] }
+anyhow = { workspace = true }
+log = { workspace = true }
+simple_logger = { workspace = true }
+
+# optional, feature-gated
+gtk4 = { workspace = true, optional = true }
+winit = { workspace = true, optional = true }
+eframe = { workspace = true, optional = true, features = ["wgpu"] }
+egui = { workspace = true, optional = true }
+cairo-rs = { workspace = true, optional = true }
+skia-safe = { workspace = true, optional = true }
+vello = { workspace = true, optional = true }
+wgpu = { workspace = true, optional = true }
+softbuffer = { workspace = true, optional = true }
+glutin = { workspace = true, optional = true }
+glutin-winit = { workspace = true, optional = true }
+raw-window-handle = { workspace = true, optional = true }
+
+# Per-platform skia GPU plumbing: same-name re-declarations that cargo merges
+# with the primary skia-safe entry (features union, per target). This means any
+# skia build on Linux also carries the egl flag (and metal on macOS) — that only
+# affects linking, not behavior, and matches the previous per-example crates.
+# (The pipeline's backend_skia_egl/metal features gate no code — they only
+# forward these same skia-safe features.)
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+skia-safe = { workspace = true, optional = true, features = ["egl"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+skia-safe = { workspace = true, optional = true, features = ["metal"] }
+
+[[bin]]
+name = "gtk4-cairo"
+path = "src/bin/gtk4-cairo.rs"
+required-features = ["gtk4-cairo"]
+
+[[bin]]
+name = "gtk4-skia"
+path = "src/bin/gtk4-skia.rs"
+required-features = ["gtk4-skia"]
+
+[[bin]]
+name = "winit-cairo"
+path = "src/bin/winit-cairo.rs"
+required-features = ["winit-cairo"]
+
+[[bin]]
+name = "winit-skia"
+path = "src/bin/winit-skia.rs"
+required-features = ["winit-skia"]
+
+[[bin]]
+name = "egui-cairo"
+path = "src/bin/egui-cairo.rs"
+required-features = ["egui-cairo"]
+
+[[bin]]
+name = "egui-skia"
+path = "src/bin/egui-skia.rs"
+required-features = ["egui-skia"]
+
+[[bin]]
+name = "winit-vello"
+path = "src/bin/winit-vello.rs"
+required-features = ["winit-vello"]
+
+[[bin]]
+name = "egui-vello"
+path = "src/bin/egui-vello.rs"
+required-features = ["egui-vello"]
+
+[[bin]]
+name = "gtk4-skia-gpu"
+path = "src/bin/gtk4-skia-gpu.rs"
+required-features = ["gtk4-skia-gpu"]
+
+[[bin]]
+name = "winit-skia-gpu"
+path = "src/bin/winit-skia-gpu.rs"
+required-features = ["winit-skia-gpu"]
+
+# Deliberately NOT the full workspace lints: these are fail-fast example apps —
+# .expect() on setup errors is the intended UX, and the pixel-blit paths plus the
+# GL FBO query need unsafe.
+[lints.rust]
+unsafe_code = "allow"
+
+[lints.clippy]
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"

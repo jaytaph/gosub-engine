@@ -2082,162 +2082,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "example-egui-cairo"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "eframe",
- "egui",
- "gosub_engine",
- "gosub_render_pipeline",
- "log",
- "once_cell",
- "parking_lot",
- "simple_logger",
- "tokio",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "example-egui-skia"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "eframe",
- "egui",
- "gosub_engine",
- "gosub_render_pipeline",
- "log",
- "once_cell",
- "parking_lot",
- "simple_logger",
- "tokio",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "example-egui-vello"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "eframe",
- "egui",
- "gosub_engine",
- "gosub_render_pipeline",
- "log",
- "once_cell",
- "parking_lot",
- "simple_logger",
- "tokio",
- "tracing",
- "tracing-log",
- "tracing-subscriber",
- "url",
- "uuid",
- "vello",
-]
-
-[[package]]
-name = "example-gtk4-cairo"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gosub_engine",
- "gosub_render_pipeline",
- "gtk4",
- "log",
- "once_cell",
- "parking_lot",
- "simple_logger",
- "tokio",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "example-gtk4-skia"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gosub_engine",
- "gosub_render_pipeline",
- "gtk4",
- "log",
- "once_cell",
- "parking_lot",
- "simple_logger",
- "tokio",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "example-gtk4-skia-gpu"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gosub_engine",
- "gosub_render_pipeline",
- "gtk4",
- "log",
- "once_cell",
- "parking_lot",
- "simple_logger",
- "skia-safe",
- "tokio",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "example-winit-cairo"
+name = "example-browser"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "cairo-rs",
- "gosub_engine",
- "gosub_render_pipeline",
- "log",
- "once_cell",
- "parking_lot",
- "simple_logger",
- "softbuffer",
- "tokio",
- "url",
- "uuid",
- "winit",
-]
-
-[[package]]
-name = "example-winit-skia"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gosub_engine",
- "gosub_render_pipeline",
- "log",
- "once_cell",
- "parking_lot",
- "simple_logger",
- "skia-safe",
- "softbuffer",
- "tokio",
- "url",
- "uuid",
- "winit",
-]
-
-[[package]]
-name = "example-winit-skia-gpu"
-version = "0.1.0"
-dependencies = [
- "anyhow",
+ "eframe",
+ "egui",
  "glutin",
  "glutin-winit",
  "gosub_engine",
  "gosub_render_pipeline",
+ "gtk4",
  "log",
  "once_cell",
  "parking_lot",
@@ -2248,24 +2104,8 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
- "winit",
-]
-
-[[package]]
-name = "example-winit-vello"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gosub_engine",
- "gosub_render_pipeline",
- "log",
- "once_cell",
- "parking_lot",
- "simple_logger",
- "tokio",
- "url",
- "uuid",
  "vello",
+ "wgpu",
  "winit",
 ]
 

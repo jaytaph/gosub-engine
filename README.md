@@ -152,7 +152,9 @@ libsqlite3-dev
 ```
 
 The winit-vello, egui-vello, and gosub-screenshot binaries have no system-library
-dependencies and build out of the box on Linux, macOS, and Windows.
+dependencies and build out of the box on Linux, macOS, and Windows (use the
+`--no-default-features --features winit-vello` style invocations below — the
+default features include the cairo binaries, which need the GTK4 packages).
 </details>
 
 ### Engine examples (no GUI required)
@@ -164,32 +166,51 @@ dependencies and build out of the box on Linux, macOS, and Windows.
 
 ### GUI examples
 
-All GUI examples accept a URL as the first argument, e.g. `-- https://example.com`.
+All ten browser binaries live in one crate (`examples/browser`) as a UI-toolkit ×
+render-backend matrix. They accept a URL as the first argument, e.g. `-- https://example.com`.
 
-#### winit (cross-platform, no GTK required)
+**Build binaries grouped per backend.** The engine selects its rasterizer at
+compile time (cairo > skia > vello), so one cargo invocation must only enable
+binaries that share a backend — mixing backends compiles, but only the cairo
+path renders. The default features are the cairo trio, so a plain
+`cargo run -p example-browser --bin gtk4-cairo` just works; for the other
+backends use the slim invocations below.
 
-| Command | Renderer | Notes |
-|---|---|---|
-| `cargo run -p example-winit-vello` | Vello / wgpu | Cross-platform — Metal, DX12, Vulkan |
-| `cargo run -p example-winit-skia` | Skia CPU | softbuffer presentation |
-| `cargo run -p example-winit-skia-gpu` | Skia GPU (OpenGL) | OpenGL compositing |
-| `cargo run -p example-winit-cairo` | Cairo CPU | Linux; needs libcairo |
+#### Cairo CPU (Linux; needs the GTK4/cairo packages — default features)
 
-#### GTK4 (Linux, requires GTK4 system packages)
+| Command | Toolkit |
+|---|---|
+| `cargo run -p example-browser --bin gtk4-cairo` | GTK4, Pango text rendering |
+| `cargo run -p example-browser --bin winit-cairo` | winit + softbuffer |
+| `cargo run -p example-browser --bin egui-cairo` | egui |
 
-| Command | Renderer | Notes |
-|---|---|---|
-| `cargo run -p example-gtk4-cairo` | Cairo CPU | Pango text rendering |
-| `cargo run -p example-gtk4-skia` | Skia CPU | |
-| `cargo run -p example-gtk4-skia-gpu` | Skia GPU (OpenGL/GLArea) | Hardware-accelerated compositing |
+#### Skia CPU
 
-#### egui
+`cargo run -p example-browser --no-default-features --features gtk4-skia,winit-skia,egui-skia --bin <bin>`
 
-| Command | Renderer | Notes |
-|---|---|---|
-| `cargo run -p example-egui-vello` | Vello / wgpu | Cross-platform |
-| `cargo run -p example-egui-skia` | Skia CPU | |
-| `cargo run -p example-egui-cairo` | Cairo CPU | Linux; needs libcairo |
+| Bin | Toolkit |
+|---|---|
+| `gtk4-skia` | GTK4 |
+| `winit-skia` | winit + softbuffer |
+| `egui-skia` | egui |
+
+#### Skia GPU (OpenGL compositing)
+
+`cargo run -p example-browser --no-default-features --features gtk4-skia-gpu,winit-skia-gpu --bin <bin>`
+
+| Bin | Toolkit |
+|---|---|
+| `gtk4-skia-gpu` | GTK4 GLArea |
+| `winit-skia-gpu` | winit + glutin |
+
+#### Vello / wgpu (cross-platform — Metal, DX12, Vulkan; no system libraries)
+
+`cargo run -p example-browser --no-default-features --features winit-vello,egui-vello --bin <bin>`
+
+| Bin | Toolkit |
+|---|---|
+| `winit-vello` | winit |
+| `egui-vello` | egui |
 
 ### Headless tool
 

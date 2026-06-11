@@ -235,8 +235,8 @@ cargo run --example tutorial -- https://news.ycombinator.com
 | Goal | Where to look |
 |---|---|
 | Handle multiple tabs | [`examples/multi-tab.rs`](../examples/multi-tab.rs) |
-| Render with GTK4 / Cairo | [`examples/gtk-cairo/`](../examples/gtk-cairo/) |
-| Render with wgpu / Vello | [`examples/egui-vello/`](../examples/egui-vello/) |
+| Render with GTK4 / Cairo | [`examples/browser/`](../examples/browser/) (gtk4-cairo bin) |
+| Render with wgpu / Vello | [`examples/browser/`](../examples/browser/) (egui-vello bin) |
 | Parse HTML directly (no engine) | [`examples/html5-parser.rs`](../examples/html5-parser.rs) |
 | Understand all the crates | [`docs/crates.md`](crates.md) |
 | Use the component tools | [`docs/binaries.md`](binaries.md) |
