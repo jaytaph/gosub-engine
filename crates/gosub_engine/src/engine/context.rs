@@ -246,7 +246,7 @@ pub struct BrowsingContext {
     /// Shared wgpu resources for the Vello rasterizer (device, queue, renderer).
     /// Set by the tab worker when the engine is initialised with a VelloBackend.
     #[cfg(feature = "backend_vello")]
-    pub vello_resources: Option<std::sync::Arc<gosub_render_pipeline::render::backends::vello::WgpuResources>>,
+    pub vello_resources: Option<std::sync::Arc<gosub_renderer_vello::WgpuResources>>,
 
     /// Media store shared between the layout and rasterization stages. The layouter loads
     /// images/SVGs into it by id; the rasterizer resolves the same ids back. It persists
@@ -866,7 +866,7 @@ fn pipeline_build_cache(
     doc: Arc<EngineDocument>,
     viewport: &Viewport,
     #[cfg(feature = "backend_vello")] _vello_resources: Option<
-        std::sync::Arc<gosub_render_pipeline::render::backends::vello::WgpuResources>,
+        std::sync::Arc<gosub_renderer_vello::WgpuResources>,
     >,
     prev_tile_cache: std::collections::HashMap<TileCacheKey, (u32, u32, Arc<Vec<u8>>)>,
     media_store: Arc<gosub_render_pipeline::common::media::MediaStore>,
@@ -1200,7 +1200,7 @@ fn pipeline_hover_repaint(
     hover_dirty_nodes: &[NodeId],
     viewport: &gosub_render_pipeline::render::Viewport,
     #[cfg(feature = "backend_vello")] _vello_resources: Option<
-        std::sync::Arc<gosub_render_pipeline::render::backends::vello::WgpuResources>,
+        std::sync::Arc<gosub_renderer_vello::WgpuResources>,
     >,
     prev_tile_cache: std::collections::HashMap<TileCacheKey, (u32, u32, Arc<Vec<u8>>)>,
     media_store: Arc<gosub_render_pipeline::common::media::MediaStore>,
