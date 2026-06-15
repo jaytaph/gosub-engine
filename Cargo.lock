@@ -3236,6 +3236,7 @@ dependencies = [
  "anyhow",
  "fontique",
  "gosub_fontmanager",
+ "gosub_interface",
  "gosub_render_pipeline",
  "gosub_shared",
  "log",
