@@ -25,14 +25,45 @@ impl std::fmt::Display for TextureId {
     }
 }
 
-/// Raw pixel buffer produced by a rasterizer. Data is Arc-wrapped so it can be shared
-/// zero-copy into BakedTile / CachedTile without any pixel buffer copies.
+/// Where a rasterized tile's pixels live. The render pipeline is backend-agnostic and stays
+/// free of any GPU API: a GPU-resident tile is referenced by an **opaque id** that only the
+/// backend which created it can resolve (via its own texture store). This is what lets one tile
+/// pipeline serve both CPU compositing backends (Cairo/Skia → `Cpu`) and GPU backends
+/// (Vello/other wgpu → `Gpu`) without the core depending on `wgpu`.
+#[derive(Debug, Clone)]
+pub enum TilePixels {
+    /// CPU pixel buffer. Byte order given by the owning [`Texture`]'s `format`. Arc-wrapped so it
+    /// can be shared zero-copy into BakedTile / CachedTile without any pixel buffer copies.
+    Cpu(std::sync::Arc<Vec<u8>>),
+    /// Opaque, backend-owned GPU texture id. Meaningful only to the backend that produced it.
+    Gpu(u64),
+}
+
+/// A rasterized tile produced by a rasterizer, either CPU- or GPU-resident.
 #[derive(Debug)]
 pub struct Texture {
     pub id: TextureId,
     pub width: usize,
     pub height: usize,
-    pub data: std::sync::Arc<Vec<u8>>,
-    /// In-memory byte order of `data`, set by the rasterizer that produced it.
+    pub pixels: TilePixels,
+    /// In-memory byte order of the pixels (for the CPU variant), set by the producing rasterizer.
     pub format: crate::render::backend::PixelFormat,
+}
+
+impl Texture {
+    /// CPU pixel buffer, or `None` for a GPU-resident tile.
+    pub fn cpu_data(&self) -> Option<&std::sync::Arc<Vec<u8>>> {
+        match &self.pixels {
+            TilePixels::Cpu(d) => Some(d),
+            TilePixels::Gpu(_) => None,
+        }
+    }
+
+    /// Opaque GPU texture id, or `None` for a CPU tile.
+    pub fn gpu_id(&self) -> Option<u64> {
+        match &self.pixels {
+            TilePixels::Gpu(id) => Some(*id),
+            TilePixels::Cpu(_) => None,
+        }
+    }
 }

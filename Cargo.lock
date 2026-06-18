@@ -3268,6 +3268,7 @@ dependencies = [
  "gosub_interface",
  "gosub_render_pipeline",
  "gosub_shared",
+ "image",
  "log",
  "parking_lot",
  "parley",
