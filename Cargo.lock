@@ -3230,6 +3230,7 @@ dependencies = [
  "pangocairo",
  "parking_lot",
  "resvg",
+ "yeslogic-fontconfig-sys",
 ]
 
 [[package]]
