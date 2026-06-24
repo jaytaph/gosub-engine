@@ -414,6 +414,7 @@ impl<C: WgpuContextProvider + Send + Sync> RenderBackend for VelloBackend<C> {
                 page_y: t.page_y,
                 width: t.width,
                 height: t.height,
+                opacity: t.opacity,
             })
             .collect();
 
