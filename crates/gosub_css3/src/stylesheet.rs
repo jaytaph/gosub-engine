@@ -16,6 +16,14 @@ thread_local! {
     /// during style computation. Set per layout pass via [`set_layout_viewport`]; defaults to a
     /// 1280×800 fallback so units still resolve before any real viewport is known.
     static LAYOUT_VIEWPORT: Cell<(f32, f32)> = const { Cell::new((1280.0, 800.0)) };
+
+    /// Sticky flag set whenever a viewport-relative unit is resolved on this thread. The style
+    /// cache uses it to learn which nodes baked a viewport-dependent value into their computed
+    /// style — notably a `clamp()`/`min()`/`max()` containing `vw`/`vh`, which collapses to a
+    /// fixed px during the cascade — so that only those entries need invalidating on a resize.
+    /// (Plain `vw`/`vh` stay symbolic in the cascade and resolve later at layout read-time, so
+    /// they don't make the cached map viewport-dependent.)
+    static VIEWPORT_READ: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Set the viewport (CSS px) used to resolve `vw`/`vh`/`vmin`/`vmax` for subsequent style
@@ -28,8 +36,23 @@ pub fn set_layout_viewport(width: f32, height: f32) {
     }
 }
 
-/// The current viewport (CSS px) for resolving viewport-relative units on this thread.
+/// Clear the per-thread "viewport was read" flag. Call immediately before computing one node's
+/// styles so [`take_viewport_read`] afterwards reflects only that node's computation.
+pub fn reset_viewport_read() {
+    VIEWPORT_READ.with(|f| f.set(false));
+}
+
+/// Return and clear whether a viewport-relative unit was resolved since the last
+/// [`reset_viewport_read`]. `true` means the value just computed depends on the viewport size
+/// and must be recomputed when the viewport changes.
+pub fn take_viewport_read() -> bool {
+    VIEWPORT_READ.with(|f| f.replace(false))
+}
+
+/// The current viewport (CSS px) for resolving viewport-relative units on this thread. Records
+/// that a viewport read happened (see [`VIEWPORT_READ`]).
 fn layout_viewport() -> (f32, f32) {
+    VIEWPORT_READ.with(|f| f.set(true));
     LAYOUT_VIEWPORT.with(Cell::get)
 }
 

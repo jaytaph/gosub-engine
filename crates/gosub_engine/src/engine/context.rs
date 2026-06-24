@@ -47,6 +47,7 @@ use gosub_interface::document::Document as _;
 use gosub_render_pipeline::layering::layer::LayerList;
 use gosub_render_pipeline::layouter::LayoutElementId;
 use gosub_render_pipeline::painter::{PaintScene, Painter};
+use gosub_render_pipeline::common::document::pipeline_doc::{GosubDocumentAdapter, PipelineDocument};
 use gosub_render_pipeline::common::texture::TilePixels;
 use gosub_render_pipeline::render::backend::{CachedTile, ExternalHandle};
 use gosub_shared::node::NodeId;
@@ -169,6 +170,14 @@ pub struct BrowsingContext<C: RenderConfiguration = crate::html::DefaultRenderCo
     /// True when only the scroll offset changed (no full re-layout needed).
     scroll_dirty: bool,
 
+    /// Persistent document adapter (owns the per-node CSS-cascade cache). Reused across reflows so
+    /// a viewport-only change (window resize) reuses the expensive selector-matching results and
+    /// only recomputes viewport-dependent nodes. Rebuilt when the document or its stylesheets
+    /// change (`dom_dirty`/`style_dirty`) or the document instance is replaced.
+    cached_adapter: Option<Arc<GosubDocumentAdapter<C>>>,
+    /// Viewport size the `cached_adapter` last resolved its styles against, so a change can evict
+    /// just the viewport-dependent cache entries.
+    adapter_viewport: (u32, u32),
     /// Cached rasterized tiles for the full page. Valid until render_dirty is set.
     pipeline_cache: Option<PipelineCache>,
     /// GPU-scene cache (paint commands + layer list) for GPU backends. Mutually exclusive in
@@ -222,6 +231,8 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
             scroll_x: 0.0,
             scroll_y: 0.0,
             scroll_dirty: false,
+            cached_adapter: None,
+            adapter_viewport: (0, 0),
             pipeline_cache: None,
             scene_cache: None,
             hover_dirty: false,
@@ -344,6 +355,39 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
         }
     }
 
+    /// Return the document adapter to build the render tree from, reusing the persistent one when
+    /// possible. The adapter owns the per-node CSS-cascade cache, so reusing it across reflows
+    /// avoids re-running selector matching for the whole document on every frame.
+    ///
+    /// - Rebuilt from scratch when the document instance changed or its DOM/stylesheets are dirty.
+    /// - Reused on a viewport-only change, after evicting just the viewport-dependent cache entries
+    ///   (e.g. `clamp()`-with-`vw` nodes) so they recompute against the new size while the rest of
+    ///   the cascade is kept.
+    fn document_adapter(&mut self) -> Option<Arc<GosubDocumentAdapter<C>>> {
+        let doc = self.document.clone()?;
+
+        let reuse = matches!(
+            &self.cached_adapter,
+            Some(adapter) if Arc::ptr_eq(&adapter.doc, &doc) && !self.dom_dirty && !self.style_dirty
+        );
+
+        let adapter = if reuse {
+            let adapter = self.cached_adapter.clone().expect("reuse implies Some");
+            // Only the size matters for viewport units; scroll offset never affects style.
+            if self.adapter_viewport != (self.viewport.width, self.viewport.height) {
+                adapter.invalidate_viewport_dependent();
+            }
+            adapter
+        } else {
+            let adapter = Arc::new(GosubDocumentAdapter::<C>::new(doc));
+            self.cached_adapter = Some(adapter.clone());
+            adapter
+        };
+
+        self.adapter_viewport = (self.viewport.width, self.viewport.height);
+        Some(adapter)
+    }
+
     /// Build/refresh the device-agnostic scene if needed.
     ///
     /// Two paths:
@@ -358,14 +402,15 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
             return;
         }
         if self.render_dirty {
-            if let Some(doc) = &self.document {
+            // Resolve the adapter while dom/style dirty flags still hold (they're cleared below).
+            if let Some(adapter) = self.document_adapter() {
                 let prev_tile_cache = self
                     .pipeline_cache
                     .as_mut()
                     .map(|c| std::mem::take(&mut c.tile_pixel_cache))
                     .unwrap_or_default();
                 self.pipeline_cache = Some(pipeline_build_cache(
-                    doc.clone(),
+                    adapter,
                     &self.viewport,
                     self.rasterizer.as_deref(),
                     self.raster_strategy,
@@ -403,9 +448,9 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
                 ));
             } else {
                 // No cached layout yet — fall back to a full rebuild.
-                if let Some(doc) = &self.document {
+                if let Some(adapter) = self.document_adapter() {
                     self.pipeline_cache = Some(pipeline_build_cache(
-                        doc.clone(),
+                        adapter,
                         &self.viewport,
                         self.rasterizer.as_deref(),
                         self.raster_strategy,
@@ -429,14 +474,14 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
 
         {
             if self.render_dirty {
-                if let Some(doc) = &self.document {
+                if let Some(adapter) = self.document_adapter() {
                     let prev_tile_cache = self
                         .pipeline_cache
                         .as_mut()
                         .map(|c| std::mem::take(&mut c.tile_pixel_cache))
                         .unwrap_or_default();
                     self.pipeline_cache = Some(pipeline_build_cache(
-                        doc.clone(),
+                        adapter,
                         &self.viewport,
                         self.rasterizer.as_deref(),
                         self.raster_strategy,
@@ -486,9 +531,14 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
         // the cached layout (it only changes paint), but a GPU re-paint is cheap and avoids the
         // tile path's hover-repaint bookkeeping; revisit if hover proves hot.
         if self.render_dirty || self.hover_dirty {
-            if let Some(doc) = &self.document {
+            if let Some(adapter) = self.document_adapter() {
+                // The adapter is reused across reflows, so on a hover change evict the hover-chain
+                // nodes' cached styles to pick up :hover (the tile path does this in its repaint).
+                if self.hover_dirty {
+                    adapter.invalidate_style_for_nodes(&self.hover_dirty_nodes);
+                }
                 self.scene_cache = Some(pipeline_build_scene(
-                    doc.clone(),
+                    adapter,
                     &self.viewport,
                     self.rasterizer.as_deref(),
                     self.media_store.clone(),
@@ -972,13 +1022,12 @@ fn rasterize_sequential(
 /// element, producing one ordered paint-command list for the whole page. Skips tiling,
 /// rasterization, and compositing — the backend renders the commands into a GPU texture.
 fn pipeline_build_scene<C: RenderConfiguration>(
-    doc: Arc<EngineDocument<C>>,
+    adapter: Arc<GosubDocumentAdapter<C>>,
     viewport: &Viewport,
     rasterizer: Option<&(dyn Rasterable + Send + Sync)>,
     media_store: Arc<gosub_render_pipeline::common::media::MediaStore>,
 ) -> SceneCache {
     use gosub_render_pipeline::common::browser_state::{BrowserState, WireframeState};
-    use gosub_render_pipeline::common::document::pipeline_doc::GosubDocumentAdapter;
     use gosub_render_pipeline::common::geo::{Dimension as PipelineDimension, Rect as PipelineRect};
     use gosub_render_pipeline::layouter::taffy::TaffyLayouter;
     use gosub_render_pipeline::layouter::CanLayout;
@@ -988,9 +1037,8 @@ fn pipeline_build_scene<C: RenderConfiguration>(
     // real viewport. Must precede parse(), which computes styles for display:none filtering.
     gosub_css3::stylesheet::set_layout_viewport(viewport.width as f32, viewport.height as f32);
 
-    // Stage 1: render tree
-    let adapter = GosubDocumentAdapter::<C>::new(doc);
-    let mut render_tree = RenderTree::new(Arc::new(adapter));
+    // Stage 1: render tree (built from the persistent adapter; see `document_adapter`).
+    let mut render_tree = RenderTree::new(adapter);
     if let Err(e) = render_tree.parse() {
         log::error!("Failed to build render tree: {e}");
     }
@@ -1042,7 +1090,7 @@ fn pipeline_build_scene<C: RenderConfiguration>(
 }
 
 fn pipeline_build_cache<C: RenderConfiguration>(
-    doc: Arc<EngineDocument<C>>,
+    adapter: Arc<GosubDocumentAdapter<C>>,
     viewport: &Viewport,
     rasterizer: Option<&(dyn Rasterable + Send + Sync)>,
     strategy: RasterStrategy,
@@ -1050,7 +1098,6 @@ fn pipeline_build_cache<C: RenderConfiguration>(
     media_store: Arc<gosub_render_pipeline::common::media::MediaStore>,
 ) -> PipelineCache {
     use gosub_render_pipeline::common::browser_state::{BrowserState, WireframeState};
-    use gosub_render_pipeline::common::document::pipeline_doc::GosubDocumentAdapter;
     use gosub_render_pipeline::common::geo::{Dimension as PipelineDimension, Rect as PipelineRect};
     use gosub_render_pipeline::layering::layer::LayerList;
     use gosub_render_pipeline::layouter::taffy::TaffyLayouter;
@@ -1066,10 +1113,10 @@ fn pipeline_build_cache<C: RenderConfiguration>(
     // real viewport. Must precede parse(), which computes styles for display:none filtering.
     gosub_css3::stylesheet::set_layout_viewport(viewport.width as f32, viewport.height as f32);
 
-    // Stage 1: render tree
+    // Stage 1: render tree (built from the persistent adapter so the CSS-cascade cache survives
+    // across reflows; see `BrowsingContext::document_adapter`).
     let ts1 = timing_start!("pipeline.render_tree");
-    let adapter = GosubDocumentAdapter::<C>::new(doc);
-    let mut render_tree = RenderTree::new(Arc::new(adapter));
+    let mut render_tree = RenderTree::new(adapter);
     if let Err(e) = render_tree.parse() {
         // The layouter tolerates a tree without a root; the frame degrades to empty.
         log::error!("Failed to build render tree: {e}");

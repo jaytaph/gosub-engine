@@ -613,6 +613,14 @@ where
     /// `None` means "no generated box". Populated lazily.
     #[allow(clippy::type_complexity)]
     pseudo_cache: Mutex<HashMap<(NodeId, bool), Option<Arc<PseudoBox<<C::CssSystem as CssSystem>::PropertyMap>>>>>,
+    /// Node ids whose cached computed style baked in a viewport-dependent value (e.g. a
+    /// `clamp()` containing `vw`). Only these entries are evicted on a viewport change; the rest
+    /// of the (expensive) cascade is reused. See [`Self::invalidate_viewport_dependent`].
+    viewport_dependent: Mutex<std::collections::HashSet<NodeId>>,
+    /// `(owner, is_after)` pseudo-boxes whose computed style is viewport-dependent. Like
+    /// `viewport_dependent` but for `::before`/`::after`, so a resize re-runs pseudo selector
+    /// matching only for the few that actually use viewport units instead of all of them.
+    viewport_dependent_pseudo: Mutex<std::collections::HashSet<(NodeId, bool)>>,
 }
 
 impl<C> GosubDocumentAdapter<C>
@@ -627,6 +635,33 @@ where
             style_cache: Mutex::new(HashMap::new()),
             inline_style_cache: Mutex::new(HashMap::new()),
             pseudo_cache: Mutex::new(HashMap::new()),
+            viewport_dependent: Mutex::new(std::collections::HashSet::new()),
+            viewport_dependent_pseudo: Mutex::new(std::collections::HashSet::new()),
+        }
+    }
+
+    /// Evict only the cached styles that depend on the viewport size, so a window resize reuses
+    /// the bulk of the (expensive) CSS cascade and recomputes just the viewport-sensitive nodes
+    /// on next access. Pseudo-boxes are evicted the same way (only the viewport-dependent ones) —
+    /// clearing all of them would re-run `::before`/`::after` selector matching for every node on
+    /// every resize. Inline styles are raw/symbolic and viewport-resolved at read-time, so they
+    /// need no eviction.
+    pub fn invalidate_viewport_dependent(&self) {
+        let ids: Vec<NodeId> = self.viewport_dependent.lock().drain().collect();
+        let pseudo_ids: Vec<(NodeId, bool)> = self.viewport_dependent_pseudo.lock().drain().collect();
+        if !ids.is_empty() {
+            let mut style_cache = self.style_cache.lock();
+            let mut inline = self.inline_style_cache.lock();
+            for id in ids {
+                style_cache.remove(&id);
+                inline.remove(&id);
+            }
+        }
+        if !pseudo_ids.is_empty() {
+            let mut pseudo_cache = self.pseudo_cache.lock();
+            for key in pseudo_ids {
+                pseudo_cache.remove(&key);
+            }
         }
     }
 
@@ -641,8 +676,15 @@ where
             return cached.clone();
         }
 
+        // Track viewport reads during the pseudo cascade so a resize can evict just the
+        // viewport-dependent pseudo-boxes (see `invalidate_viewport_dependent`).
+        C::CssSystem::reset_viewport_read();
         let result = self.compute_pseudo_box(owner, is_after);
+        let viewport_dependent = C::CssSystem::take_viewport_read();
         self.pseudo_cache.lock().insert((owner, is_after), result.clone());
+        if viewport_dependent {
+            self.viewport_dependent_pseudo.lock().insert((owner, is_after));
+        }
         result
     }
 
@@ -682,23 +724,37 @@ where
                 return arc.clone();
             }
         }
-        let (prop_map, inline_ns) = self.compute_styles(id);
+        let (prop_map, inline_ns, viewport_dependent) = self.compute_styles(id);
         let arc = Arc::new(prop_map);
         self.style_cache.lock().insert(id, arc.clone());
         self.inline_style_cache.lock().insert(id, inline_ns);
+        // Remember nodes whose computed style baked in a viewport-dependent value so a resize can
+        // evict just them (see `invalidate_viewport_dependent`).
+        if viewport_dependent {
+            self.viewport_dependent.lock().insert(id);
+        }
         arc
     }
 
-    fn compute_styles(&self, id: NodeId) -> (<C::CssSystem as CssSystem>::PropertyMap, NodeStyle) {
+    /// Returns `(computed style, inline style, viewport_dependent)`. The third flag is `true` when
+    /// computing this node's style resolved a viewport-relative unit into a fixed value (e.g. a
+    /// `clamp()`/`min()`/`max()` containing `vw`), meaning the result is only valid for the
+    /// current viewport size.
+    fn compute_styles(&self, id: NodeId) -> (<C::CssSystem as CssSystem>::PropertyMap, NodeStyle, bool) {
         // CSS selectors cannot target text nodes — only elements.
         if self.doc.node_type(id) == GosubNodeType::TextNode {
-            return (Default::default(), NodeStyle::new());
+            return (Default::default(), NodeStyle::new(), false);
         }
+        // Clear the per-thread viewport-read flag, run the cascade, then read it back: any
+        // viewport unit resolved during the cascade (only `clamp/min/max` do so — plain `vw`
+        // stays symbolic until layout) flips the flag.
+        C::CssSystem::reset_viewport_read();
         let sheets = self.doc.stylesheets();
         let mut prop_map = C::CssSystem::properties_from_node::<C>(&*self.doc, id, sheets).unwrap_or_default();
         for (_, prop) in prop_map.iter_mut() {
             prop.compute_value();
         }
+        let viewport_dependent = C::CssSystem::take_viewport_read();
 
         // Inline `style` attribute has highest specificity — store separately.
         let inline_ns = if let Some(attrs) = self.doc.attributes(id) {
@@ -711,7 +767,7 @@ where
             NodeStyle::new()
         };
 
-        (prop_map, inline_ns)
+        (prop_map, inline_ns, viewport_dependent)
     }
 
     /// Own style for a pseudo-element id, read from its generated style map.

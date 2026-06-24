@@ -2120,6 +2120,7 @@ dependencies = [
  "gosub_engine",
  "gosub_render_pipeline",
  "gosub_renderer_cairo",
+ "gosub_shared",
  "gtk4",
  "log",
  "once_cell",

@@ -754,6 +754,11 @@ impl ApplicationHandler<()> for BrowserApp {
                 let (lw, lh) = (self.to_logical(width), self.to_logical(height));
                 if let Some(rt) = &mut self.state {
                     rt.gpu.resize(&rt.device, width, height);
+                    // Present immediately so the reconfigured surface shows the latest (stretched)
+                    // frame this drag-step, instead of waiting for `about_to_wait` — which the OS
+                    // starves during the modal resize loop on Windows/macOS. On Wayland/X11 it's
+                    // redundant with the cadence but harmless.
+                    rt.gpu.window.request_redraw();
                     let tab = rt.tab.clone();
                     TOKIO_RT.spawn(async move {
                         let _ = tab

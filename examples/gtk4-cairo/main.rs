@@ -155,8 +155,13 @@ fn main() {
         address_entry.set_hexpand(true);
 
         let drawing_area = DrawingArea::new();
-        drawing_area.set_content_width(1024);
-        drawing_area.set_content_height(768);
+        // Do NOT set content_width/height: in GTK4 those act as the widget's minimum size, which
+        // would prevent shrinking the window below the initial size (resize fires only when growing,
+        // so the engine never reflows smaller). The initial window size comes from the window's
+        // default_width/default_height instead; here we only need a tiny floor so the area can
+        // shrink freely while still expanding to fill the window.
+        drawing_area.set_content_width(1);
+        drawing_area.set_content_height(1);
         drawing_area.set_vexpand(true);
         drawing_area.set_hexpand(true);
         drawing_area.set_focusable(true);
@@ -613,6 +618,34 @@ fn main() {
             .default_height(800)
             .child(&vbox)
             .build();
+
+        // Keyboard → timing instrumentation, attached to the window in the CAPTURE phase so it
+        // sees keystrokes before the focused widget. We only act on the diagnostic keys when the
+        // address bar is NOT focused, so typing a URL still works normally.
+        //   't' dumps the aggregated pipeline timing table (render_tree / layout / layering /
+        //       tiling / painting / rasterize) to the terminal.
+        //   'r' resets it — reset, drag-resize a few times, then press 't' to see which stage
+        //       dominates the reflow in isolation from the initial load and scrolling.
+        {
+            let address_entry = address_entry.clone();
+            let key_ctl = gtk4::EventControllerKey::new();
+            key_ctl.set_propagation_phase(gtk4::PropagationPhase::Capture);
+            key_ctl.connect_key_pressed(move |_, key, _code, _state| {
+                if address_entry.has_focus() {
+                    return glib::Propagation::Proceed;
+                }
+                match key {
+                    gtk4::gdk::Key::t => gosub_shared::timing::dump(true),
+                    gtk4::gdk::Key::r => {
+                        gosub_shared::timing::reset_stats();
+                        println!("[timing] stats reset");
+                    }
+                    _ => return glib::Propagation::Proceed,
+                }
+                glib::Propagation::Stop
+            });
+            window.add_controller(key_ctl);
+        }
 
         window.present();
 

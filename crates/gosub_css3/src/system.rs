@@ -82,6 +82,14 @@ impl CssSystem for Css3System {
         load_default_useragent_stylesheet()
     }
 
+    fn reset_viewport_read() {
+        crate::stylesheet::reset_viewport_read();
+    }
+
+    fn take_viewport_read() -> bool {
+        crate::stylesheet::take_viewport_read()
+    }
+
     fn hover_fingerprints(sheets: &[Self::Stylesheet]) -> HoverFingerprints {
         hover_fingerprints_impl(sheets)
     }

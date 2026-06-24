@@ -385,10 +385,23 @@ impl<C: RenderConfiguration> TabWorker<C> {
                 // Handle incoming tab commands from the UA
                 msg = self.cmd_rx.recv() => {
                     let Some(cmd) = msg else { break; };
-                    if self.handle_tab_command(cmd).is_break() {
+                    let mut should_break = self.handle_tab_command(cmd).is_break();
+                    // Coalesce a burst of already-queued commands before rendering. A fast window
+                    // resize (or scroll) floods the channel with many SetViewport messages; without
+                    // this drain the command arm keeps winning the `select!` and starves the render
+                    // tick, so the page only reflows once the burst ends. Draining applies each in
+                    // order — cheaply advancing `desired_viewport` to the latest — then we relayout
+                    // ONCE at the final size instead of churning through every stale intermediate.
+                    while !should_break {
+                        match self.cmd_rx.try_recv() {
+                            Ok(cmd) => should_break = self.handle_tab_command(cmd).is_break(),
+                            Err(_) => break,
+                        }
+                    }
+                    if should_break {
                         break;
                     }
-                    // If the command (e.g. hover change) requested an immediate render,
+                    // If the command (e.g. resize or hover change) requested an immediate render,
                     // call tick_draw now instead of waiting up to 1/fps seconds for the tick.
                     if std::mem::replace(&mut self.runtime.render_now, false) {
                         if let Err(e) = self.tick_draw().await {
@@ -546,6 +559,9 @@ impl<C: RenderConfiguration> TabWorker<C> {
             } => {
                 self.set_viewport(Viewport::new(0, 0, width, height));
                 self.runtime.dirty = true;
+                // Relayout immediately instead of waiting up to 1/fps for the next tick, so a
+                // window resize reflows and presents without a perceptible lag.
+                self.runtime.render_now = true;
                 ControlFlow::Continue
             }
             TabCommand::MouseScroll { delta_x, delta_y } => {
