@@ -105,6 +105,8 @@ struct BakedTile {
     format: gosub_render_pipeline::render::backend::PixelFormat,
     /// Group opacity (1.0 = opaque) of this tile's layer, applied by the compositor.
     opacity: f32,
+    /// How this tile's layer responds to scroll (normal flow vs. `position: fixed`).
+    anchor: gosub_render_pipeline::render::backend::TileAnchor,
 }
 
 /// Key that uniquely identifies a tile's content for cache lookup.
@@ -591,12 +593,12 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
     pub fn update_hover(&mut self, vp_x: f64, vp_y: f64) -> (bool, bool, Option<String>) {
         let _t_total = gosub_shared::timing_guard!("hover.total");
 
-        let page_x = vp_x + self.scroll_x;
-        let page_y = vp_y + self.scroll_y;
+        let (scroll_x, scroll_y) = (self.scroll_x, self.scroll_y);
 
         let (new_leaf, new_lei) = self.active_layer_list().map_or((None, None), |layer_list| {
             let _t = gosub_shared::timing_guard!("hover.hit_test");
-            let Some(lei) = layer_list.find_element_at(page_x, page_y) else {
+            // find_element_at handles scroll per-layer (fixed layers ignore it).
+            let Some(lei) = layer_list.find_element_at(vp_x, vp_y, scroll_x, scroll_y) else {
                 return (None, None);
             };
             let dom_node_id = layer_list.layout_tree.get_node_by_id(lei).map(|el| el.dom_node_id);
@@ -958,6 +960,7 @@ fn rasterize_sequential(
                     pixels: tex.pixels.clone(),
                     format: tex.format,
                     opacity: tile_list.layer_list.layer_opacity(tile.layer_id),
+                    anchor: tile_list.layer_list.layer_anchor(tile.layer_id),
                 });
             }
         }
@@ -1207,6 +1210,7 @@ fn pipeline_build_cache<C: RenderConfiguration>(
                             pixels: data.clone(),
                             format: tile_format,
                             opacity: tile_list.layer_list.layer_opacity(tile.layer_id),
+                            anchor: tile_list.layer_list.layer_anchor(tile.layer_id),
                         };
                         return (tile_id, Some(baked), None);
                     }
@@ -1224,6 +1228,7 @@ fn pipeline_build_cache<C: RenderConfiguration>(
                             pixels: tex.pixels.clone(),
                             format: tex.format,
                             opacity: tile_list.layer_list.layer_opacity(tile.layer_id),
+                            anchor: tile_list.layer_list.layer_anchor(tile.layer_id),
                         });
 
                     let cache_entry = baked.as_ref().map(|b| (key, (b.width, b.height, b.pixels.clone())));
@@ -1454,6 +1459,7 @@ fn pipeline_hover_repaint(
                                 pixels: data.clone(),
                                 format: tile_format,
                                 opacity: tile_list.layer_list.layer_opacity(tile.layer_id),
+                                anchor: tile_list.layer_list.layer_anchor(tile.layer_id),
                             }),
                             None,
                         );
@@ -1470,6 +1476,7 @@ fn pipeline_hover_repaint(
                             pixels: tex.pixels.clone(),
                             format: tex.format,
                             opacity: tile_list.layer_list.layer_opacity(tile.layer_id),
+                            anchor: tile_list.layer_list.layer_anchor(tile.layer_id),
                         });
                     let cache_entry = baked.as_ref().map(|b| (key, (b.width, b.height, b.pixels.clone())));
                     (tile_id, baked, cache_entry)
@@ -1540,6 +1547,7 @@ fn cpu_cached_tiles(baked: &[BakedTile]) -> Vec<CachedTile> {
                 data: Arc::clone(d),
                 format: t.format,
                 opacity: t.opacity,
+                anchor: t.anchor,
             }),
             TilePixels::Gpu(_) => None,
         })
@@ -1560,6 +1568,7 @@ fn collect_placed_gpu_tiles(baked: &[BakedTile]) -> Vec<gosub_render_pipeline::r
                     height: t.height,
                     texture_id: id,
                     opacity: t.opacity,
+                    anchor: t.anchor,
                 })
             } else {
                 None
@@ -1576,18 +1585,13 @@ fn pipeline_composite(cache: &PipelineCache, scroll_x: f64, scroll_y: f64, vp_w:
     use gosub_shared::{timing_start, timing_stop};
     let ts7 = timing_start!("pipeline.composite");
 
+    use gosub_render_pipeline::render::backend::anchored_tile_pos;
+
     for tile in &cache.tiles {
-        // Cull tiles fully outside the viewport.
-        if tile.page_x + tile.width as f64 <= scroll_x {
-            continue;
-        }
-        if tile.page_y + tile.height as f64 <= scroll_y {
-            continue;
-        }
-        if tile.page_x >= scroll_x + vp_w {
-            continue;
-        }
-        if tile.page_y >= scroll_y + vp_h {
+        // Resolve the tile's position in viewport space (fixed tiles ignore scroll), then cull
+        // against the viewport rect [0, vp].
+        let (ex, ey) = anchored_tile_pos(tile.page_x, tile.page_y, scroll_x, scroll_y, tile.anchor);
+        if ex + tile.width as f64 <= 0.0 || ey + tile.height as f64 <= 0.0 || ex >= vp_w || ey >= vp_h {
             continue;
         }
 
@@ -1595,8 +1599,8 @@ fn pipeline_composite(cache: &PipelineCache, scroll_x: f64, scroll_y: f64, vp_w:
         // composited by the backend's `composite_tiles` step instead.
         if let TilePixels::Cpu(data) = &tile.pixels {
             rl.items.push(DisplayItem::Blit {
-                x: (tile.page_x - scroll_x) as f32,
-                y: (tile.page_y - scroll_y) as f32,
+                x: ex as f32,
+                y: ey as f32,
                 w: tile.width,
                 h: tile.height,
                 data: Arc::clone(data),
