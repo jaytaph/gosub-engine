@@ -3309,6 +3309,7 @@ dependencies = [
  "gosub_shared",
  "log",
  "parking_lot",
+ "resvg",
  "skia-safe",
 ]
 
