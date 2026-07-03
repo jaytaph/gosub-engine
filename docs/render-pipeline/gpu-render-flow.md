@@ -163,9 +163,10 @@ renders.
 
 ## Layers and z-order (including images)
 
-Layers are created in stage 3 (`LayerList::generate_layers` / `traverse`). Notably, `<img>`
-elements are placed on their own layer above the default layer, so image stacking is a
-layering decision, upstream of both flows.
+Layers are created in stage 3 (`LayerList::generate_layers` / `traverse`) — promotion for
+`opacity < 1` / `position: fixed` / `position: sticky` / `z-index`, plus standalone `<img>`
+elements on their own layer; see [layering-and-compositing.md](layering-and-compositing.md).
+Layering decisions are upstream of both flows.
 
 To reproduce the CPU flow's z-order exactly, the GPU paint walk must iterate in the same
 order the tiler uses:
@@ -177,7 +178,9 @@ for layer_id in layer_list.layer_ids   // stored order = z-order, bottom→top
 ```
 
 This is the same nesting the tiler applies; rendering it into one scene rather than per
-tile yields identical layering and stacking.
+tile yields identical layering and stacking. Promoted layers additionally get
+`PushLayer { opacity, anchor } … PopLayer` wrappers in the scene command list, so the GPU
+backend can realise group opacity and scroll pinning as native compositing groups.
 
 ## Selecting the flow: the backend contract
 
