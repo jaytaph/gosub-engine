@@ -11,7 +11,30 @@ use std::sync::Arc;
 // re-exported here so existing `gosub_render_pipeline::rasterizer::RasterStrategy` paths work.
 pub use gosub_interface::render::backend::RasterStrategy;
 
+/// Which tiles a rasterization pass is about to touch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PassScope {
+    /// Every tile is dirty and will be re-rasterized — a full pipeline rebuild (navigation,
+    /// reflow, resize).
+    FullRebuild,
+    /// Only some tiles are dirty (e.g. a hover restyle). The rest are carried over from the
+    /// previous pass and will *not* be re-rasterized.
+    Incremental,
+}
+
 pub trait Rasterable {
+    /// Called once before a pass rasterizes any tiles.
+    ///
+    /// Tile-owning backends (Cairo, Skia, Vello) can ignore this: a tile owns its own pixels, so
+    /// re-rasterizing replaces them wholesale and stale content is impossible. A backend that
+    /// instead composites into a **shared** surface needs the signal — on [`PassScope::FullRebuild`]
+    /// every tile is redrawn, so the old surface can safely be discarded; on
+    /// [`PassScope::Incremental`] it must be kept, because the tiles that aren't dirty will never
+    /// be drawn again.
+    fn begin_pass(&self, scope: PassScope) {
+        let _ = scope;
+    }
+
     fn rasterize(&self, tile: &Tile, texture_store: &mut TextureStore, media_store: &MediaStore) -> Option<TextureId>;
 
     /// The font system this rasterizer draws with, exposed as `dyn FontSystem` so the

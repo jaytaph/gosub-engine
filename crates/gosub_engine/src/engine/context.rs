@@ -12,8 +12,8 @@ use crate::engine::storage::{StorageArea, StorageHandles};
 use crate::html::EngineDocument;
 use gosub_config::{Config, HasConfig};
 use gosub_render_pipeline::rasterizer::{
-    collect_placed_gpu_tiles, cpu_cached_tiles, rasterize_parallel, rasterize_sequential, BakedTile, RasterStrategy,
-    Rasterable, TilePixelCache,
+    collect_placed_gpu_tiles, cpu_cached_tiles, rasterize_parallel, rasterize_sequential, BakedTile, PassScope,
+    RasterStrategy, Rasterable, TilePixelCache,
 };
 use gosub_render_pipeline::render::{Color, DisplayItem, RenderContext, RenderList, Viewport};
 use std::sync::Arc;
@@ -855,6 +855,11 @@ fn pipeline_build_cache<C: RenderConfiguration>(
     // runtime by the engine's RenderBackend; no per-backend cfg here). Vello stays
     // sequential because all tiles share a Mutex<Renderer>; batching (not parallelism)
     // is the fix there.
+    //
+    // Every tile in a freshly built TileList is Dirty, so this pass redraws all of them.
+    if let Some(rasterizer) = rasterizer {
+        rasterizer.begin_pass(PassScope::FullRebuild);
+    }
     let (baked_tiles, new_tile_cache) = match (strategy, rasterizer) {
         (RasterStrategy::ParallelCached, Some(rasterizer)) => rasterize_parallel(
             rasterizer,
@@ -1029,6 +1034,10 @@ fn pipeline_hover_repaint(
     timing_stop!(ts5);
 
     // Stage 6 (hover): rasterize the dirty tiles with the active backend's rasterizer + strategy.
+    // Only the hover-affected tiles are redrawn here; the rest are carried over below.
+    if let Some(rasterizer) = rasterizer {
+        rasterizer.begin_pass(PassScope::Incremental);
+    }
     let (baked_tiles, new_tile_cache) = match (strategy, rasterizer) {
         (RasterStrategy::ParallelCached, Some(rasterizer)) => rasterize_parallel(
             rasterizer,

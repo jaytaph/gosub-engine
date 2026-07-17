@@ -102,7 +102,9 @@ thiserror = "2.0.18"
 tokio = "1.52.3"
 tokio-stream = "0.1.17"
 tokio-util = "0.7.16"
+ratatui = "0.30.2"
 tracing = "0.1.41"
+unicode-width = "0.2.2"
 tracing-log = "0.2"
 tracing-subscriber = "0.3"
 url = "2.5.8"
@@ -126,6 +128,10 @@ path = "examples/tutorial.rs"
 [[example]]
 name = "hello-world"
 path = "examples/hello-world.rs"
+
+[[example]]
+name = "tui-browser"
+path = "examples/tui-browser.rs"
 
 [[example]]
 name = "multi-tab"
@@ -163,6 +169,9 @@ criterion = { workspace = true, features = ["html_reports"] }
 test-case = { workspace = true }
 gosub_engine = { path = "./crates/gosub_engine" }
 gosub_render_pipeline = { path = "./crates/gosub_render_pipeline" }
+gosub_renderer_tui = { path = "./crates/gosub_renderer_tui" }
+gosub_shared = { path = "./crates/gosub_shared" }
+ratatui = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "io-util"] }

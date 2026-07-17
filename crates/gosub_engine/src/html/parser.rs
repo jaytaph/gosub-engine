@@ -1,14 +1,15 @@
 use std::io;
 
 use crate::html::{EngineDocument, RenderConfiguration};
-use crate::net::types::{Priority, ResourceKind};
+use crate::net::types::{FetchResult, Priority, ResourceKind};
 use crate::net::RequestDestination;
 use cow_utils::CowUtils;
 use gosub_html5::document::builder::DocumentBuilderImpl;
 use gosub_html5::parser::Html5Parser;
-use gosub_interface::css3::CssSystem;
+use gosub_interface::css3::{CssOrigin, CssSystem};
 use gosub_interface::document::Document as _;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
+use gosub_shared::config::{Context, ParserConfig};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use tokio::io::{AsyncRead, AsyncReadExt};
@@ -78,7 +79,9 @@ impl Default for HtmlParseConfig {
 /// - `reader`: the response body stream (after the UA has chosen Render).
 /// - `cancel`: cancellation token (tab/nav cancellation).
 /// - `cfg`: buffer limit config.
-/// - `on_discover`: callback invoked for each sub-resource hint found.
+/// - `on_discover`: callback invoked for each sub-resource hint found. It may return a receiver
+///   for the resource body; stylesheets are awaited and attached to the document before it is
+///   returned, so the caller gets a fully styled document. The parser itself performs no I/O.
 pub async fn parse_main_document_stream<C, R, F>(
     base_url: Url,
     mut reader: R,
@@ -89,7 +92,7 @@ pub async fn parse_main_document_stream<C, R, F>(
 where
     C: RenderConfiguration,
     R: AsyncRead + Unpin + Send + 'static,
-    F: FnMut(ResourceHint) + Send,
+    F: FnMut(ResourceHint) -> Option<tokio::sync::oneshot::Receiver<FetchResult>> + Send,
 {
     // Buffer the full stream (up to cfg.max_bytes); bail on cancellation.
     let mut buf = Vec::with_capacity(32 * 1024);
@@ -133,8 +136,17 @@ where
 
     // Fire sub-resource callbacks using the fast regex-based scanner so that
     // image/CSS/script fetches are submitted before the full parse completes.
+    //
+    // Stylesheets are kept: the parser does no I/O, so the sheets it needs are the ones fetched
+    // here, concurrently and on the connection the caller already has open. They're awaited after
+    // the parse, below.
+    let mut pending_sheets: Vec<(Url, tokio::sync::oneshot::Receiver<FetchResult>)> = Vec::new();
     for hint in discover_resources(&html_lossy, &base_url) {
-        on_discover(hint);
+        let sheet_url = matches!(hint.kind, ResourceKind::Stylesheet).then(|| hint.url.clone());
+        let rx = on_discover(hint);
+        if let (Some(url), Some(rx)) = (sheet_url, rx) {
+            pending_sheets.push((url, rx));
+        }
     }
 
     // Detect encoding from the raw bytes (BOM check + chardetng), then build a
@@ -150,10 +162,106 @@ where
     stream.read_from_bytes(&buf)?;
     let mut doc = DocumentBuilderImpl::new_document::<C>(Some(base_url));
     let _ = Html5Parser::<C>::parse_document(&mut stream, &mut doc, None);
+
+    // Author sheets first, then the UA sheet — the order the parser used to produce when it
+    // fetched them itself. (Cascade origin decides precedence, but keep the order stable.)
+    attach_external_stylesheets::<C>(&mut doc, pending_sheets, &cancel).await;
+
     let ua = <C::CssSystem as CssSystem>::load_default_useragent_stylesheet();
     doc.add_stylesheet(ua);
 
+    // Optional user stylesheet, at `User` origin. This is the standard hook for an embedder to
+    // impose its own constraints on every page — accessibility overrides, or (for the text-mode
+    // backend) flattening line-height to one character cell. Sourced from an env var to match the
+    // engine's other `GOSUB_*` hooks; use `!important` in the sheet to beat author declarations.
+    if let Ok(css) = std::env::var("GOSUB_USER_STYLESHEET") {
+        if !css.trim().is_empty() {
+            attach_user_stylesheet::<C>(&mut doc, &css);
+        }
+    }
+
     Ok(doc)
+}
+
+/// Parse `css` at [`CssOrigin::User`] and attach it to `doc`. A parse failure is logged and
+/// skipped rather than failing the navigation.
+fn attach_user_stylesheet<C: RenderConfiguration>(doc: &mut EngineDocument<C>, css: &str) {
+    let config = ParserConfig {
+        context: Context::Stylesheet,
+        location: Default::default(),
+        source: Some("user-stylesheet".to_string()),
+        ignore_errors: true,
+        match_values: false,
+    };
+    match <C::CssSystem as CssSystem>::parse_str(css, config, CssOrigin::User, "user-stylesheet") {
+        Ok(sheet) => doc.add_stylesheet(sheet),
+        Err(err) => log::warn!("Error parsing user stylesheet: {err}"),
+    }
+}
+
+/// Await the stylesheet bodies discovered before the parse, and attach them to `doc`.
+///
+/// They were requested up-front, so by now they have been downloading for the length of the parse
+/// and are usually already there. Sheets are awaited in document order; a sheet that fails, 404s,
+/// or arrives as a stream is skipped with a warning rather than failing the navigation — a page
+/// with a broken stylesheet still renders.
+async fn attach_external_stylesheets<C: RenderConfiguration>(
+    doc: &mut EngineDocument<C>,
+    pending: Vec<(Url, tokio::sync::oneshot::Receiver<FetchResult>)>,
+    cancel: &CancellationToken,
+) {
+    for (url, rx) in pending {
+        if cancel.is_cancelled() {
+            return;
+        }
+
+        let body = tokio::select! {
+            res = rx => res,
+            _ = cancel.cancelled() => return,
+        };
+
+        let body = match body {
+            Ok(FetchResult::Buffered { meta, body }) if meta.status == 200 => body,
+            Ok(FetchResult::Buffered { meta, .. }) => {
+                log::warn!("Stylesheet {url} returned status {}; skipping", meta.status);
+                continue;
+            }
+            Ok(FetchResult::Error(err)) => {
+                log::warn!("Could not load stylesheet {url}: {err}");
+                continue;
+            }
+            // Stylesheets are requested non-streaming, so this should not happen.
+            Ok(FetchResult::Stream { .. }) => {
+                log::warn!("Stylesheet {url} arrived as a stream; skipping");
+                continue;
+            }
+            Err(_) => {
+                log::warn!("Stylesheet {url} fetch was dropped before completing");
+                continue;
+            }
+        };
+
+        let css = match std::str::from_utf8(&body) {
+            Ok(css) => css,
+            Err(err) => {
+                log::warn!("Stylesheet {url} is not valid UTF-8: {err}");
+                continue;
+            }
+        };
+
+        let config = ParserConfig {
+            context: Context::Stylesheet,
+            location: Default::default(),
+            source: Some(url.to_string()),
+            ignore_errors: true,
+            match_values: false,
+        };
+
+        match <C::CssSystem as CssSystem>::parse_str(css, config, CssOrigin::Author, url.as_str()) {
+            Ok(sheet) => doc.add_stylesheet(sheet),
+            Err(err) => log::warn!("Error parsing stylesheet {url}: {err}"),
+        }
+    }
 }
 
 // ======== Forgiving resource discovery (regex-based) ========
@@ -309,7 +417,10 @@ mod tests {
             reader_from_str(html),
             cancel,
             HtmlParseConfig::default(),
-            |h| hints.push(h),
+            |h| {
+                hints.push(h);
+                None
+            },
         )
         .await
         .unwrap();
@@ -343,7 +454,7 @@ mod tests {
             reader,
             cancel,
             HtmlParseConfig::default(),
-            |_h| {},
+            |_h| None,
         )
         .await;
 
@@ -365,7 +476,7 @@ mod tests {
             reader_from_str(&big),
             CancellationToken::new(),
             cfg,
-            |_h| {},
+            |_h| None,
         )
         .await
         .unwrap();

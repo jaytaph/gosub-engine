@@ -1,7 +1,7 @@
 use crate::engine::types::{IoChannel, PeekBuf, RequestId};
 use crate::html::{parse_main_document_stream, EngineDocument, RenderConfiguration, ResourceHint};
 use crate::net::req_ref_tracker::REF_REGISTRY;
-use crate::net::types::{FetchHandle, FetchRequest, FetchResultMeta, Initiator};
+use crate::net::types::{FetchHandle, FetchRequest, FetchResult, FetchResultMeta, Initiator, ResourceKind};
 use crate::net::{submit_to_io, SharedBody};
 use crate::util::spawn_named;
 use crate::zone::ZoneId;
@@ -14,6 +14,7 @@ use http::Method;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use tokio::io::AsyncRead;
+use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio_util::io::StreamReader;
 
@@ -89,7 +90,12 @@ impl HtmlPipelineImpl {
             }
         }
 
-        let mut on_discover = |hint: ResourceHint| {
+        let mut on_discover = |hint: ResourceHint| -> Option<oneshot::Receiver<FetchResult>> {
+            // The parser performs no I/O, so a stylesheet's body has to come back to us: we hand
+            // the caller a receiver and it attaches the sheet to the document after the parse.
+            // Everything else stays fire-and-forget (a warm cache for the pipeline to pick up).
+            let wants_body = matches!(hint.kind, ResourceKind::Stylesheet);
+
             let sub_req_id = RequestId::new();
             REF_REGISTRY.register_request(sub_req_id, hint.kind, Initiator::Parser);
             let sub_req = FetchRequest::builder(Method::GET, hint.url)
@@ -99,7 +105,9 @@ impl HtmlPipelineImpl {
                 .with_initiator(Initiator::Parser.to_net())
                 .with_kind(hint.kind.to_net())
                 .with_headers(sub_headers.clone())
-                .with_streaming(true)
+                // A sheet we need in hand is simpler buffered; streaming it would only hand us a
+                // reader we'd immediately drain.
+                .with_streaming(!wants_body)
                 .with_auto_decode(true)
                 .build();
 
@@ -110,15 +118,26 @@ impl HtmlPipelineImpl {
 
             // Parent cancelled, so we don't have to do anything
             if parent_cancel_cloned.is_cancelled() {
-                return;
+                return None;
             }
 
+            // `submit_to_io` is async and this callback is not, so the work is spawned and the
+            // result relayed through a channel of our own.
+            let (body_tx, body_rx) = oneshot::channel::<FetchResult>();
             let join_handle = spawn_named("html-sub-resource", async move {
                 match submit_to_io(zone_id, sub_req, io_tx_cloned, Some(parent_cancel_cloned)).await {
                     Ok((child_handle, rx)) => {
                         child_handles.lock().push(child_handle);
 
-                        let _ = rx.await;
+                        match rx.await {
+                            Ok(result) => {
+                                // Dropped receiver just means nobody wanted the body.
+                                let _ = body_tx.send(result);
+                            }
+                            Err(_) => {
+                                log::debug!("Sub-resource fetch completed without a result");
+                            }
+                        }
                     }
                     Err(e) => {
                         log::warn!("Failed to submit discovered resource request: {:?}", e);
@@ -127,6 +146,7 @@ impl HtmlPipelineImpl {
             });
 
             child_tasks.lock().push(join_handle);
+            wants_body.then_some(body_rx)
         };
 
         let was_cancelled = handle.cancel.is_cancelled();

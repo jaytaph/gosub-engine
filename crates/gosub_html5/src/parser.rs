@@ -31,7 +31,6 @@ use gosub_shared::node::NodeId;
 use gosub_shared::types::{ParseError, Result};
 use gosub_shared::{timing_start, timing_stop};
 use log::warn;
-use url::Url;
 
 mod attr_replacements;
 pub mod errors;
@@ -4074,79 +4073,6 @@ impl<'a, C: HasDocument> Html5Parser<'a, C> {
     }
 
     /// Load and parse an external stylesheet by URL
-    #[cfg(target_arch = "wasm32")]
-    fn load_external_stylesheet(
-        &self,
-        _origin: CssOrigin,
-        _url: Url,
-    ) -> Option<<C::CssSystem as CssSystem>::Stylesheet> {
-        None
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn load_external_stylesheet(&self, origin: CssOrigin, url: Url) -> Option<<C::CssSystem as CssSystem>::Stylesheet> {
-        let css = if url.scheme() == "http" || url.scheme() == "https" {
-            let response = match gosub_sonar::net::simple::sync_fetch(&url) {
-                Ok(r) => r,
-                Err(err) => {
-                    warn!("Could not load external stylesheet from {}. Error: {}", url, err);
-                    return None;
-                }
-            };
-
-            if response.status != 200 {
-                warn!(
-                    "Could not load external stylesheet from {}. Status code {}",
-                    url, response.status
-                );
-                return None;
-            }
-
-            match response.headers.get("content-type") {
-                Some(ct) if !ct.starts_with("text/css") => {
-                    warn!("External stylesheet has unexpected content type: {ct}");
-                }
-                None => warn!("External stylesheet has no content type: {url}"),
-                _ => {}
-            }
-
-            match String::from_utf8(response.body) {
-                Ok(css) => css,
-                Err(err) => {
-                    warn!("Could not load external stylesheet from {url}. Error: {err}");
-                    return None;
-                }
-            }
-        } else if url.scheme() == "file" {
-            let path = &url.as_str()[7..];
-
-            match std::fs::read_to_string(path) {
-                Ok(css) => css,
-                Err(err) => {
-                    warn!("Could not load external stylesheet from {url}. Error: {err}");
-                    return None;
-                }
-            }
-        } else {
-            warn!("Unsupported URL scheme for external stylesheet: {}", url.scheme());
-            return None;
-        };
-
-        let config = ParserConfig {
-            source: Some(url.to_string()),
-            ignore_errors: true,
-            ..Default::default()
-        };
-
-        match C::CssSystem::parse_str(css.as_str(), config, origin, url.as_str()) {
-            Ok(stylesheet) => Some(stylesheet),
-            Err(err) => {
-                warn!("Error while parsing CSS stylesheet: {err}");
-                None
-            }
-        }
-    }
-
     fn handle_link_element(&mut self, attributes: HashMap<String, String>) {
         if attributes.contains_key("rel") && attributes.contains_key("itemprop") {
             // cannot have them both
@@ -4183,33 +4109,15 @@ impl<'a, C: HasDocument> Html5Parser<'a, C> {
 
         match rel.as_str() {
             "stylesheet" => {
-                // Stylesheet link may not have a href link (for instance, it could be data-href for optional loading through JS)
-                let Some(href) = attributes.get("href") else {
-                    return;
-                };
-
-                let css_url = match Url::parse(href) {
-                    Ok(url) => url,
-                    Err(_err) => {
-                        // Relative URL
-                        let Some(base_url) = self.document.url() else {
-                            self.parse_error("link element without base url not supported yet");
-                            return;
-                        };
-                        match base_url.join(href) {
-                            Ok(url) => url,
-                            Err(_) => {
-                                self.parse_error("link element with invalid href url");
-                                return;
-                            }
-                        }
-                    }
-                };
-                if let Some(stylesheet) = self.load_external_stylesheet(CssOrigin::Author, css_url) {
-                    self.document.add_stylesheet(stylesheet);
-                } else {
-                    self.parse_error("failed to load external stylesheet");
-                }
+                // Nothing to do here: the parser does no I/O. Fetching an external stylesheet is
+                // the embedder's job, because only it can do so asynchronously, on the connection
+                // it already has open, and with the right cookie jar. The engine discovers
+                // `<link rel=stylesheet>` up-front (see `discover_resources`), fetches it
+                // concurrently with this parse, and attaches the result with `add_stylesheet`
+                // before the document is handed on.
+                //
+                // A caller using this parser standalone gets inline `<style>` only, and can attach
+                // external sheets itself via `Document::add_stylesheet`.
             }
             _ => {
                 self.parse_error(format!("link element with rel attribute '{rel}' is not supported").as_str());
