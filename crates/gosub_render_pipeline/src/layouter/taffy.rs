@@ -2,6 +2,7 @@ use cow_utils::CowUtils;
 
 use crate::common::document::node::{Node, NodeId as DomNodeId, NodeType};
 use crate::common::document::pipeline_doc::BgSize;
+use crate::common::document::pipeline_doc::PipelineDocument;
 use crate::common::document::style::{lookup, FontWeight, StyleProperty, TextAlign, Unit, Value};
 use crate::common::font::{FontAlignment, FontInfo};
 use crate::common::geo;
@@ -9,7 +10,7 @@ use crate::common::geo::Coordinate;
 use crate::common::media::MediaStore;
 use crate::common::media::{Media, MediaId, MediaRequest, MediaType};
 use crate::layouter::box_model::Edges;
-use crate::layouter::css_taffy_converter::CssTaffyConverter;
+use crate::layouter::css_taffy_converter::{snap_to_grid, CssTaffyConverter};
 use crate::layouter::table::post_process_tables;
 use crate::layouter::text::get_text_layout;
 use crate::layouter::{
@@ -351,7 +352,8 @@ impl CanLayout for TaffyLayouter {
         let root_id = layout_tree.root_id;
         let root_width = layout_tree.root_dimension.width;
         self.populate_boxmodel(&mut layout_tree, root_id, Coordinate::ZERO, root_width);
-        post_process_tables(&mut layout_tree, &self.dom_to_layout_mapping);
+        let vgrid = self.font_system.lock().vertical_grid_unit();
+        post_process_tables(&mut layout_tree, &self.dom_to_layout_mapping, vgrid);
 
         // get dimension of the root node
         if let Some(root) = layout_tree.get_node_by_id(root_id) {
@@ -544,8 +546,13 @@ impl TaffyLayouter {
         };
         if items.is_empty() {
             match empty_line_height {
-                // No child can give the line height, so pin it to the break's line-height.
-                Some(lh) => style.size.height = Dimension::from_length(lh as f32),
+                // No child can give the line height, so pin it to the break's line-height. On a
+                // cell backend, snap it to the grid so a blank line is a whole number of rows and
+                // doesn't drift the layout off the character grid.
+                Some(lh) => {
+                    let vgrid = self.font_system.lock().vertical_grid_unit();
+                    style.size.height = Dimension::from_length(snap_to_grid(lh as f32, vgrid));
+                }
                 None => return,
             }
         }
@@ -931,11 +938,46 @@ impl TaffyLayouter {
 
         match &dom_node.node_type {
             NodeType::Element(data) => {
-                let conv = CssTaffyConverter::new(dom_node.node_id, &*layout_tree.render_tree.doc);
+                let vgrid = self.font_system.lock().vertical_grid_unit();
+                let conv = CssTaffyConverter::new(dom_node.node_id, &*layout_tree.render_tree.doc, vgrid);
                 taffy_style = conv.convert(false);
 
                 // Images get a taffy context so their intrinsic size participates in layout.
                 if data.tag_name.eq_ignore_ascii_case("img") {
+                    // Text/cell backend: a browser with no pixels. Don't fetch, decode, or reserve
+                    // an image's pixel box — represent it by its `alt` text so it costs one line at
+                    // most, never its dimensions. `alt=""` is an explicitly decorative image and is
+                    // dropped entirely; a missing `alt` gets a small `[img]` marker so the reader
+                    // knows something was there.
+                    if vgrid.is_some() {
+                        // Show the `alt` text as an inline label; a decorative (`alt=""`) or
+                        // alt-less image contributes nothing — dropped, not marked — so it never
+                        // adds clutter or reserves space (e.g. HN's alt-less logo).
+                        let label = match data.get_attribute("alt") {
+                            Some(alt) if !alt.trim().is_empty() => alt.trim().to_string(),
+                            _ => return None,
+                        };
+                        // Drop any CSS/intrinsic pixel sizing the converter produced; the label is
+                        // an ordinary inline text run that sizes itself.
+                        taffy_style.size = Size {
+                            width: Dimension::auto(),
+                            height: Dimension::auto(),
+                        };
+                        taffy_style.min_size = Size {
+                            width: Dimension::auto(),
+                            height: Dimension::auto(),
+                        };
+                        taffy_style.max_size = Size {
+                            width: Dimension::auto(),
+                            height: Dimension::auto(),
+                        };
+                        taffy_style.aspect_ratio = None;
+                        let font_info = label_font_info(&layout_tree.render_tree.doc, dom_node.node_id);
+                        let text_offset = Coordinate::new(0.0, (font_info.line_height - font_info.size) / 2.0);
+                        let ctx = TaffyContext::text(label.as_str(), font_info, dom_node.node_id, text_offset, false);
+                        return Some((Some(ctx), taffy_style));
+                    }
+
                     let base_url = layout_tree.render_tree.doc.base_url();
                     let Some(src) = data.get_attribute("src") else {
                         log::warn!("img element missing src attribute");
@@ -1257,6 +1299,50 @@ fn to_absolute_url(uri: &str, base_uri: &str) -> String {
         Ok(joined) => joined.to_string(),
         // Base URL unusable (e.g. empty for an inline document) — fall back to the raw reference.
         Err(_) => uri.to_string(),
+    }
+}
+
+/// Resolve the computed font styling of `node_id` into a [`FontInfo`], used to lay out a small
+/// text label in place of a replaced element on a text/cell backend. Reads the same inherited
+/// properties the text-node path does, so the label matches the surrounding text.
+fn label_font_info(doc: &Arc<dyn PipelineDocument>, node_id: DomNodeId) -> FontInfo {
+    let font_size = match doc.get_style(node_id, &StyleProperty::FontSize) {
+        Value::Unit(v, Unit::Px) => v as f64,
+        _ => DEFAULT_FONT_SIZE,
+    };
+    let family = match doc.get_style(node_id, &StyleProperty::FontFamily) {
+        Value::Keyword(id) => lookup(id),
+        _ => DEFAULT_FONT_FAMILY.to_string(),
+    };
+    let weight = match doc.get_style(node_id, &StyleProperty::FontWeight) {
+        Value::FontWeight(w) => match w {
+            FontWeight::Normal => 400,
+            FontWeight::Bold | FontWeight::Bolder => 700,
+            FontWeight::Lighter => 300,
+            FontWeight::Number(v) => v as i32,
+        },
+        _ => 400,
+    };
+    let italic = matches!(
+        doc.get_style(node_id, &StyleProperty::FontStyle),
+        Value::Keyword(id) if lookup(id) == "italic"
+    );
+    let line_height = match doc.get_style(node_id, &StyleProperty::LineHeight) {
+        Value::Unit(v, Unit::Px) => v as f64,
+        Value::Number(ratio) => font_size * ratio as f64,
+        _ => font_size * 1.4,
+    };
+    FontInfo {
+        family,
+        size: font_size,
+        weight,
+        width: 100,
+        slant: if italic { 1 } else { 0 },
+        line_height,
+        letter_spacing: 0.0,
+        alignment: FontAlignment::Start,
+        underline: false,
+        line_through: false,
     }
 }
 

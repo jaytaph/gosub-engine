@@ -129,6 +129,14 @@ impl FontSystem for CellFontSystem {
         vec!["monospace".to_string()]
     }
 
+    fn vertical_grid_unit(&self) -> Option<f32> {
+        // Layout runs on the character grid: one row is exactly one cell tall, so the layouter
+        // snaps all vertical box metrics to whole cells. This is what stops sub-cell CSS spacing
+        // (spacer rows, half-leading, fractional margins) from drifting the rasterizer's
+        // per-element rounding into intermittent blank rows.
+        Some(CELL_H)
+    }
+
     fn shape(&mut self, text: &str, style: &TextStyle) -> ShapedText {
         if text.is_empty() {
             return ShapedText::empty();

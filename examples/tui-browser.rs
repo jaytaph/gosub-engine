@@ -1,7 +1,7 @@
 //! A text-mode browser: renders a real page into character cells and lets you scroll it.
 //!
-//! Proof-of-concept for the `gosub_renderer_tui` backend. It renders text, solid backgrounds and
-//! borders; images, SVG and gradients are skipped. There is no clicking — the engine has no focus
+//! Proof-of-concept for the `gosub_renderer_tui` backend. It renders text and solid backgrounds;
+//! borders, images, SVG and gradients are skipped. There is no clicking — the engine has no focus
 //! model or event dispatch yet — so this is a reader, not a browser.
 //!
 //! Usage: `cargo run --release --example tui-browser -- [url] [light|dark]`

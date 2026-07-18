@@ -5,7 +5,6 @@ use gosub_render_pipeline::common::geo::Rect;
 use gosub_render_pipeline::common::media::MediaStore;
 use gosub_render_pipeline::common::texture::TextureId;
 use gosub_render_pipeline::common::texture_store::TextureStore;
-use gosub_render_pipeline::painter::commands::border::BorderStyle;
 use gosub_render_pipeline::painter::commands::brush::Brush;
 use gosub_render_pipeline::painter::commands::rectangle::Rectangle;
 use gosub_render_pipeline::painter::commands::text::Text;
@@ -92,8 +91,11 @@ impl Rasterable for TuiRasterizer {
 /// obliterate the page behind it.
 const ALPHA_CUTOFF: f32 = 0.5;
 
-/// Paint a rectangle's background and border into the canvas. Border-radius is ignored — a cell
-/// grid has no sub-cell geometry to round.
+/// Paint a rectangle's solid background into the canvas.
+///
+/// Borders are deliberately not drawn: in a cell grid any border, however thin, would claim a whole
+/// character cell per side, boxing content in gaps that cost more space than they convey.
+/// Border-radius is likewise ignored — a cell grid has no sub-cell geometry to round.
 fn draw_rectangle(canvas: &mut CellCanvas, rectangle: &Rectangle, tile_rect: Rect) {
     if let Some(Brush::Solid(color)) = rectangle.background() {
         if color.a() >= ALPHA_CUTOFF {
@@ -101,131 +103,6 @@ fn draw_rectangle(canvas: &mut CellCanvas, rectangle: &Rectangle, tile_rect: Rec
                 fill_rect(canvas, clipped, (to_u8(color.r()), to_u8(color.g()), to_u8(color.b())));
             }
         }
-    }
-    draw_border(canvas, rectangle, tile_rect);
-}
-
-/// Box-drawing characters for one border style.
-struct BoxGlyphs {
-    h: char,
-    v: char,
-    tl: char,
-    tr: char,
-    bl: char,
-    br: char,
-}
-
-/// Map a CSS border style onto box-drawing characters.
-///
-/// The 3D styles (groove/ridge/inset/outset) rely on shading two edges differently, which a single
-/// character can't express — they fall back to a solid line.
-fn glyphs_for(style: &BorderStyle) -> BoxGlyphs {
-    match style {
-        BorderStyle::Double => BoxGlyphs {
-            h: '═',
-            v: '║',
-            tl: '╔',
-            tr: '╗',
-            bl: '╚',
-            br: '╝',
-        },
-        BorderStyle::Dashed => BoxGlyphs {
-            h: '╌',
-            v: '╎',
-            tl: '┌',
-            tr: '┐',
-            bl: '└',
-            br: '┘',
-        },
-        BorderStyle::Dotted => BoxGlyphs {
-            h: '┈',
-            v: '┊',
-            tl: '┌',
-            tr: '┐',
-            bl: '└',
-            br: '┘',
-        },
-        _ => BoxGlyphs {
-            h: '─',
-            v: '│',
-            tl: '┌',
-            tr: '┐',
-            bl: '└',
-            br: '┘',
-        },
-    }
-}
-
-/// The colour a border side paints with, or `None` when that side draws nothing.
-fn side_color(width: f32, style: &BorderStyle, brush: &Brush) -> Option<(u8, u8, u8)> {
-    if width <= 0.0 || style.is_invisible() {
-        return None;
-    }
-    match brush {
-        Brush::Solid(c) if c.a() >= ALPHA_CUTOFF => Some((to_u8(c.r()), to_u8(c.g()), to_u8(c.b()))),
-        _ => None,
-    }
-}
-
-/// Stroke a rectangle's border as box-drawing characters.
-///
-/// Any border, however thin, claims a whole cell — there is nothing finer to draw with. Side
-/// positions come from the element's **full** rect (clipping first would strand borders along tile
-/// seams); only the writes are limited to the current tile.
-fn draw_border(canvas: &mut CellCanvas, rectangle: &Rectangle, tile_rect: Rect) {
-    let border = rectangle.border();
-    let (widths, styles, brushes) = (border.widths(), border.styles(), border.brushes());
-
-    // [top, right, bottom, left]
-    let colors: [Option<(u8, u8, u8)>; 4] = std::array::from_fn(|i| side_color(widths[i], &styles[i], &brushes[i]));
-    if colors.iter().all(Option::is_none) {
-        return;
-    }
-
-    let (c0, r0, c1, r1) = cell_bounds(rectangle.rect());
-    if c1 <= c0 || r1 <= r0 {
-        return;
-    }
-    let (tc0, tr0, tc1, tr1) = cell_bounds(tile_rect);
-
-    // Only draw the parts of each side that fall inside this tile.
-    let (col_lo, col_hi) = (c0.max(tc0), c1.min(tc1));
-    let (row_lo, row_hi) = (r0.max(tr0), r1.min(tr1));
-
-    let mut stroke = |col: usize, row: usize, ch: char, color: Option<(u8, u8, u8)>| {
-        if let Some(color) = color {
-            if (col_lo..col_hi).contains(&col) && (row_lo..row_hi).contains(&row) {
-                canvas.set(col, row, ch, color);
-            }
-        }
-    };
-
-    let (top, right, bottom, left) = (colors[0], colors[1], colors[2], colors[3]);
-    let (g_top, g_bottom) = (glyphs_for(&styles[0]), glyphs_for(&styles[2]));
-    let (g_left, g_right) = (glyphs_for(&styles[3]), glyphs_for(&styles[1]));
-
-    for col in col_lo..col_hi {
-        stroke(col, r0, g_top.h, top);
-        stroke(col, r1 - 1, g_bottom.h, bottom);
-    }
-    for row in row_lo..row_hi {
-        stroke(c0, row, g_left.v, left);
-        stroke(c1 - 1, row, g_right.v, right);
-    }
-
-    // Corners, drawn last so they win over the sides that meet there. A corner only exists where
-    // both of its sides are actually painted.
-    if top.is_some() && left.is_some() {
-        stroke(c0, r0, g_top.tl, top);
-    }
-    if top.is_some() && right.is_some() {
-        stroke(c1 - 1, r0, g_top.tr, top);
-    }
-    if bottom.is_some() && left.is_some() {
-        stroke(c0, r1 - 1, g_bottom.bl, bottom);
-    }
-    if bottom.is_some() && right.is_some() {
-        stroke(c1 - 1, r1 - 1, g_bottom.br, bottom);
     }
 }
 

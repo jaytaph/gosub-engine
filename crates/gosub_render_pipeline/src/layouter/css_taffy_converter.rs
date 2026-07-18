@@ -13,15 +13,41 @@ use taffy::{
     Rect, Size, Style, TextAlign, TrackSizingFunction,
 };
 
+/// Round a vertical CSS px length to a layout `grid`, if one is active. `None` (pixel backends)
+/// leaves it continuous. Snaps to the nearest whole cell, so sub-cell spacing collapses to 0
+/// consistently rather than intermittently rounding up a row downstream. See
+/// [`gosub_interface::font_system::FontSystem::vertical_grid_unit`].
+pub(crate) fn snap_to_grid(px: f32, grid: Option<f32>) -> f32 {
+    match grid {
+        Some(grid) if grid > 0.0 => (px / grid).round() * grid,
+        _ => px,
+    }
+}
+
 /// Converts CSS properties from a `PipelineDocument` node into a Taffy `Style`.
 pub struct CssTaffyConverter<'a> {
     node_id: NodeId,
     doc: &'a dyn PipelineDocument,
+    /// Vertical layout grid, in CSS px, for cell/terminal backends (see
+    /// [`gosub_interface::font_system::FontSystem::vertical_grid_unit`]). When `Some(h)`, vertical
+    /// box metrics (heights, vertical margins/padding, row gap, block inset) are rounded to whole
+    /// multiples of `h` so the layout lands exactly on the character grid and the cell rasterizer's
+    /// per-element rounding cannot drift into phantom blank rows. `None` = continuous px layout.
+    vgrid: Option<f32>,
 }
 
 impl<'a> CssTaffyConverter<'a> {
-    pub fn new(node_id: NodeId, doc: &'a dyn PipelineDocument) -> Self {
-        Self { node_id, doc }
+    /// `vgrid` snaps vertical metrics to a px grid for cell backends (see [`Self::vgrid`]); pixel
+    /// backends pass `None` for continuous layout.
+    pub fn new(node_id: NodeId, doc: &'a dyn PipelineDocument, vgrid: Option<f32>) -> Self {
+        Self { node_id, doc, vgrid }
+    }
+
+    /// Round a vertical CSS px length to the layout grid, if one is active. Snaps to the nearest
+    /// whole cell, so sub-cell spacing (a `height:5px` spacer, fractional margins) collapses to 0
+    /// consistently instead of intermittently rounding up a row later.
+    fn snap_v(&self, px: f32) -> f32 {
+        snap_to_grid(px, self.vgrid)
     }
 
     fn get_own(&self, prop: &StyleProperty) -> Option<Value> {
@@ -66,27 +92,31 @@ impl<'a> CssTaffyConverter<'a> {
         ts.scrollbar_width = self.get_f32(StyleProperty::ScrollbarWidth, ts.scrollbar_width);
         ts.position = self.get_position(ts.position);
 
+        // Vertical metrics (top/bottom margin & padding, block inset, height, row gap) snap to the
+        // layout grid on a cell backend; horizontal metrics and borders never do. Borders are
+        // exempt because the cell rasterizer already promotes any non-zero border to a full cell,
+        // so snapping a 1px border to 0 would silently erase it.
         ts.inset = self.get_inset(ts.inset);
-        ts.margin.top = self.get_lpa(StyleProperty::MarginTop, ts.margin.top);
+        ts.margin.top = self.get_lpa_v(StyleProperty::MarginTop, ts.margin.top);
         ts.margin.right = self.get_lpa(StyleProperty::MarginRight, ts.margin.right);
-        ts.margin.bottom = self.get_lpa(StyleProperty::MarginBottom, ts.margin.bottom);
+        ts.margin.bottom = self.get_lpa_v(StyleProperty::MarginBottom, ts.margin.bottom);
         ts.margin.left = self.get_lpa(StyleProperty::MarginLeft, ts.margin.left);
-        ts.padding.top = self.get_lp(StyleProperty::PaddingTop, ts.padding.top);
+        ts.padding.top = self.get_lp_v(StyleProperty::PaddingTop, ts.padding.top);
         ts.padding.right = self.get_lp(StyleProperty::PaddingRight, ts.padding.right);
-        ts.padding.bottom = self.get_lp(StyleProperty::PaddingBottom, ts.padding.bottom);
+        ts.padding.bottom = self.get_lp_v(StyleProperty::PaddingBottom, ts.padding.bottom);
         ts.padding.left = self.get_lp(StyleProperty::PaddingLeft, ts.padding.left);
         ts.border.top = self.get_lp(StyleProperty::BorderTopWidth, ts.border.top);
         ts.border.right = self.get_lp(StyleProperty::BorderRightWidth, ts.border.right);
         ts.border.bottom = self.get_lp(StyleProperty::BorderBottomWidth, ts.border.bottom);
         ts.border.left = self.get_lp(StyleProperty::BorderLeftWidth, ts.border.left);
         ts.size.width = self.get_dimension(StyleProperty::Width, ts.size.width);
-        ts.size.height = self.get_dimension(StyleProperty::Height, ts.size.height);
+        ts.size.height = self.get_dimension_v(StyleProperty::Height, ts.size.height);
         ts.min_size.width = self.get_dimension(StyleProperty::MinWidth, ts.min_size.width);
-        ts.min_size.height = self.get_dimension(StyleProperty::MinHeight, ts.min_size.height);
+        ts.min_size.height = self.get_dimension_v(StyleProperty::MinHeight, ts.min_size.height);
         ts.max_size.width = self.get_dimension(StyleProperty::MaxWidth, ts.max_size.width);
-        ts.max_size.height = self.get_dimension(StyleProperty::MaxHeight, ts.max_size.height);
+        ts.max_size.height = self.get_dimension_v(StyleProperty::MaxHeight, ts.max_size.height);
         ts.aspect_ratio = self.get_f32_opt(StyleProperty::AspectRatio, ts.aspect_ratio);
-        ts.gap = self.get_size_lp(StyleProperty::Gap, ts.gap);
+        ts.gap = self.get_gap(ts.gap);
         ts.align_items = self.get_align_items(StyleProperty::AlignItems, ts.align_items);
         ts.align_self = self.get_align_self(StyleProperty::AlignSelf, ts.align_self);
         // Default align-content to FlexStart rather than Taffy's None (= Stretch).
@@ -253,6 +283,34 @@ impl<'a> CssTaffyConverter<'a> {
         }
     }
 
+    /// Vertical [`Self::get_lpa`]: resolves the same way but snaps concrete lengths to the layout
+    /// grid (percentages and `auto` are grid-independent, so they pass through unchanged).
+    fn get_lpa_v(&self, prop: StyleProperty, default: LengthPercentageAuto) -> LengthPercentageAuto {
+        match self.get_own(&prop) {
+            Some(Value::Unit(value, unit)) => match unit {
+                CssUnit::Px => LengthPercentageAuto::length(self.snap_v(value)),
+                CssUnit::Percent => LengthPercentageAuto::percent(value / 100.0),
+                CssUnit::Em | CssUnit::Rem => LengthPercentageAuto::length(self.snap_v(value * self.font_size_px())),
+            },
+            Some(Value::Number(value)) => LengthPercentageAuto::length(self.snap_v(value)),
+            Some(Value::Keyword(id)) if lookup(id) == "auto" => LengthPercentageAuto::auto(),
+            _ => default,
+        }
+    }
+
+    /// Vertical [`Self::get_lp`]: snaps concrete lengths to the layout grid.
+    fn get_lp_v(&self, prop: StyleProperty, default: LengthPercentage) -> LengthPercentage {
+        match self.get_own(&prop) {
+            Some(Value::Unit(value, unit)) => match unit {
+                CssUnit::Px => LengthPercentage::length(self.snap_v(value)),
+                CssUnit::Percent => LengthPercentage::percent(value / 100.0),
+                CssUnit::Em | CssUnit::Rem => LengthPercentage::length(self.snap_v(value * self.font_size_px())),
+            },
+            Some(Value::Number(value)) => LengthPercentage::length(self.snap_v(value)),
+            _ => default,
+        }
+    }
+
     fn get_dimension(&self, prop: StyleProperty, default: Dimension) -> Dimension {
         match self.get_own(&prop) {
             Some(Value::Unit(value, unit)) => match unit {
@@ -265,14 +323,41 @@ impl<'a> CssTaffyConverter<'a> {
         }
     }
 
-    fn get_size_lp(&self, prop: StyleProperty, default: Size<LengthPercentage>) -> Size<LengthPercentage> {
+    /// Vertical [`Self::get_dimension`]: snaps a concrete height to the layout grid.
+    fn get_dimension_v(&self, prop: StyleProperty, default: Dimension) -> Dimension {
         match self.get_own(&prop) {
             Some(Value::Unit(value, unit)) => match unit {
-                CssUnit::Px => Size::length(value),
-                CssUnit::Percent => Size::percent(value / 100.0),
-                CssUnit::Em | CssUnit::Rem => Size::length(value * self.font_size_px()),
+                CssUnit::Px => Dimension::from_length(self.snap_v(value)),
+                CssUnit::Percent => Dimension::percent(value / 100.0),
+                CssUnit::Em | CssUnit::Rem => Dimension::from_length(self.snap_v(value * self.font_size_px())),
             },
-            Some(Value::Number(value)) => Size::length(value),
+            Some(Value::Number(value)) => Dimension::from_length(self.snap_v(value)),
+            _ => default,
+        }
+    }
+
+    /// Resolve `gap` into a Taffy `Size`, snapping only the **row** gap (height) to the layout grid;
+    /// the column gap (width) is horizontal and left continuous.
+    fn get_gap(&self, default: Size<LengthPercentage>) -> Size<LengthPercentage> {
+        match self.get_own(&StyleProperty::Gap) {
+            Some(Value::Unit(value, unit)) => match unit {
+                CssUnit::Px => Size {
+                    width: LengthPercentage::length(value),
+                    height: LengthPercentage::length(self.snap_v(value)),
+                },
+                CssUnit::Percent => Size::percent(value / 100.0),
+                CssUnit::Em | CssUnit::Rem => {
+                    let px = value * self.font_size_px();
+                    Size {
+                        width: LengthPercentage::length(px),
+                        height: LengthPercentage::length(self.snap_v(px)),
+                    }
+                }
+            },
+            Some(Value::Number(value)) => Size {
+                width: LengthPercentage::length(value),
+                height: LengthPercentage::length(self.snap_v(value)),
+            },
             _ => default,
         }
     }
@@ -343,9 +428,9 @@ impl<'a> CssTaffyConverter<'a> {
 
     fn get_inset(&self, default: Rect<LengthPercentageAuto>) -> Rect<LengthPercentageAuto> {
         Rect {
-            top: self.get_lpa(StyleProperty::InsetBlockStart, default.top),
+            top: self.get_lpa_v(StyleProperty::InsetBlockStart, default.top),
             right: self.get_lpa(StyleProperty::InsetInlineEnd, default.right),
-            bottom: self.get_lpa(StyleProperty::InsetBlockEnd, default.bottom),
+            bottom: self.get_lpa_v(StyleProperty::InsetBlockEnd, default.bottom),
             left: self.get_lpa(StyleProperty::InsetInlineStart, default.left),
         }
     }
@@ -592,6 +677,39 @@ fn parse_single_placement(s: &str) -> GridPlacement {
         return GridPlacement::from_line_index(n);
     }
     GridPlacement::Auto
+}
+
+#[cfg(test)]
+mod snap_tests {
+    use super::snap_to_grid;
+
+    #[test]
+    fn no_grid_is_a_passthrough() {
+        // Pixel backends leave vertical spacing continuous.
+        assert_eq!(snap_to_grid(5.0, None), 5.0);
+        assert_eq!(snap_to_grid(37.4, None), 37.4);
+    }
+
+    #[test]
+    fn sub_cell_spacing_collapses_to_zero() {
+        // HN's `<tr style="height:5px">` spacer: less than half a 16px cell, so it snaps away
+        // rather than intermittently adding a blank row.
+        assert_eq!(snap_to_grid(5.0, Some(16.0)), 0.0);
+        assert_eq!(snap_to_grid(7.9, Some(16.0)), 0.0);
+    }
+
+    #[test]
+    fn spacing_snaps_to_the_nearest_whole_cell() {
+        assert_eq!(snap_to_grid(8.0, Some(16.0)), 16.0); // half rounds up
+        assert_eq!(snap_to_grid(16.0, Some(16.0)), 16.0);
+        assert_eq!(snap_to_grid(20.0, Some(16.0)), 16.0);
+        assert_eq!(snap_to_grid(24.0, Some(16.0)), 32.0);
+    }
+
+    #[test]
+    fn a_degenerate_grid_is_ignored() {
+        assert_eq!(snap_to_grid(5.0, Some(0.0)), 5.0);
+    }
 }
 
 #[cfg(test)]

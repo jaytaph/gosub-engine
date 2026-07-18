@@ -5,6 +5,7 @@ use crate::common::document::pipeline_doc::PipelineDocument;
 use crate::common::document::style::{Display, StyleProperty, Unit, Value};
 use crate::common::geo::{Coordinate, Rect};
 use crate::layouter::box_model::{BoxModel, Edges};
+use crate::layouter::css_taffy_converter::snap_to_grid;
 use crate::layouter::{ElementContext, LayoutElementId, LayoutElementNode, LayoutTree};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,6 +20,9 @@ pub struct PipelineTableTree<'a> {
     dom_to_layout: &'a HashMap<DomNodeId, LayoutElementId>,
     /// Relative CellLayouts written by `compute_table_layout`.
     pending: HashMap<DomNodeId, CellLayout>,
+    /// Vertical cell grid (cell backends). Snaps vertical table metrics — row `border-spacing`
+    /// and cell vertical padding — to whole cells, matching the flex path's [`snap_to_grid`].
+    vgrid: Option<f32>,
 }
 
 impl<'a> PipelineTableTree<'a> {
@@ -26,12 +30,14 @@ impl<'a> PipelineTableTree<'a> {
         doc: &'a dyn PipelineDocument,
         layout_tree: &'a mut LayoutTree,
         dom_to_layout: &'a HashMap<DomNodeId, LayoutElementId>,
+        vgrid: Option<f32>,
     ) -> Self {
         Self {
             doc,
             layout_tree,
             dom_to_layout,
             pending: HashMap::new(),
+            vgrid,
         }
     }
 
@@ -217,6 +223,17 @@ impl TableTree for PipelineTableTree<'_> {
     }
 
     fn css_length(&self, id: DomNodeId, prop: CssProp) -> CssLength {
+        // Vertical row gutter (`border-spacing`'s y component). It isn't parsed into a
+        // StyleProperty, so lattice falls back to its 2px default (`px_or(2.0)`). On a cell
+        // backend that 2px lands between every row and drifts the layout off the grid, so snap
+        // that default to whole cells (2px → 0). Horizontal spacing is left to the default.
+        if let CssProp::BorderSpacingY = prop {
+            return match self.vgrid {
+                Some(grid) => CssLength::Px(snap_to_grid(2.0, Some(grid))),
+                None => CssLength::Auto,
+            };
+        }
+
         let style_prop = match prop {
             CssProp::Width => StyleProperty::Width,
             CssProp::Height => StyleProperty::Height,
@@ -241,7 +258,16 @@ impl TableTree for PipelineTableTree<'_> {
             | CssProp::CaptionSide => return CssLength::Auto,
         };
 
+        // Vertical box metrics snap to the cell grid so cell heights/padding stay grid-aligned,
+        // exactly as the flex path does in `CssTaffyConverter`. Horizontal metrics and borders
+        // never snap (a border promotes to a full cell in the rasterizer).
+        let snap_vertical = matches!(
+            prop,
+            CssProp::Height | CssProp::MinHeight | CssProp::MaxHeight | CssProp::PaddingTop | CssProp::PaddingBottom
+        );
+
         match self.doc.get_style(id, &style_prop) {
+            Value::Unit(v, Unit::Px) if snap_vertical => CssLength::Px(snap_to_grid(v, self.vgrid)),
             Value::Unit(v, Unit::Px) => CssLength::Px(v),
             Value::Unit(v, Unit::Percent) => CssLength::Percent(v),
             Value::Unit(0.0, _) => CssLength::Zero,
@@ -293,7 +319,11 @@ impl TableTree for PipelineTableTree<'_> {
 
 /// Post-process all `display: table` nodes in the layout tree after the
 /// Taffy first pass. Correct positions are written back via `gosub_lattice`.
-pub fn post_process_tables(layout_tree: &mut LayoutTree, dom_to_layout: &HashMap<DomNodeId, LayoutElementId>) {
+pub fn post_process_tables(
+    layout_tree: &mut LayoutTree,
+    dom_to_layout: &HashMap<DomNodeId, LayoutElementId>,
+    vgrid: Option<f32>,
+) {
     // Clone the doc Arc up front so we don't hold a borrow on layout_tree
     // when we later pass it mutably to PipelineTableTree.
     let doc: Arc<dyn PipelineDocument> = Arc::clone(&layout_tree.render_tree.doc);
@@ -321,7 +351,7 @@ pub fn post_process_tables(layout_tree: &mut LayoutTree, dom_to_layout: &HashMap
             table_nodes.iter().rev().copied().collect()
         };
         for (table_dom_id, table_layout_id) in order {
-            lay_out_one_table(&*doc, layout_tree, dom_to_layout, table_dom_id, table_layout_id);
+            lay_out_one_table(&*doc, layout_tree, dom_to_layout, table_dom_id, table_layout_id, vgrid);
         }
     }
 }
@@ -334,6 +364,7 @@ fn lay_out_one_table(
     dom_to_layout: &HashMap<DomNodeId, LayoutElementId>,
     table_dom_id: DomNodeId,
     table_layout_id: LayoutElementId,
+    vgrid: Option<f32>,
 ) {
     // Use the parent element's content width as available_width. For nested
     // tables the parent is a table cell whose box model was already updated
@@ -352,7 +383,7 @@ fn lay_out_one_table(
                 .unwrap_or(0.0)
         });
 
-    let mut tree = PipelineTableTree::new(doc, layout_tree, dom_to_layout);
+    let mut tree = PipelineTableTree::new(doc, layout_tree, dom_to_layout, vgrid);
 
     match gosub_lattice::compute_table_layout(&mut tree, table_dom_id, available_width, None) {
         Ok((table_width, table_height)) => {

@@ -276,6 +276,21 @@ pub trait FontSystem: Send + Sync + 'static {
         let shaped = self.shape(text, style);
         (shaped.width, shaped.height)
     }
+
+    /// The vertical layout grid this font system snaps to, in CSS pixels, or `None` for
+    /// continuous (pixel) layout.
+    ///
+    /// A cell/terminal backend renders on a fixed character grid: every row is exactly one cell
+    /// tall, and there is no sub-cell vertical positioning. When such a backend returns `Some(h)`,
+    /// the layouter rounds vertical box metrics (heights, vertical margins/padding, row gaps,
+    /// blank-line heights) to whole multiples of `h`. Without it, arbitrary CSS px spacing (a
+    /// `height:5px` spacer, half-leading, fractional margins) accumulates a sub-cell remainder that
+    /// the cell rasterizer's per-element rounding turns into intermittent phantom blank rows.
+    ///
+    /// Pixel backends (Cairo/Skia/Vello) leave this `None` and lay out in continuous px.
+    fn vertical_grid_unit(&self) -> Option<f32> {
+        None
+    }
 }
 
 // Config integration
