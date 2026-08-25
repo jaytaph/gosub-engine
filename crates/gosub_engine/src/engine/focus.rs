@@ -86,7 +86,8 @@ pub fn click_target<C: DomConfiguration>(doc: &EngineDocument<C>, leaf: NodeId) 
 }
 
 /// The control a `<label>` activates: its `for` target, else the first descendant control.
-fn label_control<C: DomConfiguration>(doc: &EngineDocument<C>, label: NodeId) -> Option<NodeId> {
+/// The control a `<label>` labels: its `for` target, else the first control inside it.
+pub fn label_control<C: DomConfiguration>(doc: &EngineDocument<C>, label: NodeId) -> Option<NodeId> {
     if let Some(target) = doc.attribute(label, "for").and_then(|f| doc.node_by_named_id(f)) {
         return (focusability(doc, target) != Focusability::No).then_some(target);
     }

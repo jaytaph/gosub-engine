@@ -451,6 +451,19 @@ fn an_option_without_a_value_submits_its_collapsed_descendant_text() {
 }
 
 #[test]
+fn a_control_outside_the_form_submits_through_its_form_attribute() {
+    let mut ctx = page(
+        r#"<form id="f" action="/s"><input name="inside" value="1"><button id="go">go</button></form>
+           <input name="outside" value="2" form="f">
+           <form id="other"><input name="stolen" value="3" form="f"></form>"#,
+    );
+    click(&mut ctx, "go");
+    let sub = ctx.take_submission().unwrap_or_else(|| panic!("submits"));
+    // Ownership, not descent: the outside controls are in, and `other`'s child belongs to f.
+    assert_eq!(sub.url.as_str(), "http://test.local/s?inside=1&outside=2&stolen=3");
+}
+
+#[test]
 fn get_submit_replaces_the_query() {
     let mut ctx = page(r#"<form action="/s?old=1"><input name="q" value="v"><button id="b">go</button></form>"#);
     click(&mut ctx, "b");

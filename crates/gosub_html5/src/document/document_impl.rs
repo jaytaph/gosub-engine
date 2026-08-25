@@ -44,6 +44,9 @@ pub struct DocumentImpl<C: HasDocument> {
     sizes: parking_lot::RwLock<HashMap<NodeId, (f64, f64)>>,
     /// Messages set through `setCustomValidity()`.
     custom_validity: parking_lot::RwLock<HashMap<NodeId, String>>,
+    /// Form associations the parser made, which outlive the tree structure that produced
+    /// them (a `<form>` in a table ends up as a sibling of the controls it owns).
+    parser_form_owner: parking_lot::RwLock<HashMap<NodeId, NodeId>>,
 }
 
 #[derive(Debug, Default)]
@@ -86,6 +89,7 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
             open_select: parking_lot::RwLock::new(None),
             sizes: parking_lot::RwLock::new(HashMap::new()),
             custom_validity: parking_lot::RwLock::new(HashMap::new()),
+            parser_form_owner: parking_lot::RwLock::new(HashMap::new()),
         };
         let root = NodeImpl::new_document(Location::default(), QuirksMode::NoQuirks);
         doc.arena.register_node(root);
@@ -243,6 +247,11 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
                 self.named_ids_by_node.entry(id).or_default().push(value.to_string());
             }
         }
+        // Touching the `form` attribute hands ownership back to the tree: the attribute
+        // decides from here on, not whatever the parser had arranged.
+        if is_element && name == "form" {
+            self.parser_form_owner.write().remove(&id);
+        }
     }
 
     fn remove_attribute(&mut self, id: NodeId, name: &str) {
@@ -251,6 +260,9 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
         };
         if let NodeDataTypeInternal::Element(ref mut e) = node.data {
             e.remove_attribute(name);
+        }
+        if name == "form" {
+            self.parser_form_owner.write().remove(&id);
         }
     }
 
@@ -430,6 +442,14 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
 
     fn custom_validity(&self, id: NodeId) -> Option<String> {
         self.custom_validity.read().get(&id).cloned()
+    }
+
+    fn parser_form_owner(&self, id: NodeId) -> Option<NodeId> {
+        self.parser_form_owner.read().get(&id).copied()
+    }
+
+    fn set_parser_form_owner(&mut self, id: NodeId, form: NodeId) {
+        self.parser_form_owner.write().insert(id, form);
     }
 
     fn is_checked(&self, id: NodeId) -> bool {
@@ -679,6 +699,10 @@ impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
         if parent_id == node_id || self.has_node_id_recursive(node_id, parent_id) {
             return;
         }
+        // Only the node being moved loses its parser association - descendants carried along
+        // by the move keep theirs, which is what makes a form inside a table keep its
+        // controls when the whole table moves.
+        self.parser_form_owner.write().remove(&node_id);
         if let Some(parent_node) = self.arena.node_ref_mut(parent_id) {
             match position {
                 Some(position) if position <= parent_node.children().len() => {
@@ -699,6 +723,7 @@ impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
     }
 
     pub fn detach_node(&mut self, node_id: NodeId) {
+        self.parser_form_owner.write().remove(&node_id);
         let Some(parent) = self.node_by_id(node_id).map(NodeImpl::parent_id) else {
             return;
         };
