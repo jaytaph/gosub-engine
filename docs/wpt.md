@@ -111,6 +111,22 @@ the option/textarea reflections `value`, `label`, `text`, `type`.
 
 Node wrappers are cached per node, so `a.parentNode === b` holds.
 
+## Selection, focus and exceptions
+
+`selectionStart`, `selectionEnd`, `selectionDirection`, `setSelectionRange()`, `select()` and
+`setRangeText()` are bound to `gosub_engine::edit`, which operates on the same
+`ControlEditState` the painter and the keyboard path use. A control that has no selection API
+reports `null` (not `undefined` - tests compare against null) and throws on
+`setSelectionRange`.
+
+`focus()`/`blur()` and `document.activeElement` read and write the document's focus state,
+gated by `focus::focusability`, so an unfocusable element quietly stays unfocused. No
+scrolling and no focus ring: those are paint concerns and nothing here paints.
+
+`DOMException` is a real class with `name`, `message` and the legacy `code` table.
+`assert_throws_dom` checks all three, so a plain `Error` fails a test the engine actually got
+right.
+
 ## Constraint validation
 
 `willValidate`, `validity`, `validationMessage`, `checkValidity()`, `reportValidity()` and

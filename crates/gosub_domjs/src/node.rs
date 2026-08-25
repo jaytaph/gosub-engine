@@ -12,10 +12,11 @@ use gosub_shared::node::NodeId;
 use rquickjs::class::Trace;
 use rquickjs::{Coerced, Ctx, Exception, JsLifetime, Result, Value};
 
+use crate::exception;
 use crate::validity::DomValidity;
 use crate::{event, select, text, wrap, wrap_opt, DocHandle, DomConfig};
-use gosub_engine::{edit, form, validity};
-use gosub_interface::document::ControlEditState;
+use gosub_engine::{edit, focus, form, validity};
+use gosub_interface::document::{ControlEditState, SelectionDirection};
 
 #[derive(Trace, JsLifetime)]
 #[rquickjs::class(rename = "Node")]
@@ -204,7 +205,11 @@ impl GosubNode {
         }
         if self.doc.borrow().parent(child_id) != Some(self.id) {
             // `attach_node` refuses to build a cycle instead of throwing HierarchyRequestError.
-            return Err(Exception::throw_message(&ctx, "appendChild would create a cycle"));
+            return Err(exception::throw(
+                &ctx,
+                "HierarchyRequestError",
+                "appendChild would create a cycle",
+            ));
         }
         wrap(&ctx, &self.doc, child_id)
     }
@@ -212,7 +217,7 @@ impl GosubNode {
     pub fn remove_child<'js>(&self, ctx: Ctx<'js>, child: rquickjs::Class<'js, GosubNode>) -> Result<Value<'js>> {
         let child_id = child.borrow().id;
         if self.doc.borrow().parent(child_id) != Some(self.id) {
-            return Err(Exception::throw_message(&ctx, "NotFoundError: node is not a child"));
+            return Err(exception::throw(&ctx, "NotFoundError", "node is not a child"));
         }
         self.doc.borrow_mut().detach(child_id);
         wrap(&ctx, &self.doc, child_id)
@@ -884,6 +889,152 @@ impl GosubNode {
         wrap_list(&ctx, &self.doc, &found)
     }
 
+    // ── text selection ─────────────────────────────────────────────────────
+
+    /// `null`, not `undefined`, on a control without a selection API - the IDL says so, and
+    /// tests compare against null.
+    #[qjs(get, rename = "selectionStart")]
+    pub fn selection_start<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        nullable(
+            &ctx,
+            edit::selection::<DomConfig>(&self.doc.borrow(), self.id).map(|(s, _, _)| s as u32),
+        )
+    }
+
+    #[qjs(set, rename = "selectionStart")]
+    pub fn set_selection_start(&self, start: Coerced<i64>) {
+        let Some((_, end, direction)) = edit::selection::<DomConfig>(&self.doc.borrow(), self.id) else {
+            return;
+        };
+        let start = start.0.max(0) as usize;
+        edit::set_selection::<DomConfig>(&self.doc.borrow(), self.id, start, end.max(start), direction);
+    }
+
+    #[qjs(get, rename = "selectionEnd")]
+    pub fn selection_end<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        nullable(
+            &ctx,
+            edit::selection::<DomConfig>(&self.doc.borrow(), self.id).map(|(_, e, _)| e as u32),
+        )
+    }
+
+    #[qjs(set, rename = "selectionEnd")]
+    pub fn set_selection_end(&self, end: Coerced<i64>) {
+        let Some((start, _, direction)) = edit::selection::<DomConfig>(&self.doc.borrow(), self.id) else {
+            return;
+        };
+        let end = end.0.max(0) as usize;
+        edit::set_selection::<DomConfig>(&self.doc.borrow(), self.id, start.min(end), end, direction);
+    }
+
+    #[qjs(get, rename = "selectionDirection")]
+    pub fn selection_direction<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        nullable(
+            &ctx,
+            edit::selection::<DomConfig>(&self.doc.borrow(), self.id).map(|(_, _, d)| d.as_str().to_string()),
+        )
+    }
+
+    #[qjs(set, rename = "selectionDirection")]
+    pub fn set_selection_direction(&self, direction: Coerced<String>) {
+        let Some((start, end, _)) = edit::selection::<DomConfig>(&self.doc.borrow(), self.id) else {
+            return;
+        };
+        let direction = SelectionDirection::parse(&direction.0);
+        edit::set_selection::<DomConfig>(&self.doc.borrow(), self.id, start, end, direction);
+    }
+
+    #[qjs(rename = "setSelectionRange")]
+    pub fn set_selection_range(
+        &self,
+        ctx: Ctx<'_>,
+        start: Coerced<i64>,
+        end: Coerced<i64>,
+        direction: rquickjs::prelude::Opt<Coerced<String>>,
+    ) -> Result<()> {
+        let direction = direction
+            .0
+            .map(|d| SelectionDirection::parse(&d.0))
+            .unwrap_or(SelectionDirection::None);
+        let ok = edit::set_selection::<DomConfig>(
+            &self.doc.borrow(),
+            self.id,
+            start.0.max(0) as usize,
+            end.0.max(0) as usize,
+            direction,
+        );
+        if !ok {
+            return Err(exception::throw(
+                &ctx,
+                "InvalidStateError",
+                "this control does not support selection",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Selects the whole value. Unlike `setSelectionRange`, a control that does not support
+    /// selection just does nothing here.
+    pub fn select(&self) {
+        let doc = self.doc.borrow();
+        let length = edit::api_value::<DomConfig>(&doc, self.id).chars().count();
+        edit::set_selection::<DomConfig>(&doc, self.id, 0, length, SelectionDirection::None);
+    }
+
+    #[qjs(rename = "setRangeText")]
+    pub fn set_range_text(
+        &self,
+        ctx: Ctx<'_>,
+        replacement: Coerced<String>,
+        start: rquickjs::prelude::Opt<Coerced<i64>>,
+        end: rquickjs::prelude::Opt<Coerced<i64>>,
+        mode: rquickjs::prelude::Opt<Coerced<String>>,
+    ) -> Result<()> {
+        let doc = self.doc.borrow();
+        let Some((current_start, current_end, _)) = edit::selection::<DomConfig>(&doc, self.id) else {
+            return Err(exception::throw(
+                &ctx,
+                "InvalidStateError",
+                "this control does not support selection",
+            ));
+        };
+        // The one-argument form replaces the current selection and preserves it.
+        let (start, end) = match (start.0, end.0) {
+            (Some(s), Some(e)) => (s.0.max(0) as usize, e.0.max(0) as usize),
+            _ => (current_start, current_end),
+        };
+        if start > end {
+            return Err(exception::throw(&ctx, "IndexSizeError", "start is past end"));
+        }
+        let mode = match mode.0 {
+            None => edit::RangeTextMode::Preserve,
+            Some(m) => match edit::RangeTextMode::parse(&m.0) {
+                Some(mode) => mode,
+                None => return Err(Exception::throw_message(&ctx, "TypeError: invalid selection mode")),
+            },
+        };
+        edit::set_range_text::<DomConfig>(&doc, self.id, &replacement.0, start, end, mode);
+        Ok(())
+    }
+
+    // ── focus ──────────────────────────────────────────────────────────────
+
+    /// Focus, if this element can take it. No scrolling and no focus ring: the ring is a
+    /// paint concern and nothing here paints.
+    pub fn focus(&self) {
+        let doc = self.doc.borrow();
+        if focus::focusability::<DomConfig>(&doc, self.id) != focus::Focusability::No {
+            doc.set_focused_node(Some(self.id), false);
+        }
+    }
+
+    pub fn blur(&self) {
+        let doc = self.doc.borrow();
+        if doc.focused_node() == Some(self.id) {
+            doc.set_focused_node(None, false);
+        }
+    }
+
     // ── constraint validation ──────────────────────────────────────────────
 
     #[qjs(get, rename = "willValidate")]
@@ -979,6 +1130,14 @@ impl GosubNode {
     #[qjs(rename = "toString")]
     pub fn to_string_js(&self) -> String {
         format!("[object Node {}]", self.node_name())
+    }
+}
+
+/// `Some` as itself, `None` as JS `null` (rquickjs would otherwise hand back `undefined`).
+fn nullable<'js, T: rquickjs::IntoJs<'js>>(ctx: &Ctx<'js>, value: Option<T>) -> Result<Value<'js>> {
+    match value {
+        Some(value) => value.into_js(ctx),
+        None => Ok(Value::new_null(ctx.clone())),
     }
 }
 

@@ -200,6 +200,34 @@ pub struct OpenSelect {
     pub viewport: (f64, f64),
 }
 
+/// Which way a text selection was made, as `selectionDirection` reports it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SelectionDirection {
+    #[default]
+    None,
+    Forward,
+    Backward,
+}
+
+impl SelectionDirection {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SelectionDirection::None => "none",
+            SelectionDirection::Forward => "forward",
+            SelectionDirection::Backward => "backward",
+        }
+    }
+
+    /// Anything that is not a direction keyword is treated as "none", per the IDL.
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "forward" => SelectionDirection::Forward,
+            "backward" => SelectionDirection::Backward,
+            _ => SelectionDirection::None,
+        }
+    }
+}
+
 /// The DOM value of a text control (as opposed to its `value` attribute) plus its editing state.
 /// Indices are char indices into `value`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -210,6 +238,9 @@ pub struct ControlEditState {
     pub anchor: Option<usize>,
     /// First visual row a `<textarea>` shows (the engine keeps the caret inside the view).
     pub scroll: usize,
+    /// Which end of the selection is the moving one. Kept explicitly rather than derived
+    /// from `anchor` vs `caret`, because a collapsed selection still has a direction.
+    pub direction: SelectionDirection,
 }
 
 impl ControlEditState {
@@ -219,6 +250,7 @@ impl ControlEditState {
             caret,
             anchor: None,
             scroll: 0,
+            direction: SelectionDirection::None,
         }
     }
 

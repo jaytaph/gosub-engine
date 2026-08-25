@@ -309,3 +309,53 @@ fn validating_a_form_fires_invalid_at_each_failing_control() {
     );
     assert_eq!(result, "false|a");
 }
+
+#[test]
+fn set_selection_range_clamps_and_remembers_direction() {
+    let result = eval(
+        "<input id=i value=abcdef>",
+        "const i = document.getElementById('i');
+         i.setSelectionRange(2, 99, 'backward');
+         [i.selectionStart, i.selectionEnd, i.selectionDirection].join('|')",
+    );
+    assert_eq!(result, "2|6|backward");
+}
+
+#[test]
+fn set_range_text_splices_and_places_the_selection() {
+    let result = eval(
+        "<textarea id=t>abcdef</textarea>",
+        "const t = document.getElementById('t');
+         t.setRangeText('XY', 1, 3, 'select');
+         [t.value, t.selectionStart, t.selectionEnd].join('|')",
+    );
+    assert_eq!(result, "aXYdef|1|3");
+}
+
+#[test]
+fn controls_without_a_selection_api_report_null() {
+    let result = eval(
+        "<input id=n type=number value=5>",
+        "const n = document.getElementById('n');
+         let threw = '';
+         try { n.setSelectionRange(0, 1); } catch (e) { threw = e.name + ':' + e.code; }
+         [String(n.selectionStart), threw].join('|')",
+    );
+    assert_eq!(result, "null|InvalidStateError:11");
+}
+
+#[test]
+fn focus_and_blur_move_active_element() {
+    let result = eval(
+        "<input id=i><input id=hidden type=hidden>",
+        "const i = document.getElementById('i');
+         const before = document.activeElement === document.body;
+         i.focus();
+         const focused = document.activeElement === i;
+         document.getElementById('hidden').focus();
+         const unfocusable = document.activeElement === i;
+         i.blur();
+         [before, focused, unfocusable, document.activeElement === document.body].join('|')",
+    );
+    assert_eq!(result, "true|true|true|true");
+}

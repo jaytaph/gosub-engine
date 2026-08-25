@@ -99,6 +99,14 @@ impl GosubDocument {
         crate::event::remove(&ctx, key, &event_type, &callback, options)
     }
 
+    /// The focused element, or `<body>` when nothing has focus.
+    #[qjs(get, rename = "activeElement")]
+    pub fn active_element<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let focused = self.doc.borrow().focused_node();
+        let target = focused.or_else(|| self.first_tag("body"));
+        wrap_opt(&ctx, &self.doc, target)
+    }
+
     #[qjs(get)]
     pub fn body<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
         let found = self.first_tag("body");

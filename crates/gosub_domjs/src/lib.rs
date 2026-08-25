@@ -23,6 +23,7 @@ use url::Url;
 
 mod document;
 pub mod event;
+pub mod exception;
 mod node;
 mod select;
 #[cfg(test)]
@@ -87,6 +88,7 @@ const WRAPPER_CACHE: &str = "__gosub_node_wrappers";
 /// message-passing browser we do not have. Installing afterwards leaves it in shell mode.
 pub fn install(ctx: &Ctx<'_>, doc: DocHandle, timers: &timers::Timers) -> rquickjs::Result<()> {
     let globals = ctx.globals();
+    exception::install(ctx)?;
     event::install(ctx)?;
     timers::install(ctx, timers)?;
     globals.set(WRAPPER_CACHE, ctx.eval::<Value, _>("new Map()")?)?;
