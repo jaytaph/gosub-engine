@@ -11,6 +11,7 @@ pub mod focus;
 pub mod form;
 pub mod internal_pages;
 pub mod places;
+pub mod validity;
 
 pub mod events;
 

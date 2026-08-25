@@ -12,8 +12,9 @@ use gosub_shared::node::NodeId;
 use rquickjs::class::Trace;
 use rquickjs::{Coerced, Ctx, Exception, JsLifetime, Result, Value};
 
+use crate::validity::DomValidity;
 use crate::{event, select, text, wrap, wrap_opt, DocHandle, DomConfig};
-use gosub_engine::{edit, form};
+use gosub_engine::{edit, form, validity};
 use gosub_interface::document::ControlEditState;
 
 #[derive(Trace, JsLifetime)]
@@ -219,6 +220,61 @@ impl GosubNode {
 
     pub fn remove(&self) {
         self.doc.borrow_mut().detach(self.id);
+    }
+
+    /// A deep clone copies the subtree; a shallow one copies just this node.
+    pub fn clone_node<'js>(&self, ctx: Ctx<'js>, deep: rquickjs::prelude::Opt<Coerced<bool>>) -> Result<Value<'js>> {
+        let deep = deep.0.map(|d| d.0).unwrap_or(false);
+        let copy = {
+            let mut doc = self.doc.borrow_mut();
+            if deep {
+                doc.clone_node(self.id)
+            } else {
+                doc.duplicate_node(self.id)
+            }
+        };
+        wrap(&ctx, &self.doc, copy)
+    }
+
+    pub fn matches(&self, ctx: Ctx<'_>, selector: String) -> Result<bool> {
+        let compound = select::parse(&selector).map_err(|e| Exception::throw_message(&ctx, &e))?;
+        Ok(select::matches(&self.doc.borrow(), self.id, &compound))
+    }
+
+    pub fn replace_children<'js>(&self, nodes: rquickjs::prelude::Rest<rquickjs::Class<'js, GosubNode>>) -> Result<()> {
+        let existing = self.doc.borrow().children(self.id).to_vec();
+        {
+            let mut doc = self.doc.borrow_mut();
+            for child in existing {
+                doc.detach(child);
+            }
+        }
+        for node in nodes.0 {
+            let id = node.borrow().id;
+            let mut doc = self.doc.borrow_mut();
+            doc.detach(id);
+            doc.attach(id, self.id, None);
+        }
+        Ok(())
+    }
+
+    pub fn insert_before<'js>(
+        &self,
+        ctx: Ctx<'js>,
+        node: rquickjs::Class<'js, GosubNode>,
+        reference: rquickjs::prelude::Opt<rquickjs::Class<'js, GosubNode>>,
+    ) -> Result<Value<'js>> {
+        let new_id = node.borrow().id;
+        let position = reference.0.and_then(|r| {
+            let target = r.borrow().id;
+            self.doc.borrow().children(self.id).iter().position(|&c| c == target)
+        });
+        {
+            let mut doc = self.doc.borrow_mut();
+            doc.detach(new_id);
+            doc.attach(new_id, self.id, position);
+        }
+        wrap(&ctx, &self.doc, new_id)
     }
 
     pub fn has_child_nodes(&self) -> bool {
@@ -599,7 +655,8 @@ impl GosubNode {
                     .unwrap_or_default(),
             ),
             _ => match edit::value_mode::<DomConfig>(&doc, self.id)? {
-                edit::ValueMode::Value => Some(form::live_value::<DomConfig>(&doc, self.id)),
+                // The IDL value is sanitized; what the painter shows is not.
+                edit::ValueMode::Value => Some(edit::api_value::<DomConfig>(&doc, self.id)),
                 edit::ValueMode::Default => Some(doc.attribute(self.id, "value").unwrap_or_default().to_string()),
                 edit::ValueMode::DefaultOn => Some(doc.attribute(self.id, "value").unwrap_or("on").to_string()),
                 edit::ValueMode::Filename => Some(String::new()),
@@ -619,10 +676,10 @@ impl GosubNode {
                 match mode {
                     // Setting the value moves the text entry cursor to the end.
                     Some(edit::ValueMode::Value) => {
+                        let doc = self.doc.borrow();
+                        let value = edit::sanitize_value::<DomConfig>(&doc, self.id, &value);
                         let caret = value.chars().count();
-                        self.doc
-                            .borrow()
-                            .set_control_edit_state(self.id, Some(ControlEditState::new(value, caret)));
+                        doc.set_control_edit_state(self.id, Some(ControlEditState::new(value, caret)));
                     }
                     Some(edit::ValueMode::Default | edit::ValueMode::DefaultOn) => self.set_attr("value", &value),
                     _ => {}
@@ -825,6 +882,56 @@ impl GosubNode {
             .collect();
         drop(doc);
         wrap_list(&ctx, &self.doc, &found)
+    }
+
+    // ── constraint validation ──────────────────────────────────────────────
+
+    #[qjs(get, rename = "willValidate")]
+    pub fn will_validate(&self) -> bool {
+        validity::will_validate::<DomConfig>(&self.doc.borrow(), self.id)
+    }
+
+    #[qjs(get)]
+    pub fn validity<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let state = DomValidity::new(self.doc.clone(), self.id);
+        Ok(rquickjs::Class::instance(ctx, state)?.into_value())
+    }
+
+    #[qjs(get, rename = "validationMessage")]
+    pub fn validation_message(&self) -> String {
+        validity::validation_message::<DomConfig>(&self.doc.borrow(), self.id)
+    }
+
+    /// Validating fires an `invalid` event at every control that fails - at this element,
+    /// or at each of a `<form>`'s controls when asked of a form.
+    #[qjs(rename = "checkValidity")]
+    pub fn check_validity<'js>(&self, ctx: Ctx<'js>) -> Result<bool> {
+        let failing = {
+            let doc = self.doc.borrow();
+            if doc.tag_name(self.id) == Some("form") {
+                validity::invalid_controls::<DomConfig>(&doc, self.id)
+            } else if validity::check_validity::<DomConfig>(&doc, self.id) {
+                Vec::new()
+            } else {
+                vec![self.id]
+            }
+        };
+        for id in &failing {
+            let event = rquickjs::Class::instance(ctx.clone(), event::DomEvent::synthetic("invalid", false, true))?;
+            event::dispatch(&ctx, &self.doc, *id, event)?;
+        }
+        Ok(failing.is_empty())
+    }
+
+    /// Without a UI to show the message in, reporting is the same answer as checking.
+    #[qjs(rename = "reportValidity")]
+    pub fn report_validity<'js>(&self, ctx: Ctx<'js>) -> Result<bool> {
+        self.check_validity(ctx)
+    }
+
+    #[qjs(rename = "setCustomValidity")]
+    pub fn set_custom_validity(&self, message: Coerced<String>) {
+        self.doc.borrow().set_custom_validity(self.id, &message.0);
     }
 
     // ── events ─────────────────────────────────────────────────────────────

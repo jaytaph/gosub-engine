@@ -239,3 +239,73 @@ fn form_owner_follows_the_form_attribute_out_of_the_tree() {
     );
     assert_eq!(result, "true");
 }
+
+#[test]
+fn validity_state_is_live() {
+    let result = eval(
+        "<input id=i required>",
+        "const i = document.getElementById('i');
+         const v = i.validity;
+         const missing = v.valueMissing;
+         i.value = 'x';
+         [missing, v.valueMissing, v.valid, i.checkValidity()].join('|')",
+    );
+    assert_eq!(result, "true|false|true|true");
+}
+
+#[test]
+fn barred_controls_never_fail_validation() {
+    let result = eval(
+        "<input id=h type=hidden required><fieldset disabled><input id=f required></fieldset>",
+        "const h = document.getElementById('h'), f = document.getElementById('f');
+         [h.willValidate, f.willValidate, h.checkValidity(), f.checkValidity()].join('|')",
+    );
+    assert_eq!(result, "false|false|true|true");
+}
+
+#[test]
+fn custom_validity_wins_over_the_generic_message() {
+    let result = eval(
+        "<input id=i required>",
+        "const i = document.getElementById('i');
+         const generic = i.validationMessage.length > 0;
+         i.setCustomValidity('nope');
+         [generic, i.validity.customError, i.validationMessage].join('|')",
+    );
+    assert_eq!(result, "true|true|nope");
+}
+
+#[test]
+fn setting_value_runs_the_sanitization_algorithm() {
+    let result = eval(
+        "<input id=n type=number><input id=t>",
+        "const n = document.getElementById('n'), t = document.getElementById('t');
+         n.value = 'not a number';
+         t.value = 'a\\r\\nb';
+         [n.value, t.value].join('|')",
+    );
+    assert_eq!(result, "|ab");
+}
+
+#[test]
+fn clone_node_is_deep_only_when_asked() {
+    let result = eval(
+        "<div id=host><span>1</span><span>2</span></div>",
+        "const host = document.getElementById('host');
+         [host.cloneNode(true).children.length, host.cloneNode(false).children.length].join('|')",
+    );
+    assert_eq!(result, "2|0");
+}
+
+#[test]
+fn validating_a_form_fires_invalid_at_each_failing_control() {
+    let result = eval(
+        "<form id=f><input id=a required><input id=b value=ok required></form>",
+        "const seen = [];
+         document.getElementById('a').addEventListener('invalid', e => seen.push(e.target.id));
+         document.getElementById('b').addEventListener('invalid', e => seen.push(e.target.id));
+         const ok = document.getElementById('f').checkValidity();
+         [ok, seen.join(',')].join('|')",
+    );
+    assert_eq!(result, "false|a");
+}

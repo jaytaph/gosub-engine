@@ -111,6 +111,21 @@ the option/textarea reflections `value`, `label`, `text`, `type`.
 
 Node wrappers are cached per node, so `a.parentNode === b` holds.
 
+## Constraint validation
+
+`willValidate`, `validity`, `validationMessage`, `checkValidity()`, `reportValidity()` and
+`setCustomValidity()` are bound to `gosub_engine::validity`. `ValidityState` re-reads the
+document on every getter, so it stays live: holding on to `input.validity` and then changing
+the value reports the new state.
+
+Implemented: `valueMissing` (including radio groups and a `<select>`'s placeholder label
+option), `typeMismatch` for `email`/`url`, anchored `patternMismatch`, `tooLong`/`tooShort`
+(only once the value is dirty), and `rangeUnderflow`/`rangeOverflow`/`stepMismatch` for
+`number` and `range`. Not implemented: the date and time types, and `badInput` - the engine
+has no type-specific editor that can hold an unconvertible value.
+
+`reportValidity()` is `checkValidity()`: there is no UI to show a message in.
+
 ## What is not
 
 - **No activation behaviour** behind `click()`, and no `focus()`/`blur()`/`activeElement`

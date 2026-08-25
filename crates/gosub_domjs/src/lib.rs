@@ -29,6 +29,7 @@ mod select;
 mod tests;
 mod text;
 pub mod timers;
+pub mod validity;
 
 pub use document::GosubDocument;
 pub use node::GosubNode;

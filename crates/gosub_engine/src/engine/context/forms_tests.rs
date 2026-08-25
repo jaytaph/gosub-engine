@@ -810,3 +810,23 @@ fn cursor_kind_follows_whats_under_the_pointer() {
     ctx.update_hover(sx, sy);
     assert_eq!(ctx.cursor_at(sx, sy), CursorKind::Default);
 }
+
+// ── constraint validation ─────────────────────────────────────────────────────
+
+#[test]
+fn a_disabled_fieldset_disables_its_descendants_but_not_its_legend() {
+    let mut ctx = page(
+        r#"<form action="/s">
+             <fieldset disabled>
+               <legend><input name="l" value="l"></legend>
+               <input name="i" value="i">
+             </fieldset>
+             <input name="ok" value="ok">
+             <button id="go">go</button>
+           </form>"#,
+    );
+    click(&mut ctx, "go");
+    let sub = ctx.take_submission().unwrap_or_else(|| panic!("submits"));
+    // The fieldset's own legend escapes the disabling; everything else inside it does not.
+    assert_eq!(sub.url.as_str(), "http://test.local/s?l=l&ok=ok");
+}
