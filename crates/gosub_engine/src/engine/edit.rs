@@ -3,7 +3,7 @@
 
 use crate::html::{DomConfiguration, EngineDocument};
 use cow_utils::CowUtils;
-use gosub_interface::document::{ControlEditState, Document as _};
+use gosub_interface::document::{ControlEditState, Document as _, SelectionDirection};
 use gosub_shared::node::NodeId;
 
 /// How a control's `value` behaves: the spec gives every `<input>` type one of these modes,
@@ -145,6 +145,144 @@ pub fn text_entry_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId)
         }
         _ => None,
     }
+}
+
+/// Whether `id` exposes the text selection API. The types that do not (number, date,
+/// checkbox, ...) report `null` selections and throw on `setSelectionRange`.
+pub fn supports_selection<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+    match doc.tag_name(id) {
+        Some("textarea") => true,
+        Some("input") => matches!(
+            doc.attribute(id, "type")
+                .map(|t| t.cow_to_ascii_lowercase().into_owned())
+                .as_deref(),
+            None | Some("text" | "search" | "url" | "tel" | "password")
+        ),
+        _ => false,
+    }
+}
+
+/// The live editing state of `id`, created from its markup value if it has none yet.
+fn edit_state<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> ControlEditState {
+    doc.control_edit_state(id).unwrap_or_else(|| {
+        let value = initial_value(doc, id);
+        let caret = value.chars().count();
+        ControlEditState::new(value, caret)
+    })
+}
+
+/// `(selectionStart, selectionEnd, selectionDirection)` in char indices.
+pub fn selection<C: DomConfiguration>(
+    doc: &EngineDocument<C>,
+    id: NodeId,
+) -> Option<(usize, usize, SelectionDirection)> {
+    if !supports_selection(doc, id) {
+        return None;
+    }
+    let state = edit_state(doc, id);
+    let (start, end) = state.selection().unwrap_or((state.caret, state.caret));
+    Some((start, end, state.direction))
+}
+
+/// The `setSelectionRange()` algorithm: clamp both ends to the value, and put the caret at
+/// the end the direction points to.
+pub fn set_selection<C: DomConfiguration>(
+    doc: &EngineDocument<C>,
+    id: NodeId,
+    start: usize,
+    end: usize,
+    direction: SelectionDirection,
+) -> bool {
+    if !supports_selection(doc, id) {
+        return false;
+    }
+    let mut state = edit_state(doc, id);
+    let len = state.value.chars().count();
+    let end = end.min(len);
+    let start = start.min(end);
+
+    state.direction = direction;
+    state.anchor = Some(if direction == SelectionDirection::Backward {
+        end
+    } else {
+        start
+    });
+    state.caret = if direction == SelectionDirection::Backward {
+        start
+    } else {
+        end
+    };
+    doc.set_control_edit_state(id, Some(state));
+    true
+}
+
+/// How `setRangeText()` leaves the selection afterwards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RangeTextMode {
+    Select,
+    Start,
+    End,
+    Preserve,
+}
+
+impl RangeTextMode {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "select" => Some(RangeTextMode::Select),
+            "start" => Some(RangeTextMode::Start),
+            "end" => Some(RangeTextMode::End),
+            "preserve" => Some(RangeTextMode::Preserve),
+            _ => None,
+        }
+    }
+}
+
+/// The `setRangeText()` algorithm: splice `replacement` into `[start, end)` and place the
+/// selection according to `mode`.
+pub fn set_range_text<C: DomConfiguration>(
+    doc: &EngineDocument<C>,
+    id: NodeId,
+    replacement: &str,
+    start: usize,
+    end: usize,
+    mode: RangeTextMode,
+) -> bool {
+    if !supports_selection(doc, id) {
+        return false;
+    }
+    let mut state = edit_state(doc, id);
+    let len = state.value.chars().count();
+    let end = end.min(len);
+    let start = start.min(end);
+
+    let (old_start, old_end) = state.selection().unwrap_or((state.caret, state.caret));
+    let prefix: String = state.value.chars().take(start).collect();
+    let suffix: String = state.value.chars().skip(end).collect();
+    let added = replacement.chars().count();
+    state.value = format!("{prefix}{replacement}{suffix}");
+
+    let (new_start, new_end) = match mode {
+        RangeTextMode::Select => (start, start + added),
+        RangeTextMode::Start => (start, start),
+        RangeTextMode::End => (start + added, start + added),
+        RangeTextMode::Preserve => {
+            // The old selection slides by however much the replacement grew or shrank.
+            let shift = |index: usize| {
+                if index <= start {
+                    index
+                } else if index >= end {
+                    index + added - (end - start)
+                } else {
+                    start + added
+                }
+            };
+            (shift(old_start), shift(old_end))
+        }
+    };
+    state.anchor = Some(new_start);
+    state.caret = new_end;
+    doc.set_control_edit_state(id, Some(state));
+    true
 }
 
 /// Drop the characters a control refuses: `type=number` takes only what can be part of a number
