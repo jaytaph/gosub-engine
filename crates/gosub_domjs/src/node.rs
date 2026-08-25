@@ -104,6 +104,22 @@ impl GosubNode {
         doc.set_selected_option(self.id, chosen);
     }
 
+    /// Shared by `stepUp`/`stepDown`: a control with no allowed value step throws.
+    fn step_by(&self, ctx: Ctx<'_>, n: i64) -> Result<()> {
+        let stepped = edit::step::<DomConfig>(&self.doc.borrow(), self.id, n);
+        match stepped {
+            Ok(value) => {
+                self.set_value(Coerced(value));
+                Ok(())
+            }
+            Err(_) => Err(exception::throw(
+                &ctx,
+                "InvalidStateError",
+                "this control has no allowed value step",
+            )),
+        }
+    }
+
     /// The document has no namespace support for attributes, so a namespaced attribute is
     /// parked under a key no HTML attribute name can produce (they cannot contain spaces).
     /// That keeps `setAttributeNS` out of the reflection path, which is what the tests check.
@@ -878,6 +894,15 @@ impl GosubNode {
         wrap_opt(&ctx, &self.doc, found)
     }
 
+    #[qjs(rename = "querySelectorAll")]
+    pub fn query_selector_all<'js>(&self, ctx: Ctx<'js>, selector: String) -> Result<Value<'js>> {
+        let found = {
+            let doc = self.doc.borrow();
+            crate::document::all_matches(&doc, self.id, &selector).map_err(|e| Exception::throw_message(&ctx, &e))?
+        };
+        wrap_list(&ctx, &self.doc, &found)
+    }
+
     #[qjs(rename = "getElementsByTagName")]
     pub fn get_elements_by_tag_name<'js>(&self, ctx: Ctx<'js>, name: String) -> Result<Value<'js>> {
         let doc = self.doc.borrow();
@@ -887,6 +912,65 @@ impl GosubNode {
             .collect();
         drop(doc);
         wrap_list(&ctx, &self.doc, &found)
+    }
+
+    // ── form submission ────────────────────────────────────────────────────
+
+    /// Submits without firing a `submit` event and without validating, per the spec. There
+    /// is no navigation here, so nothing observable happens beyond that absence.
+    pub fn submit(&self) {}
+
+    /// Validates, then fires `submit`. `submitter` must be a submit button this form owns.
+    #[qjs(rename = "requestSubmit")]
+    pub fn request_submit<'js>(
+        &self,
+        ctx: Ctx<'js>,
+        submitter: rquickjs::prelude::Opt<rquickjs::Class<'js, GosubNode>>,
+    ) -> Result<()> {
+        if let Some(submitter) = submitter.0 {
+            let id = submitter.borrow().id;
+            let doc = self.doc.borrow();
+            if form::button_kind::<DomConfig>(&doc, id) != Some(false) {
+                return Err(Exception::throw_message(&ctx, "TypeError: not a submit button"));
+            }
+            if form::form_owner::<DomConfig>(&doc, id) != Some(self.id) {
+                return Err(exception::throw(
+                    &ctx,
+                    "NotFoundError",
+                    "the submitter is not owned by this form",
+                ));
+            }
+        }
+        if !self.check_validity(ctx.clone())? {
+            return Ok(());
+        }
+        let event = rquickjs::Class::instance(ctx.clone(), event::DomEvent::synthetic("submit", true, true))?;
+        event::dispatch(&ctx, &self.doc, self.id, event)?;
+        Ok(())
+    }
+
+    /// Fires `reset`, and unless that is cancelled forgets everything typed, toggled or
+    /// picked in the form.
+    pub fn reset<'js>(&self, ctx: Ctx<'js>) -> Result<()> {
+        if self.doc.borrow().tag_name(self.id) != Some("form") {
+            return Ok(());
+        }
+        let event = rquickjs::Class::instance(ctx.clone(), event::DomEvent::synthetic("reset", true, true))?;
+        if !event::dispatch(&ctx, &self.doc, self.id, event)? {
+            return Ok(());
+        }
+        form::reset::<DomConfig>(&self.doc.borrow(), self.id);
+        Ok(())
+    }
+
+    #[qjs(rename = "stepUp")]
+    pub fn step_up(&self, ctx: Ctx<'_>, n: rquickjs::prelude::Opt<Coerced<i64>>) -> Result<()> {
+        self.step_by(ctx, n.0.map_or(1, |n| n.0))
+    }
+
+    #[qjs(rename = "stepDown")]
+    pub fn step_down(&self, ctx: Ctx<'_>, n: rquickjs::prelude::Opt<Coerced<i64>>) -> Result<()> {
+        self.step_by(ctx, -n.0.map_or(1, |n| n.0))
     }
 
     // ── text selection ─────────────────────────────────────────────────────

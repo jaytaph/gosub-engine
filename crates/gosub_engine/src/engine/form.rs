@@ -208,6 +208,16 @@ pub fn submission<C: DomConfiguration>(
     })
 }
 
+/// Reset `form`: forget everything typed, toggled or picked in it, so every control falls
+/// back to its markup value again.
+pub fn reset<C: DomConfiguration>(doc: &EngineDocument<C>, form: NodeId) {
+    for id in controls(doc, form) {
+        doc.set_control_edit_state(id, None);
+        doc.set_checked(id, None);
+        doc.set_selected_option(id, None);
+    }
+}
+
 /// The controls of `form` whose live state a reset should forget.
 pub fn controls<C: DomConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Vec<NodeId> {
     let mut out = Vec::new();

@@ -63,6 +63,29 @@ impl GosubDocument {
         wrap_opt(&ctx, &self.doc, found)
     }
 
+    #[qjs(rename = "querySelectorAll")]
+    pub fn query_selector_all<'js>(&self, ctx: Ctx<'js>, selector: String) -> Result<Value<'js>> {
+        let found = {
+            let doc = self.doc.borrow();
+            let root = doc.root();
+            all_matches(&doc, root, &selector).map_err(|e| Exception::throw_message(&ctx, &e))?
+        };
+        wrap_list(&ctx, &self.doc, &found)
+    }
+
+    /// Only the HTML namespace produces an element here; the document model has no others.
+    #[qjs(rename = "createElementNS")]
+    pub fn create_element_ns<'js>(&self, ctx: Ctx<'js>, namespace: Option<String>, name: String) -> Result<Value<'js>> {
+        let namespace = namespace.unwrap_or_else(|| gosub_html5::node::HTML_NAMESPACE.to_string());
+        let id = self.doc.borrow_mut().create_element(
+            &name.cow_to_ascii_lowercase(),
+            Some(&namespace),
+            HashMap::new(),
+            Location::default(),
+        );
+        wrap(&ctx, &self.doc, id)
+    }
+
     #[qjs(rename = "getElementsByTagName")]
     pub fn get_elements_by_tag_name<'js>(&self, ctx: Ctx<'js>, name: String) -> Result<Value<'js>> {
         let doc = self.doc.borrow();
@@ -124,6 +147,15 @@ impl GosubDocument {
         let found = self.first_tag("html");
         wrap_opt(&ctx, &self.doc, found)
     }
+}
+
+/// Every element descendant of `root` matching `selector`, in tree order.
+pub(crate) fn all_matches(doc: &Doc, root: NodeId, selector: &str) -> std::result::Result<Vec<NodeId>, String> {
+    let compound = select::parse(selector)?;
+    Ok(select::descendants(doc, root)
+        .into_iter()
+        .filter(|&id| select::matches(doc, id, &compound))
+        .collect())
 }
 
 /// First element descendant of `root` matching `selector`, in tree order.
