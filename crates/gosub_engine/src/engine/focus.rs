@@ -1,6 +1,7 @@
 //! Which elements are focusable and where focus moves on a click or Tab. The state itself lives
 //! on the DOM document, where the `:focus` selectors read it (like `:hover`).
 
+use crate::engine::edit;
 use crate::html::{DomConfiguration, EngineDocument};
 use cow_utils::CowUtils;
 use gosub_interface::document::Document as _;
@@ -34,7 +35,7 @@ pub fn focusability<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) ->
         return Focusability::No;
     };
     let is_control = FORM_CONTROLS.contains(&tag);
-    if is_control && doc.attribute(id, "disabled").is_some() {
+    if is_control && edit::is_disabled(doc, id) {
         return Focusability::No;
     }
     if let Some(ti) = doc.attribute(id, "tabindex").and_then(|v| v.trim().parse::<i32>().ok()) {

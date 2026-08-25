@@ -40,10 +40,95 @@ pub fn value_mode<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> O
     }
 }
 
+/// Whether `id` is disabled: its own `disabled` attribute, or an ancestor `<fieldset disabled>`.
+/// Controls inside that fieldset's first `<legend>` escape it, which is how a disabled
+/// fieldset keeps its own legend usable.
+pub fn is_disabled<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+    if doc.attribute(id, "disabled").is_some() {
+        return true;
+    }
+    let mut child = id;
+    while let Some(parent) = doc.parent(child) {
+        if doc.tag_name(parent) == Some("fieldset") && doc.attribute(parent, "disabled").is_some() {
+            let first_legend = doc
+                .children(parent)
+                .iter()
+                .find(|&&c| doc.tag_name(c) == Some("legend"))
+                .copied();
+            if first_legend != Some(child) {
+                return true;
+            }
+        }
+        child = parent;
+    }
+    false
+}
+
+/// The spec's "rules for parsing floating-point number values": no whitespace, no infinities
+/// and no NaN, so `" 1"`, `"inf"` and `"1px"` are all failures.
+pub fn parse_number(value: &str) -> Option<f64> {
+    if value.is_empty() || value.chars().any(|c| c.is_whitespace()) {
+        return None;
+    }
+    if value
+        .chars()
+        .any(|c| c.is_ascii_alphabetic() && !matches!(c, 'e' | 'E'))
+    {
+        return None;
+    }
+    value.parse::<f64>().ok().filter(|n| n.is_finite())
+}
+
+/// The value sanitization algorithm: what a control does to a value on its way in.
+pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, raw: &str) -> String {
+    if doc.tag_name(id) != Some("input") {
+        return raw.to_string();
+    }
+    let ty = doc
+        .attribute(id, "type")
+        .map(|t| t.cow_to_ascii_lowercase().into_owned())
+        .unwrap_or_else(|| "text".to_string());
+
+    // Every single-line control drops line breaks, whatever else its type does.
+    let stripped: String = raw.chars().filter(|c| !matches!(c, '\n' | '\r')).collect();
+    match ty.as_str() {
+        "url" | "email" => stripped.trim().to_string(),
+        "number" => match parse_number(&stripped) {
+            Some(_) => stripped,
+            None => String::new(),
+        },
+        "range" => {
+            let min = doc.attribute(id, "min").and_then(parse_number).unwrap_or(0.0);
+            let max = doc.attribute(id, "max").and_then(parse_number).unwrap_or(100.0);
+            let value = parse_number(&stripped).unwrap_or((min + max) / 2.0);
+            value.clamp(min, max.max(min)).to_string()
+        }
+        _ => stripped,
+    }
+}
+
+/// The value the IDL and constraint validation see: the live value, sanitized.
+///
+/// This is deliberately not what the painter reads - a half-typed `"1e"` in a number field
+/// sanitizes to the empty string, and blanking the box mid-keystroke would be absurd.
+pub fn api_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
+    match doc.tag_name(id) {
+        Some("select") => doc
+            .selected_option(id)
+            .map(|option| crate::engine::form::option_value(doc, option))
+            .unwrap_or_default(),
+        Some("input" | "textarea") => {
+            let live = crate::engine::form::live_value(doc, id);
+            sanitize_value(doc, id, &live)
+        }
+        _ => String::new(),
+    }
+}
+
 /// `Some(multiline)` when `id` is an enabled, writable text-entry control.
 pub fn text_entry_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
     let tag = doc.tag_name(id)?;
-    if doc.attribute(id, "disabled").is_some() || doc.attribute(id, "readonly").is_some() {
+    if is_disabled(doc, id) || doc.attribute(id, "readonly").is_some() {
         return None;
     }
     match tag {
@@ -100,7 +185,7 @@ pub fn initial_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -
 
 /// `Some(is_radio)` when `id` is an enabled checkbox or radio button.
 pub fn toggle_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
-    if doc.tag_name(id) != Some("input") || doc.attribute(id, "disabled").is_some() {
+    if doc.tag_name(id) != Some("input") || is_disabled(doc, id) {
         return None;
     }
     match doc
@@ -352,7 +437,7 @@ pub fn apply(state: &mut ControlEditState, action: &EditAction) -> bool {
 /// `(min, max, step)` of an enabled `<input type=range>`. `step="any"` → a fine step.
 pub fn range_params<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<(f64, f64, f64)> {
     if doc.tag_name(id) != Some("input")
-        || doc.attribute(id, "disabled").is_some()
+        || is_disabled(doc, id)
         || !doc
             .attribute(id, "type")
             .is_some_and(|t| t.eq_ignore_ascii_case("range"))
@@ -397,7 +482,7 @@ pub fn format_number(v: f64) -> String {
 
 /// `id` is an enabled `<select>`.
 pub fn is_select<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
-    doc.tag_name(id) == Some("select") && doc.attribute(id, "disabled").is_none()
+    doc.tag_name(id) == Some("select") && !is_disabled(doc, id)
 }
 
 /// The enabled options of a `<select>`, in order, through `<optgroup>`s.

@@ -42,6 +42,8 @@ pub struct DocumentImpl<C: HasDocument> {
     open_select: parking_lot::RwLock<Option<OpenSelect>>,
     /// Controls the user resized, with their border-box size.
     sizes: parking_lot::RwLock<HashMap<NodeId, (f64, f64)>>,
+    /// Messages set through `setCustomValidity()`.
+    custom_validity: parking_lot::RwLock<HashMap<NodeId, String>>,
 }
 
 #[derive(Debug, Default)]
@@ -83,6 +85,7 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
             selected: parking_lot::RwLock::new(HashMap::new()),
             open_select: parking_lot::RwLock::new(None),
             sizes: parking_lot::RwLock::new(HashMap::new()),
+            custom_validity: parking_lot::RwLock::new(HashMap::new()),
         };
         let root = NodeImpl::new_document(Location::default(), QuirksMode::NoQuirks);
         doc.arena.register_node(root);
@@ -134,8 +137,15 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
 
     fn clone_node(&mut self, id: NodeId) -> NodeId {
         let Some(node) = self.arena.node(id) else { return id };
+        // `new_from_node` drops the children, so the subtree has to be cloned by hand -
+        // otherwise this would be `duplicate_node` under another name.
         let cloned = NodeImpl::new_from_node(&node);
-        self.register_node(cloned)
+        let root = self.register_node(cloned);
+        for child in self.children(id).to_vec() {
+            let copy = self.clone_node(child);
+            self.attach_node(copy, root, None);
+        }
+        root
     }
 
     fn duplicate_node(&mut self, id: NodeId) -> NodeId {
@@ -418,6 +428,10 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
         self.edits.read().get(&id).cloned()
     }
 
+    fn custom_validity(&self, id: NodeId) -> Option<String> {
+        self.custom_validity.read().get(&id).cloned()
+    }
+
     fn is_checked(&self, id: NodeId) -> bool {
         // `option:checked` = the select's chosen option.
         if self.tag_name(id) == Some("option") {
@@ -545,6 +559,16 @@ impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
     }
 
     /// `None` reverts to the markup value.
+    /// An empty message clears the custom error, exactly as `setCustomValidity("")` does.
+    pub fn set_custom_validity(&self, id: NodeId, message: &str) {
+        let mut map = self.custom_validity.write();
+        if message.is_empty() {
+            map.remove(&id);
+        } else {
+            map.insert(id, message.to_string());
+        }
+    }
+
     pub fn set_control_edit_state(&self, id: NodeId, state: Option<ControlEditState>) {
         let mut edits = self.edits.write();
         match state {

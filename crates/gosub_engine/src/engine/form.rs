@@ -41,7 +41,7 @@ fn input_type<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Strin
 
 /// `Some(is_reset)` when `id` is an enabled submit or reset button.
 pub fn button_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
-    if doc.attribute(id, "disabled").is_some() {
+    if edit::is_disabled(doc, id) {
         return None;
     }
     let ty = match doc.tag_name(id) {
@@ -73,7 +73,7 @@ pub fn data_set<C: DomConfiguration>(
         let (Some(tag), Some(name)) = (doc.tag_name(id), doc.attribute(id, "name")) else {
             continue;
         };
-        if name.is_empty() || doc.attribute(id, "disabled").is_some() {
+        if name.is_empty() || edit::is_disabled(doc, id) {
             continue;
         }
         let value = match tag {

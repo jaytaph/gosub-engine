@@ -166,6 +166,10 @@ pub trait Document<C: HasCssSystem>: Sized + Display + Debug + PartialEq + 'stat
     fn control_edit_state(&self, _id: NodeId) -> Option<ControlEditState> {
         None
     }
+    /// The message `setCustomValidity()` put on a control; empty/absent = no custom error.
+    fn custom_validity(&self, _id: NodeId) -> Option<String> {
+        None
+    }
     /// The chosen `<option>` of a `<select>` (the `selected` attribute or the first option until
     /// the user picks another). `None` = not tracked, use the markup.
     fn selected_option(&self, _select: NodeId) -> Option<NodeId> {

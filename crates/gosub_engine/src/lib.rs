@@ -187,6 +187,10 @@ pub use engine::edit;
 #[doc(inline)]
 pub use engine::focus;
 
+/// Constraint validation: candidacy, the validity flags and their messages.
+#[doc(inline)]
+pub use engine::validity;
+
 pub use engine::types::Action;
 pub use engine::types::NavigationId;
 
