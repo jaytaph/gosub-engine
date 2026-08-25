@@ -32,7 +32,6 @@ pub mod timers;
 
 pub use document::GosubDocument;
 pub use node::GosubNode;
-pub use text::strip_and_collapse;
 
 /// Parse-only module configuration: no renderer, no font system, no layout.
 #[derive(Clone, Debug, PartialEq)]
@@ -59,6 +58,21 @@ pub fn parse_document(html: &str, url: Option<Url>) -> anyhow::Result<(DocHandle
         .map_err(|e| anyhow::anyhow!("html parse failed: {e}"))?;
     let messages = errors.into_iter().map(|e| e.message).collect();
     Ok((Rc::new(RefCell::new(doc)), messages))
+}
+
+/// Evaluate a script the way a browser runs a page script: **sloppy mode**.
+///
+/// rquickjs defaults to strict, which is wrong here in two ways that both read as engine
+/// failures: assigning to an accessor with no setter throws instead of silently doing
+/// nothing, and assigning to an undeclared name throws `ReferenceError` instead of creating
+/// a global. WPT tests written for a browser rely on both.
+pub fn eval_script<'js, V>(ctx: &Ctx<'js>, code: &[u8]) -> rquickjs::Result<V>
+where
+    V: rquickjs::FromJs<'js>,
+{
+    let mut options = rquickjs::context::EvalOptions::default();
+    options.strict = false;
+    ctx.eval_with_options(code, options)
 }
 
 /// The JS `Map` that keeps one wrapper object per node, so `a.parentNode === b` holds.

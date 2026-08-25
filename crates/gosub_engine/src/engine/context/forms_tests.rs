@@ -497,6 +497,20 @@ fn submit_encodes_live_state_and_reset_restores_it() {
 }
 
 #[test]
+fn an_option_without_a_value_submits_its_collapsed_descendant_text() {
+    let mut ctx = page(
+        r#"<form action="/s">
+             <select name="s"><option>  first  choice  </option><option selected>a<b>b</b>c</option></select>
+             <button id="go">go</button>
+           </form>"#,
+    );
+    click(&mut ctx, "go");
+    let sub = ctx.take_submission().unwrap_or_else(|| panic!("submits"));
+    // Descendant text, not just the direct children, with inner whitespace collapsed.
+    assert_eq!(sub.url.as_str(), "http://test.local/s?s=abc");
+}
+
+#[test]
 fn get_submit_replaces_the_query() {
     let mut ctx = page(r#"<form action="/s?old=1"><input name="q" value="v"><button id="b">go</button></form>"#);
     click(&mut ctx, "b");

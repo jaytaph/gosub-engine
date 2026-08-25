@@ -11,6 +11,7 @@ gosub_shared = { path = "../gosub_shared" }
 gosub_interface = { path = "../gosub_interface" }
 gosub_html5 = { path = "../gosub_html5" }
 gosub_css3 = { path = "../gosub_css3" }
+gosub_engine = { path = "../gosub_engine" }
 rquickjs = { workspace = true }
 anyhow = { workspace = true }
 url = { workspace = true }
