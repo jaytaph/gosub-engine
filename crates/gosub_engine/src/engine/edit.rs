@@ -147,6 +147,68 @@ pub fn text_entry_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId)
     }
 }
 
+/// Why a `stepUp()`/`stepDown()` could not run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StepError {
+    /// The control has no stepping behaviour (a text field, or a type the engine has no
+    /// number conversion for).
+    NotSteppable,
+    /// `step="any"`, which the spec says has no allowed value step at all.
+    StepAny,
+}
+
+/// The allowed value step of `id`, or why it has none.
+fn allowed_step<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Result<f64, StepError> {
+    let steppable = doc.tag_name(id) == Some("input")
+        && matches!(
+            doc.attribute(id, "type")
+                .map(|t| t.cow_to_ascii_lowercase().into_owned())
+                .as_deref(),
+            Some("number" | "range")
+        );
+    if !steppable {
+        return Err(StepError::NotSteppable);
+    }
+    match doc.attribute(id, "step").map(str::trim) {
+        Some(s) if s.eq_ignore_ascii_case("any") => Err(StepError::StepAny),
+        Some(s) => Ok(parse_number(s).filter(|step| *step > 0.0).unwrap_or(1.0)),
+        None => Ok(1.0),
+    }
+}
+
+/// The `stepUp()`/`stepDown()` algorithm. `n` is negative for a step down. Returns the new
+/// value, already clamped into `[min, max]` and aligned to the step base.
+pub fn step<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, n: i64) -> Result<String, StepError> {
+    let step = allowed_step(doc, id)?;
+    let min = doc.attribute(id, "min").and_then(parse_number);
+    let max = doc.attribute(id, "max").and_then(parse_number);
+    let base = min.unwrap_or(0.0);
+    // A value that will not convert counts as zero, rather than making the call fail.
+    let value = parse_number(&api_value(doc, id)).unwrap_or(0.0);
+
+    let offset = (value - base) / step;
+    let aligned = (offset - offset.round()).abs() < 1e-9;
+    let mut result = if aligned {
+        value + (n as f64) * step
+    } else if n > 0 {
+        // Not on the grid: snapping to the next step in the direction asked IS the step.
+        base + offset.ceil() * step
+    } else {
+        base + offset.floor() * step
+    };
+
+    if let Some(min) = min {
+        result = result.max(min);
+    }
+    if let Some(max) = max {
+        if result > max {
+            // The largest value on the grid that still fits.
+            result = base + ((max - base) / step).floor() * step;
+        }
+    }
+    Ok(format_number(result))
+}
+
 /// Whether `id` exposes the text selection API. The types that do not (number, date,
 /// checkbox, ...) report `null` selections and throw on `setSelectionRange`.
 pub fn supports_selection<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {

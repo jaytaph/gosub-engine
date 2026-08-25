@@ -359,3 +359,63 @@ fn focus_and_blur_move_active_element() {
     );
     assert_eq!(result, "true|true|true|true");
 }
+
+#[test]
+fn request_submit_fires_the_event_but_submit_does_not() {
+    let result = eval(
+        "<form id=f><input value=x></form>",
+        "const seen = [];
+         const f = document.getElementById('f');
+         f.addEventListener('submit', () => seen.push('submit'));
+         f.submit();
+         const afterSubmit = seen.length;
+         f.requestSubmit();
+         [afterSubmit, seen.length].join('|')",
+    );
+    assert_eq!(result, "0|1");
+}
+
+#[test]
+fn a_cancelled_reset_keeps_the_live_state() {
+    let result = eval(
+        "<form id=f><input id=t value=orig></form>",
+        "const f = document.getElementById('f'), t = document.getElementById('t');
+         t.value = 'typed';
+         const cancel = e => e.preventDefault();
+         f.addEventListener('reset', cancel);
+         f.reset();
+         const kept = t.value;
+         f.removeEventListener('reset', cancel);
+         f.reset();
+         [kept, t.value].join('|')",
+    );
+    assert_eq!(result, "typed|orig");
+}
+
+#[test]
+fn stepping_snaps_to_the_grid_and_clamps() {
+    let result = eval(
+        "<input id=n type=number value=5 min=0 max=12 step=5>",
+        "const n = document.getElementById('n');
+         n.stepUp();
+         const up = n.value;
+         n.stepUp();
+         const clamped = n.value;
+         n.stepDown(2);
+         [up, clamped, n.value].join('|')",
+    );
+    assert_eq!(result, "10|10|0");
+}
+
+#[test]
+fn a_control_without_a_step_throws() {
+    let result = eval(
+        "<input id=a type=number step=any><input id=b value=x>",
+        "const names = [];
+         for (const id of ['a', 'b']) {
+           try { document.getElementById(id).stepUp(); } catch (e) { names.push(e.name); }
+         }
+         names.join(',')",
+    );
+    assert_eq!(result, "InvalidStateError,InvalidStateError");
+}

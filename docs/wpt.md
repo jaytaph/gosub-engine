@@ -111,6 +111,19 @@ the option/textarea reflections `value`, `label`, `text`, `type`.
 
 Node wrappers are cached per node, so `a.parentNode === b` holds.
 
+## Form submission and stepping
+
+`submit()`, `requestSubmit()` and `reset()` are bound, but there is no navigation here: what
+they exercise is the *difference* between them. `submit()` fires nothing and validates
+nothing; `requestSubmit()` validates first (firing `invalid` at each failing control) and
+then fires a cancelable `submit`; `reset()` fires a cancelable `reset` and, unless that is
+cancelled, calls `form::reset` - the same code a reset button runs.
+
+`stepUp()`/`stepDown()` use `edit::step`, which implements the spec's snap-then-clamp: a
+value already on the step grid moves by n steps, a value off the grid snaps to the next one
+in that direction, and the result is clamped to `[min, max]` on the grid. `number` and
+`range` only; anything else, including `step="any"`, throws `InvalidStateError`.
+
 ## Selection, focus and exceptions
 
 `selectionStart`, `selectionEnd`, `selectionDirection`, `setSelectionRange()`, `select()` and
