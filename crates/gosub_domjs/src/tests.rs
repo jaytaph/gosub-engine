@@ -419,3 +419,68 @@ fn a_control_without_a_step_throws() {
     );
     assert_eq!(result, "InvalidStateError,InvalidStateError");
 }
+
+#[test]
+fn the_form_attribute_beats_the_ancestor_form() {
+    let result = eval(
+        "<form id=a></form><form id=b><input id=i form=a></form>",
+        "const i = document.getElementById('i');
+         const first = i.form.id;
+         i.removeAttribute('form');
+         [first, i.form.id].join('|')",
+    );
+    assert_eq!(result, "a|b");
+}
+
+#[test]
+fn a_form_attribute_pointing_at_a_non_form_has_no_owner() {
+    let result = eval(
+        "<span id=target></span><form id=real></form><input id=i form=target>",
+        "const i = document.getElementById('i');
+         const none = i.form;
+         document.getElementById('target').id = 'other';
+         document.getElementById('real').id = 'target';
+         [String(none), i.form.id].join('|')",
+    );
+    assert_eq!(result, "null|target");
+}
+
+#[test]
+fn a_detached_control_ignores_its_form_attribute() {
+    let result = eval(
+        "<form id=a></form><form id=outer></form>",
+        "const outer = document.getElementById('outer');
+         const i = document.createElement('input');
+         i.setAttribute('form', 'a');
+         const detached = i.form;
+         outer.appendChild(i);
+         [String(detached), i.form.id].join('|')",
+    );
+    assert_eq!(result, "null|a");
+}
+
+#[test]
+fn a_parser_association_survives_moving_the_form_but_not_the_control() {
+    let result = eval(
+        "<table><form><tr><td><input></table><div id=box></div>",
+        "const input = document.querySelector('input');
+         const form = document.querySelector('form');
+         const box = document.getElementById('box');
+         const parsed = input.form === form;
+         box.appendChild(form.parentNode);
+         const carried = input.form === form;
+         box.appendChild(input);
+         [parsed, carried, String(input.form)].join('|')",
+    );
+    assert_eq!(result, "true|true|null");
+}
+
+#[test]
+fn a_label_reports_its_controls_form() {
+    let result = eval(
+        "<form id=f><input id=i></form><label id=l for=i>x</label>",
+        "const l = document.getElementById('l');
+         [l.control.id, l.form.id, document.getElementById('i').labels.length].join('|')",
+    );
+    assert_eq!(result, "i|f|1");
+}

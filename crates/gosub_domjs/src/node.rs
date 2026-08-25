@@ -104,6 +104,22 @@ impl GosubNode {
         doc.set_selected_option(self.id, chosen);
     }
 
+    /// Walk the parent's children from this node in `step` direction, optionally skipping
+    /// anything that is not an element.
+    fn sibling(&self, step: isize, elements_only: bool) -> Option<NodeId> {
+        let doc = self.doc.borrow();
+        let parent = doc.parent(self.id)?;
+        let children = doc.children(parent);
+        let mut index = children.iter().position(|&c| c == self.id)? as isize;
+        loop {
+            index += step;
+            let candidate = *children.get(usize::try_from(index).ok()?)?;
+            if !elements_only || doc.tag_name(candidate).is_some() {
+                return Some(candidate);
+            }
+        }
+    }
+
     /// Shared by `stepUp`/`stepDown`: a control with no allowed value step throws.
     fn step_by(&self, ctx: Ctx<'_>, n: i64) -> Result<()> {
         let stepped = edit::step::<DomConfig>(&self.doc.borrow(), self.id, n);
@@ -204,6 +220,30 @@ impl GosubNode {
             .collect();
         drop(doc);
         wrap_list(&ctx, &self.doc, &children)
+    }
+
+    #[qjs(get, rename = "nextSibling")]
+    pub fn next_sibling<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let sibling = self.sibling(1, false);
+        wrap_opt(&ctx, &self.doc, sibling)
+    }
+
+    #[qjs(get, rename = "previousSibling")]
+    pub fn previous_sibling<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let sibling = self.sibling(-1, false);
+        wrap_opt(&ctx, &self.doc, sibling)
+    }
+
+    #[qjs(get, rename = "nextElementSibling")]
+    pub fn next_element_sibling<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let sibling = self.sibling(1, true);
+        wrap_opt(&ctx, &self.doc, sibling)
+    }
+
+    #[qjs(get, rename = "previousElementSibling")]
+    pub fn previous_element_sibling<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let sibling = self.sibling(-1, true);
+        wrap_opt(&ctx, &self.doc, sibling)
     }
 
     #[qjs(get)]
@@ -855,7 +895,14 @@ impl GosubNode {
     /// nearest ancestor form.
     #[qjs(get)]
     pub fn form<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
-        let owner = form::form_owner::<DomConfig>(&self.doc.borrow(), self.id);
+        let doc = self.doc.borrow();
+        // A label reports its labeled control's owner, not its own.
+        let owner = if doc.tag_name(self.id) == Some("label") {
+            form::label_form::<DomConfig>(&doc, self.id)
+        } else {
+            form::form_owner::<DomConfig>(&doc, self.id)
+        };
+        drop(doc);
         wrap_opt(&ctx, &self.doc, owner)
     }
 
@@ -911,6 +958,32 @@ impl GosubNode {
             .filter(|&id| doc.tag_name(id).is_some_and(|tag| tag.eq_ignore_ascii_case(&name)))
             .collect();
         drop(doc);
+        wrap_list(&ctx, &self.doc, &found)
+    }
+
+    /// `HTMLLabelElement.control`: the control this label labels.
+    #[qjs(get)]
+    pub fn control<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let doc = self.doc.borrow();
+        let labeled = (doc.tag_name(self.id) == Some("label"))
+            .then(|| focus::label_control::<DomConfig>(&doc, self.id))
+            .flatten();
+        drop(doc);
+        wrap_opt(&ctx, &self.doc, labeled)
+    }
+
+    /// Every `<label>` that labels this control, in tree order.
+    #[qjs(get)]
+    pub fn labels<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let found = {
+            let doc = self.doc.borrow();
+            let root = doc.root();
+            select::descendants(&doc, root)
+                .into_iter()
+                .filter(|&id| doc.tag_name(id) == Some("label"))
+                .filter(|&id| focus::label_control::<DomConfig>(&doc, id) == Some(self.id))
+                .collect::<Vec<_>>()
+        };
         wrap_list(&ctx, &self.doc, &found)
     }
 

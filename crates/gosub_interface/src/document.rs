@@ -166,6 +166,15 @@ pub trait Document<C: HasCssSystem>: Sized + Display + Debug + PartialEq + 'stat
     fn control_edit_state(&self, _id: NodeId) -> Option<ControlEditState> {
         None
     }
+    /// The form the parser associated `id` with. This survives tree moves that carry the
+    /// element along with its form, and is dropped the moment the element itself is moved -
+    /// `None` means "work the owner out from the tree".
+    fn parser_form_owner(&self, _id: NodeId) -> Option<NodeId> {
+        None
+    }
+    /// Record the association the parser made. The default does nothing, for documents that
+    /// do not track form ownership.
+    fn set_parser_form_owner(&mut self, _id: NodeId, _form: NodeId) {}
     /// The message `setCustomValidity()` put on a control; empty/absent = no custom error.
     fn custom_validity(&self, _id: NodeId) -> Option<String> {
         None

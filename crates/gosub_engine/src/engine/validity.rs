@@ -279,16 +279,8 @@ pub fn check_validity<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) 
 /// Every control a `<form>` owns that currently fails validation, in tree order. Validating
 /// a form means validating these, and the caller fires an `invalid` event at each.
 pub fn invalid_controls<C: DomConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Vec<NodeId> {
-    let mut out = Vec::new();
-    let mut stack: Vec<NodeId> = doc.children(doc.root()).iter().rev().copied().collect();
-    while let Some(id) = stack.pop() {
-        stack.extend(doc.children(id).iter().rev());
-        if crate::engine::form::form_owner(doc, id) != Some(form) {
-            continue;
-        }
-        if will_validate(doc, id) && !validity(doc, id).valid() {
-            out.push(id);
-        }
-    }
-    out
+    crate::engine::form::owned_elements(doc, form)
+        .into_iter()
+        .filter(|&id| will_validate(doc, id) && !validity(doc, id).valid())
+        .collect()
 }
