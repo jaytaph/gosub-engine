@@ -1,13 +1,47 @@
 //! Editing form controls: typing into text fields, toggling checkboxes/radios. The state lives
 //! on the DOM document (`ControlEditState`, `is_checked`) where selectors and the painter read it.
 
-use crate::html::{EngineDocument, RenderConfiguration};
+use crate::html::{DomConfiguration, EngineDocument};
 use cow_utils::CowUtils;
 use gosub_interface::document::{ControlEditState, Document as _};
 use gosub_shared::node::NodeId;
 
+/// How a control's `value` behaves: the spec gives every `<input>` type one of these modes,
+/// and they disagree about whether the value is live state or just the content attribute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueMode {
+    /// Live editable state; the `value` attribute is only the default.
+    Value,
+    /// The `value` attribute itself.
+    Default,
+    /// The `value` attribute, or `"on"` when it is absent.
+    DefaultOn,
+    /// The selected file's name - always empty until uploads exist.
+    Filename,
+}
+
+/// The value mode of `id`, or `None` when it is not a control with a value at all.
+pub fn value_mode<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<ValueMode> {
+    match doc.tag_name(id)? {
+        "textarea" => Some(ValueMode::Value),
+        "input" => Some(
+            match doc
+                .attribute(id, "type")
+                .map(|t| t.cow_to_ascii_lowercase().into_owned())
+                .as_deref()
+            {
+                Some("checkbox" | "radio") => ValueMode::DefaultOn,
+                Some("file") => ValueMode::Filename,
+                Some("hidden" | "submit" | "image" | "reset" | "button") => ValueMode::Default,
+                _ => ValueMode::Value,
+            },
+        ),
+        _ => None,
+    }
+}
+
 /// `Some(multiline)` when `id` is an enabled, writable text-entry control.
-pub fn text_entry_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
+pub fn text_entry_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
     let tag = doc.tag_name(id)?;
     if doc.attribute(id, "disabled").is_some() || doc.attribute(id, "readonly").is_some() {
         return None;
@@ -30,7 +64,7 @@ pub fn text_entry_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: Node
 
 /// Drop the characters a control refuses: `type=number` takes only what can be part of a number
 /// (Chrome/Safari behaviour); everything else takes anything.
-pub fn filter_insert<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId, text: &str) -> String {
+pub fn filter_insert<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, text: &str) -> String {
     let numeric = doc.tag_name(id) == Some("input")
         && doc
             .attribute(id, "type")
@@ -51,7 +85,7 @@ pub fn filter_insert<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId
 
 /// The markup value: the `value` attribute, or a `<textarea>`'s text content minus the one
 /// leading newline HTML allows after the start tag.
-pub fn initial_value<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
+pub fn initial_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
     if doc.tag_name(id) == Some("textarea") {
         let mut out = String::new();
         for &child in doc.children(id) {
@@ -65,7 +99,7 @@ pub fn initial_value<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId
 }
 
 /// `Some(is_radio)` when `id` is an enabled checkbox or radio button.
-pub fn toggle_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
+pub fn toggle_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
     if doc.tag_name(id) != Some("input") || doc.attribute(id, "disabled").is_some() {
         return None;
     }
@@ -82,7 +116,7 @@ pub fn toggle_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) 
 
 /// A checkbox flips; a radio becomes checked and the rest of its group (same `name` within the
 /// nearest `<form>`, or the document) is unchecked. Returns the `(node, checked)` changes.
-pub fn toggle<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Vec<(NodeId, bool)> {
+pub fn toggle<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Vec<(NodeId, bool)> {
     match toggle_kind(doc, id) {
         None => Vec::new(),
         Some(false) => vec![(id, !doc.is_checked(id))],
@@ -316,7 +350,7 @@ pub fn apply(state: &mut ControlEditState, action: &EditAction) -> bool {
 }
 
 /// `(min, max, step)` of an enabled `<input type=range>`. `step="any"` → a fine step.
-pub fn range_params<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<(f64, f64, f64)> {
+pub fn range_params<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<(f64, f64, f64)> {
     if doc.tag_name(id) != Some("input")
         || doc.attribute(id, "disabled").is_some()
         || !doc
@@ -337,7 +371,7 @@ pub fn range_params<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId)
 
 /// The slider's current value: what the user dragged to, else the `value` attribute, else the
 /// midpoint (HTML's default for range).
-pub fn range_value<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId, min: f64, max: f64) -> f64 {
+pub fn range_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, min: f64, max: f64) -> f64 {
     doc.control_edit_state(id)
         .and_then(|s| s.value.trim().parse::<f64>().ok())
         .or_else(|| doc.attribute(id, "value").and_then(|v| v.trim().parse::<f64>().ok()))
@@ -362,12 +396,12 @@ pub fn format_number(v: f64) -> String {
 }
 
 /// `id` is an enabled `<select>`.
-pub fn is_select<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+pub fn is_select<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
     doc.tag_name(id) == Some("select") && doc.attribute(id, "disabled").is_none()
 }
 
 /// The enabled options of a `<select>`, in order, through `<optgroup>`s.
-pub fn select_options<C: RenderConfiguration>(doc: &EngineDocument<C>, select: NodeId) -> Vec<NodeId> {
+pub fn select_options<C: DomConfiguration>(doc: &EngineDocument<C>, select: NodeId) -> Vec<NodeId> {
     let mut out = Vec::new();
     let mut stack: Vec<NodeId> = doc.children(select).iter().rev().copied().collect();
     while let Some(id) = stack.pop() {

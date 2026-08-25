@@ -21,6 +21,14 @@ cargo run -p gosub-wpt -- <wpt-root> <test.html>... [-v]
 Paths are taken relative to the wpt root when they are not found as given. The exit code is
 non-zero if any subtest failed.
 
+## Sloppy mode
+
+Page scripts are evaluated **non-strict**, the way a browser runs them. rquickjs defaults to
+strict, which was wrong in two ways that both read as engine failures: assigning to an
+accessor with no setter throws instead of silently doing nothing, and assigning to an
+undeclared name throws `ReferenceError` instead of creating a global. Use
+`gosub_domjs::eval_script` rather than `Ctx::eval` for anything that came out of a page.
+
 ## The one rule
 
 **The bindings hold no DOM logic.** Every property reads or writes the real document, so a
@@ -82,6 +90,18 @@ the listener list and has to observe removals made by listeners that run before 
 `getElementsByTagName`, `body`, `head`, `documentElement`.
 
 `Node` also carries `addEventListener`, `removeEventListener`, `dispatchEvent` and `click`.
+
+Reflected IDL attributes come in getter/setter **pairs**. A getter on its own is worse than
+no binding at all: in a page script the assignment is a silent no-op, so the test carries on
+and fails far away from the line that actually did nothing. Bound today: `id`, `className`,
+`name`, `placeholder`, `pattern`, `min`, `max`, `step`, `accept`, `autocomplete`, `action`,
+`method`, `htmlFor`, `disabled`, `required`, `readOnly`, `multiple`, `autofocus`,
+`noValidate`, `maxLength`, `minLength`, `size`, `rows`, `cols`, `type`.
+
+Live control state is read and written through the engine, never mirrored in the binding:
+`value` (via `edit::value_mode` and `form::live_value`), `checked`, `defaultValue`,
+`defaultChecked`, `selected`, `defaultSelected`, `selectedIndex`, `options`,
+`selectedOptions`, `text`, `label`, `textLength`, and `form` (via `form::form_owner`).
 
 `Node`: `nodeType`, `nodeName`, `tagName`, `localName`, `parentNode`, `parentElement`,
 `childNodes`, `children`, `firstChild`, `appendChild`, `removeChild`, `remove`,

@@ -3192,6 +3192,7 @@ dependencies = [
  "anyhow",
  "cow-utils",
  "gosub_css3",
+ "gosub_engine",
  "gosub_html5",
  "gosub_interface",
  "gosub_shared",

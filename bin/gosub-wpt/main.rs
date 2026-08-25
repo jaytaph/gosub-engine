@@ -159,13 +159,13 @@ fn run_test(wpt_root: &Path, test_path: &Path, verbose: bool) -> anyhow::Result<
         // testharness.js needs `self` to exist, but must not see `document` yet: it picks its
         // environment by looking for one, and the window environment expects a message-passing
         // browser we do not have. `document` is installed right after, still before any test runs.
-        ctx.eval::<(), _>("globalThis.self = globalThis;")
+        gosub_domjs::eval_script::<()>(&ctx, b"globalThis.self = globalThis;")
             .catch(&ctx)
             .map_err(|e| anyhow::anyhow!("globals: {e}"))?;
-        ctx.eval::<(), _>(harness.as_bytes())
+        gosub_domjs::eval_script::<()>(&ctx, harness.as_bytes())
             .catch(&ctx)
             .map_err(|e| anyhow::anyhow!("testharness.js: {e}"))?;
-        ctx.eval::<(), _>(RESULTS_HOOK)
+        gosub_domjs::eval_script::<()>(&ctx, RESULTS_HOOK.as_bytes())
             .catch(&ctx)
             .map_err(|e| anyhow::anyhow!("results hook: {e}"))?;
 
@@ -183,13 +183,13 @@ fn run_test(wpt_root: &Path, test_path: &Path, verbose: bool) -> anyhow::Result<
                 }
                 Script::Inline(code) => ("<inline>".to_string(), code.clone()),
             };
-            if let Err(e) = ctx.eval::<(), _>(code.as_bytes()).catch(&ctx) {
+            if let Err(e) = gosub_domjs::eval_script::<()>(&ctx, code.as_bytes()).catch(&ctx) {
                 println!("  script {label} threw: {e}");
             }
             drain_jobs(&ctx);
         }
 
-        ctx.eval::<(), _>("done()")
+        gosub_domjs::eval_script::<()>(&ctx, b"done()")
             .catch(&ctx)
             .map_err(|e| anyhow::anyhow!("done(): {e}"))?;
         drain_jobs(&ctx);
@@ -209,7 +209,7 @@ fn run_test(wpt_root: &Path, test_path: &Path, verbose: bool) -> anyhow::Result<
         // environment has no default timeout, so nothing marks it. Once the queue is dry the
         // driver plays the part of the timeout the browser would have applied.
         if !ctx.eval::<bool, _>("__wpt_results !== null").unwrap_or(false) {
-            ctx.eval::<(), _>("timeout()")
+            gosub_domjs::eval_script::<()>(&ctx, b"timeout()")
                 .catch(&ctx)
                 .map_err(|e| anyhow::anyhow!("timeout(): {e}"))?;
             drain_jobs(&ctx);

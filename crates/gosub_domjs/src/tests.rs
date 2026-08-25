@@ -14,9 +14,13 @@ fn eval_after_timers(html: &str, script: &str, after: &str) -> String {
     let timers: Timers = std::rc::Rc::new(std::cell::RefCell::new(TimerState::default()));
     context.with(|ctx| {
         install(&ctx, doc, &timers).expect("install");
-        ctx.eval::<(), _>(script).catch(&ctx).expect("eval");
+        crate::eval_script::<()>(&ctx, script.as_bytes())
+            .catch(&ctx)
+            .expect("eval");
         while crate::timers::run_next(&ctx, &timers).expect("timers") {}
-        ctx.eval::<String, _>(after).catch(&ctx).expect("read back")
+        crate::eval_script::<String>(&ctx, after.as_bytes())
+            .catch(&ctx)
+            .expect("read back")
     })
 }
 
@@ -27,7 +31,9 @@ fn eval(html: &str, script: &str) -> String {
     let timers: Timers = std::rc::Rc::new(std::cell::RefCell::new(TimerState::default()));
     context.with(|ctx| {
         install(&ctx, doc, &timers).expect("install");
-        let result = ctx.eval::<String, _>(script).catch(&ctx).expect("eval");
+        let result = crate::eval_script::<String>(&ctx, script.as_bytes())
+            .catch(&ctx)
+            .expect("eval");
         while crate::timers::run_next(&ctx, &timers).expect("timers") {}
         result
     })
@@ -176,4 +182,60 @@ fn click_reaches_a_listener_on_an_ancestor() {
          seen.join(',')",
     );
     assert_eq!(seen, "BUTTON");
+}
+
+#[test]
+fn setting_value_does_not_disturb_the_default() {
+    let result = eval(
+        "<input id=i value=start>",
+        "const i = document.getElementById('i');
+         i.value = 'typed';
+         [i.value, i.defaultValue, i.getAttribute('value')].join('|')",
+    );
+    assert_eq!(result, "typed|start|start");
+}
+
+#[test]
+fn checked_is_live_state_and_the_attribute_is_the_default() {
+    let result = eval(
+        "<input id=c type=checkbox>",
+        "const c = document.getElementById('c');
+         c.checked = true;
+         [c.checked, c.defaultChecked, c.hasAttribute('checked')].join('|')",
+    );
+    assert_eq!(result, "true|false|false");
+}
+
+#[test]
+fn select_value_and_selected_index_agree() {
+    let result = eval(
+        "<select id=s><option value=a>A<option value=b>B</select>",
+        "const s = document.getElementById('s');
+         s.value = 'b';
+         const first = s.selectedIndex;
+         s.selectedIndex = 0;
+         [first, s.value, s.options.length].join('|')",
+    );
+    assert_eq!(result, "1|a|2");
+}
+
+#[test]
+fn clearing_a_boolean_property_removes_the_attribute() {
+    let result = eval(
+        "<input id=i disabled>",
+        "const i = document.getElementById('i');
+         const before = i.disabled;
+         i.disabled = false;
+         [before, i.disabled, i.hasAttribute('disabled')].join('|')",
+    );
+    assert_eq!(result, "true|false|false");
+}
+
+#[test]
+fn form_owner_follows_the_form_attribute_out_of_the_tree() {
+    let result = eval(
+        "<form id=f></form><input id=i form=f>",
+        "String(document.getElementById('i').form === document.getElementById('f'))",
+    );
+    assert_eq!(result, "true");
 }

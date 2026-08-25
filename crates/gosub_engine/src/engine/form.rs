@@ -2,7 +2,7 @@
 //! `application/x-www-form-urlencoded` encoding, and the request a submit turns into.
 
 use crate::engine::edit;
-use crate::html::{EngineDocument, RenderConfiguration};
+use crate::html::{DomConfiguration, EngineDocument};
 use cow_utils::CowUtils;
 use gosub_interface::document::Document as _;
 use gosub_shared::node::NodeId;
@@ -18,7 +18,7 @@ pub struct Submission {
 }
 
 /// The `<form>` a control belongs to: its `form` attribute's target, else the nearest ancestor.
-pub fn form_owner<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<NodeId> {
+pub fn form_owner<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<NodeId> {
     if let Some(target) = doc.attribute(id, "form").and_then(|f| doc.node_by_named_id(f)) {
         if doc.tag_name(target) == Some("form") {
             return Some(target);
@@ -33,14 +33,14 @@ pub fn form_owner<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -
     }
 }
 
-fn input_type<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
+fn input_type<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
     doc.attribute(id, "type")
         .map(|t| t.cow_to_ascii_lowercase().into_owned())
         .unwrap_or_else(|| "text".to_string())
 }
 
 /// `Some(is_reset)` when `id` is an enabled submit or reset button.
-pub fn button_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
+pub fn button_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
     if doc.attribute(id, "disabled").is_some() {
         return None;
     }
@@ -61,7 +61,7 @@ pub fn button_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) 
 
 /// The form data set: `(name, value)` of every successful control in `form`, in tree order.
 /// `submitter` is the button that triggered the submit (other buttons don't contribute).
-pub fn data_set<C: RenderConfiguration>(
+pub fn data_set<C: DomConfiguration>(
     doc: &EngineDocument<C>,
     form: NodeId,
     submitter: Option<NodeId>,
@@ -113,28 +113,60 @@ pub fn data_set<C: RenderConfiguration>(
     out
 }
 
-fn live_value<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
+/// What a control currently holds: what the user typed, else its markup value.
+pub fn live_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
     doc.control_edit_state(id)
         .map(|s| s.value)
         .unwrap_or_else(|| edit::initial_value(doc, id))
 }
 
-/// An option's submission value: its `value` attribute, else its text.
-fn option_value<C: RenderConfiguration>(doc: &EngineDocument<C>, opt: NodeId) -> String {
-    if let Some(v) = doc.attribute(opt, "value") {
-        return v.to_string();
+/// An `<option>`'s text: the text of every descendant, stripped and collapsed. Descendant,
+/// not child - `<option>a<b>x</b></option>` reads as `"ax"` - and inner whitespace runs
+/// collapse to one space, so `" a  b "` reads as `"a b"`.
+pub fn option_text<C: DomConfiguration>(doc: &EngineDocument<C>, opt: NodeId) -> String {
+    let mut raw = String::new();
+    collect_text(doc, opt, &mut raw);
+    strip_and_collapse(&raw)
+}
+
+fn collect_text<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, out: &mut String) {
+    if let Some(text) = doc.text_value(id) {
+        out.push_str(text);
     }
-    doc.children(opt)
-        .iter()
-        .filter_map(|&c| doc.text_value(c))
-        .collect::<String>()
-        .trim()
-        .to_string()
+    for &child in doc.children(id) {
+        collect_text(doc, child, out);
+    }
+}
+
+/// Infra's "strip and collapse ASCII whitespace".
+fn strip_and_collapse(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut pending_space = false;
+    for ch in input.chars() {
+        if ch.is_ascii_whitespace() {
+            pending_space = !out.is_empty();
+            continue;
+        }
+        if pending_space {
+            out.push(' ');
+            pending_space = false;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// An option's submission value: its `value` attribute, else its text.
+pub fn option_value<C: DomConfiguration>(doc: &EngineDocument<C>, opt: NodeId) -> String {
+    match doc.attribute(opt, "value") {
+        Some(value) => value.to_string(),
+        None => option_text(doc, opt),
+    }
 }
 
 /// The request for submitting `form` via `submitter`, resolved against `base`. Only
 /// urlencoded GET/POST; other methods/enctypes fall back to that.
-pub fn submission<C: RenderConfiguration>(
+pub fn submission<C: DomConfiguration>(
     doc: &EngineDocument<C>,
     form: NodeId,
     submitter: Option<NodeId>,
@@ -177,7 +209,7 @@ pub fn submission<C: RenderConfiguration>(
 }
 
 /// The controls of `form` whose live state a reset should forget.
-pub fn controls<C: RenderConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Vec<NodeId> {
+pub fn controls<C: DomConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Vec<NodeId> {
     let mut out = Vec::new();
     let mut stack: Vec<NodeId> = doc.children(form).iter().rev().copied().collect();
     while let Some(id) = stack.pop() {
@@ -191,7 +223,7 @@ pub fn controls<C: RenderConfiguration>(doc: &EngineDocument<C>, form: NodeId) -
 
 /// The button an Enter key in a text field submits through: the form's first submit button.
 /// Without one, implicit submission still happens when the form has a single text field.
-pub fn default_submitter<C: RenderConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Option<Option<NodeId>> {
+pub fn default_submitter<C: DomConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Option<Option<NodeId>> {
     let mut text_fields = 0;
     let mut stack: Vec<NodeId> = doc.children(form).iter().rev().copied().collect();
     while let Some(id) = stack.pop() {
