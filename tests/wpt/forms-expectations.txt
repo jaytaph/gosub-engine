@@ -401,7 +401,6 @@ FAIL html/semantics/forms/the-fieldset-element/disabled-003.html :: Disable deep
 FILE html/semantics/forms/the-fieldset-element/fieldset-validity.html
 FILE html/semantics/forms/the-fieldset-element/fieldset-checkvalidity.html
 FILE html/semantics/forms/the-fieldset-element/fieldset-setcustomvalidity.html
-FAIL html/semantics/forms/the-fieldset-element/fieldset-setcustomvalidity.html :: fieldset setCustomValidity is correct
 FILE html/semantics/forms/the-fieldset-element/fieldset-validationmessage.html
 FILE html/semantics/forms/the-fieldset-element/HTMLFieldSetElement.html
 HARNESS html/semantics/forms/the-fieldset-element/HTMLFieldSetElement.html
@@ -760,36 +759,6 @@ FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html
 FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in RADIO status] The checked attribute is false and the name attribute is empty
 FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in FILE status] The Files attribute is null
 FILE html/semantics/forms/constraints/form-validation-checkValidity.html
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from a step mismatch (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATE status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATE status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATE status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATE status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATE status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in DATE status] suffering from a step mismatch (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in MONTH status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in MONTH status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in MONTH status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in MONTH status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in MONTH status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in MONTH status] suffering from a step mismatch (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in WEEK status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in WEEK status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in WEEK status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in WEEK status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in WEEK status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in WEEK status] suffering from a step mismatch (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in TIME status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in TIME status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in TIME status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in TIME status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in TIME status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-checkValidity.html :: [INPUT in TIME status] suffering from a step mismatch (in a form)
 FILE html/semantics/forms/constraints/radio-valueMissing.html
 FAIL html/semantics/forms/constraints/radio-valueMissing.html :: The required attribute is not set
 FAIL html/semantics/forms/constraints/radio-valueMissing.html :: One of the radios is required, but none checked
@@ -804,172 +773,50 @@ FILE html/semantics/forms/constraints/form-validation-validity-tooShort.html
 FILE html/semantics/forms/constraints/infinite_backtracking.tentative.html
 FAIL html/semantics/forms/constraints/infinite_backtracking.tentative.html :: Infinite backtracking pattern terminates
 FILE html/semantics/forms/constraints/form-validation-validity-valid-weekmonth.html
-FAIL html/semantics/forms/constraints/form-validation-validity-valid-weekmonth.html :: [INPUT in MONTH status] validity.valid must be false if validity.rangeOverflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid-weekmonth.html :: [INPUT in MONTH status] validity.valid must be false if validity.rangeUnderflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid-weekmonth.html :: [INPUT in MONTH status] validity.valid must be false if validity.stepMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid-weekmonth.html :: [INPUT in WEEK status] validity.valid must be false if validity.rangeOverflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid-weekmonth.html :: [INPUT in WEEK status] validity.valid must be false if validity.rangeUnderflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid-weekmonth.html :: [INPUT in WEEK status] validity.valid must be false if validity.stepMismatch is true
 FILE html/semantics/forms/constraints/form-validation-validity-badInput.html
 FILE html/semantics/forms/constraints/form-validation-validity-rangeUnderflow-weekmonth.html
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow-weekmonth.html :: [INPUT in MONTH status] The value attribute is less than min attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow-weekmonth.html :: [INPUT in MONTH status] The value attribute is less than min attribute(Year is 10000 should be valid)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow-weekmonth.html :: [INPUT in WEEK status] The value attribute is less than min attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow-weekmonth.html :: [INPUT in WEEK status] The value attribute is less than min attribute(Year is 10000 should be valid)
 FILE html/semantics/forms/constraints/form-validation-validity-tooLong.html
 FILE html/semantics/forms/constraints/input-maxlength-emoji.html
 FAIL html/semantics/forms/constraints/input-maxlength-emoji.html :: Emoji gets truncated due to maxlength attribute
 FILE html/semantics/forms/constraints/form-validation-validity-patternMismatch.html
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEXT status] The value attribute mismatches the pattern attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEXT status] The value attribute mismatches the pattern attribute even when a subset matches
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEXT status] Invalid `v` regular expression gets ignored
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEXT status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEXT status] The value attribute mismatches JavaScript-specific regular expression
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in SEARCH status] The value attribute mismatches the pattern attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in SEARCH status] The value attribute mismatches the pattern attribute even when a subset matches
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in SEARCH status] Invalid `v` regular expression gets ignored
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in SEARCH status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in SEARCH status] The value attribute mismatches JavaScript-specific regular expression
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEL status] The value attribute mismatches the pattern attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEL status] The value attribute mismatches the pattern attribute even when a subset matches
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEL status] Invalid `v` regular expression gets ignored
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEL status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEL status] The value attribute mismatches JavaScript-specific regular expression
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in URL status] The value attribute mismatches the pattern attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in URL status] The value attribute mismatches the pattern attribute even when a subset matches
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in URL status] Invalid `v` regular expression gets ignored
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in URL status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in URL status] The value attribute mismatches JavaScript-specific regular expression
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The value attribute mismatches the pattern attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The value attribute mismatches the pattern attribute even when a subset matches
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] Invalid `v` regular expression gets ignored
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The value attribute mismatches JavaScript-specific regular expression
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in PASSWORD status] The value attribute mismatches the pattern attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in PASSWORD status] The value attribute mismatches the pattern attribute even when a subset matches
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in PASSWORD status] Invalid `v` regular expression gets ignored
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in PASSWORD status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in PASSWORD status] The value attribute mismatches JavaScript-specific regular expression
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The value attribute mismatches the pattern attribute, if multiple is present
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The value attribute mismatches the pattern attribute even when a subset matches, if multiple is present
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] Invalid `v` regular expression gets ignored, if multiple is present
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The pattern attribute tries to escape a group, if multiple is present
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The value attribute mismatches JavaScript-specific regular expression, if multiple is present
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] Commas should be stripped from regex input, if multiple is present
 FILE html/semantics/forms/constraints/form-validation-willValidate-datalist.html
 FILE html/semantics/forms/constraints/form-validation-validity-rangeOverflow-weekmonth.html
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow-weekmonth.html :: [INPUT in MONTH status] The value attribute is greater than max attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow-weekmonth.html :: [INPUT in MONTH status] The value attribute is greater than max attribute(Year is 10000 should be valid)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow-weekmonth.html :: [INPUT in WEEK status] The value attribute is greater than max attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow-weekmonth.html :: [INPUT in WEEK status] The value attribute is greater than max attribute(Year is 10000 should be valid)
 FILE html/semantics/forms/constraints/form-validation-validity-customError.html
-FAIL html/semantics/forms/constraints/form-validation-validity-customError.html :: [input]  The validity.customError must be true if the custom validity error message is not empty
 FAIL html/semantics/forms/constraints/form-validation-validity-customError.html :: [button]  The validity.customError must be true if the custom validity error message is not empty
 FILE html/semantics/forms/constraints/form-validation-reportValidity.html
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATETIME-LOCAL status] suffering from a step mismatch (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATE status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATE status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATE status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATE status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATE status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in DATE status] suffering from a step mismatch (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in MONTH status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in MONTH status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in MONTH status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in MONTH status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in MONTH status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in MONTH status] suffering from a step mismatch (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in WEEK status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in WEEK status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in WEEK status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in WEEK status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in WEEK status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in WEEK status] suffering from a step mismatch (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in TIME status] suffering from an overflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in TIME status] suffering from an overflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in TIME status] suffering from an underflow
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in TIME status] suffering from an underflow (in a form)
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in TIME status] suffering from a step mismatch
-FAIL html/semantics/forms/constraints/form-validation-reportValidity.html :: [INPUT in TIME status] suffering from a step mismatch (in a form)
 FILE html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in DATETIME-LOCAL status] The value is greater than max
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in DATETIME-LOCAL status] The value is greater than max(with millisecond in 1 digit)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in DATETIME-LOCAL status] The value is greater than max(with millisecond in 2 digits)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in DATETIME-LOCAL status] The value is greater than max(with millisecond in 3 digits)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in DATETIME-LOCAL status] The value is greater than max(Year is 10000 should be valid)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in DATE status] The value attribute is greater than max attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in DATE status] The value attribute is greater than max attribute(Year is 10000 should be valid)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in TIME status] The value attribute is greater than max attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in TIME status] The value is greater than max(with millisecond in 1 digit)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in TIME status] The value is greater than max(with millisecond in 2 digit)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in TIME status] The value is greater than max(with millisecond in 3 digit)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in TIME status] The time missing second part is valid
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in TIME status] The time is outside the accepted range for reversed range
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in NUMBER status] The value is greater than max(integer)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in NUMBER status] The value is greater than max(floating number)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in NUMBER status] The value is greater than max(special floating number)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in NUMBER status] The value is greater than max(scientific notation)
+FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in TIME status] The time is min for reversed range
+FAIL html/semantics/forms/constraints/form-validation-validity-rangeOverflow.html :: [INPUT in TIME status] The time is inside the accepted range for reversed range
 FILE html/semantics/forms/constraints/form-validation-validity-valid.html
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in TEXT status] validity.valid must be false if validity.patternMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in SEARCH status] validity.valid must be false if validity.patternMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in TEL status] validity.valid must be false if validity.patternMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in PASSWORD status] validity.valid must be false if validity.patternMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in URL status] validity.valid must be false if validity.patternMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in URL status] validity.valid must be false if validity.typeMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in EMAIL status] validity.valid must be false if validity.patternMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in EMAIL status] validity.valid must be false if validity.typeMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in DATETIME-LOCAL status] validity.valid must be false if validity.rangeOverflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in DATETIME-LOCAL status] validity.valid must be false if validity.rangeUnderflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in DATETIME-LOCAL status] validity.valid must be false if validity.stepMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in DATE status] validity.valid must be false if validity.rangeOverflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in DATE status] validity.valid must be false if validity.rangeUnderflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in DATE status] validity.valid must be false if validity.stepMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in TIME status] validity.valid must be false if validity.rangeOverflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in TIME status] validity.valid must be false if validity.rangeUnderflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in TIME status] validity.valid must be false if validity.stepMismatch is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in NUMBER status] validity.valid must be false if validity.rangeOverflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in NUMBER status] validity.valid must be false if validity.rangeUnderflow is true
-FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in NUMBER status] validity.valid must be false if validity.stepMismatch is true
 FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in CHECKBOX status] validity.valid must be false if validity.valueMissing is true
 FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in RADIO status] validity.valid must be false if validity.valueMissing is true
 FAIL html/semantics/forms/constraints/form-validation-validity-valid.html :: [INPUT in FILE status] validity.valid must be false if validity.valueMissing is true
 FILE html/semantics/forms/constraints/form-validation-validity-stepMismatch.html
-FAIL html/semantics/forms/constraints/form-validation-validity-stepMismatch.html :: [INPUT in DATE status] The value must mismatch the step
-FAIL html/semantics/forms/constraints/form-validation-validity-stepMismatch.html :: [INPUT in MONTH status] The value must mismatch the step
-FAIL html/semantics/forms/constraints/form-validation-validity-stepMismatch.html :: [INPUT in WEEK status] The value must mismatch the step
-FAIL html/semantics/forms/constraints/form-validation-validity-stepMismatch.html :: [INPUT in TIME status] The value must mismatch the step
-FAIL html/semantics/forms/constraints/form-validation-validity-stepMismatch.html :: [INPUT in DATETIME-LOCAL status] The value must mismatch the step
-FAIL html/semantics/forms/constraints/form-validation-validity-stepMismatch.html :: [INPUT in NUMBER status] The step attribute is not set and the value attribute is a floating number
-FAIL html/semantics/forms/constraints/form-validation-validity-stepMismatch.html :: [INPUT in NUMBER status] The value must mismatch the step
 FAIL html/semantics/forms/constraints/form-validation-validity-stepMismatch.html :: [INPUT in NUMBER status] Step mismatch when step is a very small floating number and value is not its integral multiple
 FILE html/semantics/forms/constraints/form-validation-validity-typeMismatch.html
-FAIL html/semantics/forms/constraints/form-validation-validity-typeMismatch.html :: [INPUT in EMAIL status] The value is not an email address
-FAIL html/semantics/forms/constraints/form-validation-validity-typeMismatch.html :: [INPUT in EMAIL status] The value contains multiple email addresses
-FAIL html/semantics/forms/constraints/form-validation-validity-typeMismatch.html :: [INPUT in EMAIL status] The value contains invalid separator
-FAIL html/semantics/forms/constraints/form-validation-validity-typeMismatch.html :: [INPUT in URL status] The value is not an url
 FILE html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in DATETIME-LOCAL status] The value is less than min
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in DATETIME-LOCAL status] The value is less than min(with millisecond in 1 digit)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in DATETIME-LOCAL status] The value is less than min(with millisecond in 2 digits)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in DATETIME-LOCAL status] The value is less than min(with millisecond in 3 digits)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in DATETIME-LOCAL status] The value is less than min(Year is 10000 should be valid)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in DATE status] The value attribute is less than min attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in DATE status] The value attribute is less than min attribute(Year is 10000 should be valid)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in TIME status] The value attribute is less than min attribute
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in TIME status] The value is less than min(with millisecond in 1 digit)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in TIME status] The value is less than min(with millisecond in 2 digit)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in TIME status] The value is less than min(with millisecond in 3 digit)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in TIME status] The time missing second part is valid
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in TIME status] The time is outside the accepted range for reversed range
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in NUMBER status] The value is less than min(integer)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in NUMBER status] The value is less than min(floating number)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in NUMBER status] The value is less than min(special floating number)
-FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in NUMBER status] The value is less than min(scientific notation)
+FAIL html/semantics/forms/constraints/form-validation-validity-rangeUnderflow.html :: [INPUT in TIME status] The time is max for reversed range
 FILE html/semantics/forms/constraints/form-validation-willValidate.html
 FILE html/semantics/forms/constraints/form-validation-validate.html
 HARNESS html/semantics/forms/constraints/form-validation-validate.html
@@ -989,7 +836,6 @@ FAIL html/semantics/forms/the-output-element/output.html :: output value and def
 FILE html/semantics/forms/the-output-element/output-validity.html
 FAIL html/semantics/forms/the-output-element/output-validity.html :: :valid and :invalid pseudo-class on output element
 FILE html/semantics/forms/the-output-element/output-setcustomvalidity.html
-FAIL html/semantics/forms/the-output-element/output-setcustomvalidity.html :: output setCustomValidity is correct
 FILE html/semantics/forms/the-textarea-element/textarea-validity-clone.html
 FILE html/semantics/forms/the-textarea-element/change-to-empty-value.html
 FAIL html/semantics/forms/the-textarea-element/change-to-empty-value.html :: Untitled
@@ -1008,7 +854,6 @@ FILE html/semantics/forms/the-textarea-element/textarea-minlength.html
 FAIL html/semantics/forms/the-textarea-element/textarea-minlength.html :: Negative minlength is always -1
 FAIL html/semantics/forms/the-textarea-element/textarea-minlength.html :: Assigning negative integer throws IndexSizeError
 FILE html/semantics/forms/the-textarea-element/textarea-validity-valueMissing-inside-datalist.html
-FAIL html/semantics/forms/the-textarea-element/textarea-validity-valueMissing-inside-datalist.html :: Untitled
 FILE html/semantics/forms/the-textarea-element/cloning-steps.html
 FAIL html/semantics/forms/the-textarea-element/cloning-steps.html :: textarea element's value should be cloned
 FAIL html/semantics/forms/the-textarea-element/cloning-steps.html :: textarea element's dirty value flag should be cloned, so setAttribute doesn't affect the cloned textarea's value

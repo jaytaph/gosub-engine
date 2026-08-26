@@ -802,3 +802,26 @@ fn a_control_with_no_numeric_value_refuses_one() {
     );
     assert_eq!(result, "NaN|InvalidStateError/true");
 }
+
+#[test]
+fn only_being_missing_asks_whether_the_control_is_mutable() {
+    let result = eval(
+        "<input id=a required disabled><input id=b type=number max=5 value=9 disabled>",
+        "const a = document.getElementById('a'), b = document.getElementById('b');
+         // A required field nobody can fill in is not missing, but a value past its max is
+         // still past its max.
+         [a.validity.valueMissing, b.validity.rangeOverflow].join('|')",
+    );
+    assert_eq!(result, "false|true");
+}
+
+#[test]
+fn temporal_bounds_are_compared_in_their_own_units() {
+    let result = eval(
+        "<input id=d type=date min=2019-01-01 max=2019-12-31 value=2020-06-01>
+         <input id=t type=time max=12:00 value=13:00>",
+        "const d = document.getElementById('d'), t = document.getElementById('t');
+         [d.validity.rangeOverflow, d.validity.rangeUnderflow, t.validity.rangeOverflow].join('|')",
+    );
+    assert_eq!(result, "true|false|true");
+}

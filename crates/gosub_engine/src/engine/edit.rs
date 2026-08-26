@@ -65,6 +65,14 @@ pub fn is_disabled<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> 
     false
 }
 
+/// Whether the user could change this control: not disabled, and not read-only.
+///
+/// Only some constraints care - a *required* field that nobody can type into is not
+/// "missing", but a value past its `max` is still past its `max`.
+pub fn is_mutable<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+    !is_disabled(doc, id) && doc.attribute(id, "readonly").is_none()
+}
+
 /// The spec's "rules for parsing floating-point number values": no whitespace, no infinities
 /// and no NaN, so `" 1"`, `"inf"` and `"1px"` are all failures.
 pub fn parse_number(value: &str) -> Option<f64> {

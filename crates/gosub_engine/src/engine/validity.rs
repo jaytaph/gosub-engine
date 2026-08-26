@@ -81,11 +81,6 @@ fn has_ancestor<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, tag: &
 
 /// Which constraints `id` currently fails.
 pub fn validity<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Validity {
-    // A control barred from constraint validation reports no failures at all, whatever its
-    // attributes say - a disabled required field is not "missing".
-    if !will_validate(doc, id) {
-        return Validity::default();
-    }
     let mut flags = Validity {
         custom_error: doc.custom_validity(id).is_some_and(|m| !m.is_empty()),
         ..Validity::default()
@@ -98,12 +93,14 @@ pub fn validity<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Val
     let required = doc.attribute(id, "required").is_some();
     let ty = input_type(doc, id);
 
-    flags.value_missing = required && is_missing(doc, id, tag, &ty, &value);
+    // Being missing is the one constraint that asks whether the user could have filled it
+    // in; everything else holds whether or not the control is mutable.
+    flags.value_missing = required && edit::is_mutable(doc, id) && is_missing(doc, id, tag, &ty, &value);
 
     if tag == "input" {
         flags.type_mismatch = type_mismatch(doc, id, &ty, &value);
         flags.pattern_mismatch = pattern_mismatch(doc, id, &ty, &value);
-        let (under, over, step) = numeric_flags(doc, id, &ty, &value);
+        let (under, over, step) = numeric_flags(doc, id, &value);
         flags.range_underflow = under;
         flags.range_overflow = over;
         flags.step_mismatch = step;
@@ -217,30 +214,22 @@ fn length_attr<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, name: &
 }
 
 /// `(underflow, overflow, step mismatch)` for the numeric input types.
-fn numeric_flags<C: DomConfiguration>(
-    doc: &EngineDocument<C>,
-    id: NodeId,
-    ty: &str,
-    value: &str,
-) -> (bool, bool, bool) {
-    if !matches!(ty, "number" | "range") {
+fn numeric_flags<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, value: &str) -> (bool, bool, bool) {
+    if value.is_empty() {
         return (false, false, false);
     }
-    let Some(number) = edit::parse_number(value) else {
+    let number = edit::value_as_number(doc, id);
+    if number.is_nan() {
         return (false, false, false);
-    };
-    let min = doc.attribute(id, "min").and_then(edit::parse_number);
-    let max = doc.attribute(id, "max").and_then(edit::parse_number);
+    }
+    let min = edit::bound(doc, id, "min");
+    let max = edit::bound(doc, id, "max");
 
-    let step_attr = doc.attribute(id, "step").map(str::trim);
-    let step_mismatch = match step_attr {
-        Some(s) if s.eq_ignore_ascii_case("any") => false,
-        _ => {
-            let step = step_attr
-                .and_then(edit::parse_number)
-                .filter(|s| *s > 0.0)
-                .unwrap_or(1.0);
-            let base = min.unwrap_or(0.0);
+    let step_mismatch = match edit::allowed_step(doc, id) {
+        // `step="any"`, or a control with no step at all, can never be off the grid.
+        Err(_) => false,
+        Ok(step) => {
+            let base = edit::step_base(doc, id);
             let offset = (number - base) / step;
             (offset - offset.round()).abs() * step > 1e-9
         }
