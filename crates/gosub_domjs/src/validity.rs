@@ -8,7 +8,7 @@ use gosub_shared::node::NodeId;
 use rquickjs::class::Trace;
 use rquickjs::JsLifetime;
 
-use crate::{DocHandle, DomConfig};
+use crate::{DocHandle, WptConfig};
 
 #[derive(Trace, JsLifetime)]
 #[rquickjs::class(rename = "ValidityState")]
@@ -25,7 +25,7 @@ impl DomValidity {
     }
 
     fn flags(&self) -> validity::Validity {
-        validity::validity::<DomConfig>(&self.doc.borrow(), self.id)
+        validity::validity::<WptConfig>(&self.doc.borrow(), self.id)
     }
 }
 

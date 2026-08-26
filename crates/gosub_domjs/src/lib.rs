@@ -35,18 +35,20 @@ pub mod validity;
 pub use document::GosubDocument;
 pub use node::GosubNode;
 
-/// Parse-only module configuration: no renderer, no font system, no layout.
+/// The module configuration the WPT harness runs on: a parser and a DOM, no renderer, no
+/// font system, no layout. It satisfies [`gosub_engine::html::DomConfiguration`], which is
+/// what lets the engine's form, editing, focus and validity algorithms run against it.
 #[derive(Clone, Debug, PartialEq)]
-pub struct DomConfig;
+pub struct WptConfig;
 
-impl ModuleConfiguration for DomConfig {
+impl ModuleConfiguration for WptConfig {
     type CssSystem = Css3System;
     type Document = DocumentImpl<Self>;
     type HtmlParser = Html5Parser<'static, Self>;
 }
 
 /// The document type the bindings expose.
-pub type Doc = DocumentImpl<DomConfig>;
+pub type Doc = DocumentImpl<WptConfig>;
 
 /// Shared handle to the one document a JS context sees.
 pub type DocHandle = Rc<RefCell<Doc>>;
@@ -55,8 +57,8 @@ pub type DocHandle = Rc<RefCell<Doc>>;
 /// is allowed to contain markup the parser complains about.
 pub fn parse_document(html: &str, url: Option<Url>) -> anyhow::Result<(DocHandle, Vec<String>)> {
     let mut stream = ByteStream::from_str(html, Encoding::UTF8);
-    let mut doc = DocumentBuilderImpl::new_document::<DomConfig>(url);
-    let errors = Html5Parser::<DomConfig>::parse_document(&mut stream, &mut doc, None)
+    let mut doc = DocumentBuilderImpl::new_document::<WptConfig>(url);
+    let errors = Html5Parser::<WptConfig>::parse_document(&mut stream, &mut doc, None)
         .map_err(|e| anyhow::anyhow!("html parse failed: {e}"))?;
     let messages = errors.into_iter().map(|e| e.message).collect();
     Ok((Rc::new(RefCell::new(doc)), messages))
