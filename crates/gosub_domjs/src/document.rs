@@ -50,6 +50,13 @@ impl GosubDocument {
         wrap(&ctx, &self.doc, id)
     }
 
+    /// The legacy `document.createEvent()`: makes an untyped event for `initEvent` to fill in.
+    #[qjs(rename = "createEvent")]
+    pub fn create_event<'js>(&self, ctx: Ctx<'js>, _kind: String) -> Result<Value<'js>> {
+        let event = crate::event::DomEvent::synthetic("", false, false);
+        Ok(rquickjs::Class::instance(ctx, event)?.into_value())
+    }
+
     pub fn create_text_node<'js>(&self, ctx: Ctx<'js>, data: String) -> Result<Value<'js>> {
         let id = self.doc.borrow_mut().create_text(&data, Location::default());
         wrap(&ctx, &self.doc, id)

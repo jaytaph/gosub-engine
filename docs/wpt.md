@@ -111,6 +111,21 @@ the option/textarea reflections `value`, `label`, `text`, `type`.
 
 Node wrappers are cached per node, so `a.parentNode === b` holds.
 
+## Markup, handlers and activation
+
+`innerHTML` reads and writes through `gosub_html5::document::inner_html`. The setter parses
+in the target's context and moves the result in - `parse_fragment` builds into a fresh
+`<html>` it hangs off the document root, so that scaffolding is moved across and discarded.
+
+`onclick`, `oninput`, `onchange`, `onselect`, `onsubmit`, `onreset` and `oninvalid` register
+a listener that assigning again replaces, without disturbing anything added through
+`addEventListener`. `document.createEvent()` + `initEvent()` cover the legacy path.
+
+`click()` now runs the activation behaviour behind the event: a checkbox toggles, a submit
+button submits, a reset button resets - decided by the engine's own `form::button_kind` and
+`edit::toggle_kind`, not by a second classifier here. A disabled control does nothing at
+all, not even dispatch, and a listener calling `preventDefault()` cancels the activation.
+
 ## Gauges and named access
 
 `<meter>`'s `value`/`min`/`max`/`low`/`high`/`optimum` and `<progress>`'s `value`/`max`/

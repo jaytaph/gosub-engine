@@ -548,3 +548,80 @@ fn an_element_id_is_reachable_as_a_global() {
     let result = eval("<progress id=bar value=3 max=6></progress>", "String(bar.position)");
     assert_eq!(result, "0.5");
 }
+
+#[test]
+fn inner_html_replaces_the_subtree() {
+    let result = eval(
+        "<div id=host><span>old</span></div>",
+        "const host = document.getElementById('host');
+         host.innerHTML = \"<input id='fresh' disabled><b>x</b>\";
+         const fresh = document.getElementById('fresh');
+         [host.children.length, fresh.tagName, fresh.disabled, host.innerHTML.includes('old')].join('|')",
+    );
+    assert_eq!(result, "2|INPUT|true|false");
+}
+
+#[test]
+fn a_removed_id_stops_answering_get_element_by_id() {
+    let result = eval(
+        "<div id=host><span id=gone>a</span></div>",
+        "const host = document.getElementById('host');
+         host.innerHTML = \"<span id='gone'>b</span>\";
+         // The old #gone was deleted, so this must find the new one, not the corpse.
+         document.getElementById('gone').textContent",
+    );
+    assert_eq!(result, "b");
+}
+
+#[test]
+fn an_event_handler_property_replaces_itself() {
+    let result = eval(
+        "<button id=b></button>",
+        "const b = document.getElementById('b');
+         const seen = [];
+         b.onclick = () => seen.push('first');
+         b.onclick = () => seen.push('second');
+         b.addEventListener('click', () => seen.push('listener'));
+         b.dispatchEvent(new Event('click'));
+         [seen.join(','), typeof b.onclick].join('|')",
+    );
+    assert_eq!(result, "second,listener|function");
+}
+
+#[test]
+fn clicking_a_checkbox_toggles_it_and_a_disabled_one_does_nothing() {
+    let result = eval(
+        "<input id=c type=checkbox><input id=d type=checkbox disabled>",
+        "const c = document.getElementById('c'), d = document.getElementById('d');
+         let dispatched = 0;
+         d.onclick = () => dispatched++;
+         c.click();
+         d.click();
+         [c.checked, d.checked, dispatched].join('|')",
+    );
+    assert_eq!(result, "true|false|0");
+}
+
+#[test]
+fn clicking_a_reset_button_resets_the_form() {
+    let result = eval(
+        "<form id=f><input id=t value=orig><input id=r type=reset></form>",
+        "const t = document.getElementById('t');
+         t.value = 'typed';
+         document.getElementById('r').click();
+         t.value",
+    );
+    assert_eq!(result, "orig");
+}
+
+#[test]
+fn a_cancelled_click_skips_the_activation_behaviour() {
+    let result = eval(
+        "<input id=c type=checkbox>",
+        "const c = document.getElementById('c');
+         c.onclick = e => e.preventDefault();
+         c.click();
+         String(c.checked)",
+    );
+    assert_eq!(result, "false");
+}

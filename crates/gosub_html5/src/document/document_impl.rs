@@ -782,7 +782,24 @@ impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
                 self.on_document_node_mutation_by_id(parent_id);
             }
         }
+        self.forget_named_ids(node_id);
         self.arena.delete_node(node_id);
+    }
+
+    /// Drop the `id` registrations of a node and everything under it. Without this a deleted
+    /// element keeps answering `getElementById`, and its id can never be claimed again.
+    fn forget_named_ids(&mut self, node_id: NodeId) {
+        for child in self.children(node_id).to_vec() {
+            self.forget_named_ids(child);
+        }
+        let Some(names) = self.named_ids_by_node.remove(&node_id) else {
+            return;
+        };
+        for name in names {
+            if self.named_id_elements.get(&name) == Some(&node_id) {
+                self.named_id_elements.remove(&name);
+            }
+        }
     }
 
     pub fn get_next_sibling(&self, reference_node: NodeId) -> Option<NodeId> {

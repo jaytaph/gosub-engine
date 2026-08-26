@@ -36,6 +36,10 @@ struct Listener<'js> {
     /// this list and must see removals that happen while it is running.
     #[qjs(skip_trace)]
     removed: bool,
+    /// Registered through an `on<type>` property rather than `addEventListener`, so that
+    /// assigning to that property again can find and replace it.
+    #[qjs(skip_trace)]
+    is_handler: bool,
     callback: Function<'js>,
 }
 
@@ -107,6 +111,7 @@ pub fn add<'js>(
         capture: registration.capture,
         once: registration.once,
         removed: false,
+        is_handler: false,
         callback: registration.callback,
     });
     Ok(())
@@ -248,6 +253,14 @@ impl<'js> DomEvent<'js> {
         if self.cancelable {
             self.canceled = true;
         }
+    }
+
+    /// The legacy `initEvent()`: fills in an event made by `document.createEvent`.
+    #[qjs(rename = "initEvent")]
+    pub fn init_event(&mut self, event_type: String, bubbles: Opt<bool>, cancelable: Opt<bool>) {
+        self.event_type = event_type;
+        self.bubbles = bubbles.0.unwrap_or(false);
+        self.cancelable = cancelable.0.unwrap_or(false);
     }
 
     pub fn stop_propagation(&mut self) {
@@ -411,6 +424,49 @@ pub fn dispatch<'js>(
     event_mut.phase = PHASE_NONE;
     event_mut.current_target = None;
     Ok(!event_mut.canceled)
+}
+
+/// The listener an `on<type>` property currently holds, or `null`.
+pub fn handler<'js>(ctx: &Ctx<'js>, key: u64, event_type: &str) -> Result<Value<'js>> {
+    let store = store(ctx)?;
+    let store = store.borrow();
+    let found = store
+        .entries
+        .iter()
+        .find(|e| !e.removed && e.key == key && e.event_type == event_type && e.is_handler);
+    Ok(match found {
+        Some(listener) => listener.callback.clone().into_value(),
+        None => Value::new_null(ctx.clone()),
+    })
+}
+
+/// Assigning to an `on<type>` property replaces whatever that property held before, without
+/// touching listeners added through `addEventListener`.
+pub fn set_handler<'js>(ctx: &Ctx<'js>, key: u64, event_type: &str, callback: Value<'js>) -> Result<()> {
+    {
+        let store = store(ctx)?;
+        let mut store = store.borrow_mut();
+        for entry in &mut store.entries {
+            if entry.key == key && entry.event_type == event_type && entry.is_handler {
+                entry.removed = true;
+            }
+        }
+    }
+    let Some(function) = callback.as_function() else {
+        return Ok(());
+    };
+    let store = store(ctx)?;
+    let mut store = store.borrow_mut();
+    store.entries.push(Listener {
+        key,
+        event_type: event_type.to_string(),
+        capture: false,
+        once: false,
+        removed: false,
+        is_handler: true,
+        callback: function.clone(),
+    });
+    Ok(())
 }
 
 /// Pin every argument of a closure to the same `'js` lifetime - see `timers::schedule_fn`.

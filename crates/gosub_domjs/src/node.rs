@@ -16,6 +16,7 @@ use crate::exception;
 use crate::validity::DomValidity;
 use crate::{event, select, text, wrap, wrap_opt, DocHandle, WptConfig};
 use gosub_engine::{edit, focus, form, gauge, validity};
+use gosub_html5::document::inner_html;
 use gosub_interface::document::{ControlEditState, SelectionDirection};
 
 #[derive(Trace, JsLifetime)]
@@ -993,6 +994,17 @@ impl GosubNode {
         }
     }
 
+    #[qjs(get, rename = "innerHTML")]
+    pub fn inner_html(&self) -> String {
+        inner_html::inner_html::<WptConfig>(&self.doc.borrow(), self.id)
+    }
+
+    #[qjs(set, rename = "innerHTML")]
+    pub fn set_inner_html(&self, ctx: Ctx<'_>, html: Coerced<String>) -> Result<()> {
+        inner_html::set_inner_html::<WptConfig>(&mut self.doc.borrow_mut(), self.id, &html.0)
+            .map_err(|e| Exception::throw_message(&ctx, &format!("could not parse markup: {e}")))
+    }
+
     #[qjs(get, rename = "outerHTML")]
     pub fn outer_html(&self) -> String {
         self.doc.borrow().write_from_node(self.id)
@@ -1348,6 +1360,80 @@ impl GosubNode {
         self.doc.borrow().set_custom_validity(self.id, &message.0);
     }
 
+    // ── event handler attributes ───────────────────────────────────────────
+
+    /// `onclick`, `oninput`, ... : assigning a function registers it as a listener for that
+    /// type, and assigning again replaces the previous one.
+    #[qjs(get, rename = "onclick")]
+    pub fn on_click<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        event::handler(&ctx, u64::from(self.id), "click")
+    }
+
+    #[qjs(set, rename = "onclick")]
+    pub fn set_on_click<'js>(&self, ctx: Ctx<'js>, callback: Value<'js>) -> Result<()> {
+        event::set_handler(&ctx, u64::from(self.id), "click", callback)
+    }
+
+    #[qjs(get, rename = "oninput")]
+    pub fn on_input<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        event::handler(&ctx, u64::from(self.id), "input")
+    }
+
+    #[qjs(set, rename = "oninput")]
+    pub fn set_on_input<'js>(&self, ctx: Ctx<'js>, callback: Value<'js>) -> Result<()> {
+        event::set_handler(&ctx, u64::from(self.id), "input", callback)
+    }
+
+    #[qjs(get, rename = "onchange")]
+    pub fn on_change<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        event::handler(&ctx, u64::from(self.id), "change")
+    }
+
+    #[qjs(set, rename = "onchange")]
+    pub fn set_on_change<'js>(&self, ctx: Ctx<'js>, callback: Value<'js>) -> Result<()> {
+        event::set_handler(&ctx, u64::from(self.id), "change", callback)
+    }
+
+    #[qjs(get, rename = "onselect")]
+    pub fn on_select<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        event::handler(&ctx, u64::from(self.id), "select")
+    }
+
+    #[qjs(set, rename = "onselect")]
+    pub fn set_on_select<'js>(&self, ctx: Ctx<'js>, callback: Value<'js>) -> Result<()> {
+        event::set_handler(&ctx, u64::from(self.id), "select", callback)
+    }
+
+    #[qjs(get, rename = "onsubmit")]
+    pub fn on_submit<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        event::handler(&ctx, u64::from(self.id), "submit")
+    }
+
+    #[qjs(set, rename = "onsubmit")]
+    pub fn set_on_submit<'js>(&self, ctx: Ctx<'js>, callback: Value<'js>) -> Result<()> {
+        event::set_handler(&ctx, u64::from(self.id), "submit", callback)
+    }
+
+    #[qjs(get, rename = "onreset")]
+    pub fn on_reset<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        event::handler(&ctx, u64::from(self.id), "reset")
+    }
+
+    #[qjs(set, rename = "onreset")]
+    pub fn set_on_reset<'js>(&self, ctx: Ctx<'js>, callback: Value<'js>) -> Result<()> {
+        event::set_handler(&ctx, u64::from(self.id), "reset", callback)
+    }
+
+    #[qjs(get, rename = "oninvalid")]
+    pub fn on_invalid<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        event::handler(&ctx, u64::from(self.id), "invalid")
+    }
+
+    #[qjs(set, rename = "oninvalid")]
+    pub fn set_on_invalid<'js>(&self, ctx: Ctx<'js>, callback: Value<'js>) -> Result<()> {
+        event::set_handler(&ctx, u64::from(self.id), "invalid", callback)
+    }
+
     // ── events ─────────────────────────────────────────────────────────────
 
     #[qjs(rename = "addEventListener")]
@@ -1381,12 +1467,50 @@ impl GosubNode {
         event::dispatch(&ctx, &self.doc, self.id, event)
     }
 
-    /// Fires a click event. There is no activation behaviour behind it yet - a checkbox does
-    /// not toggle and a submit button does not submit, because those live in engine code
-    /// this crate cannot reach.
+    /// Fires a click event and then runs the activation behaviour behind it: a checkbox
+    /// toggles, a submit button submits, a reset button resets. A disabled control does
+    /// nothing at all - not even dispatch.
     pub fn click<'js>(&self, ctx: Ctx<'js>) -> Result<()> {
+        if edit::is_disabled::<WptConfig>(&self.doc.borrow(), self.id) {
+            return Ok(());
+        }
         let event = rquickjs::Class::instance(ctx.clone(), event::DomEvent::synthetic("click", true, true))?;
-        event::dispatch(&ctx, &self.doc, self.id, event)?;
+        if !event::dispatch(&ctx, &self.doc, self.id, event)? {
+            return Ok(());
+        }
+        self.activate(ctx)
+    }
+
+    /// The post-click activation behaviour, decided by the engine's own classifiers.
+    #[qjs(skip)]
+    pub fn activate<'js>(&self, ctx: Ctx<'js>) -> Result<()> {
+        let button = form::button_kind::<WptConfig>(&self.doc.borrow(), self.id);
+        match button {
+            Some(false) => {
+                let owner = form::form_owner::<WptConfig>(&self.doc.borrow(), self.id);
+                if let Some(form) = owner {
+                    let form = crate::wrap(&ctx, &self.doc, form)?;
+                    let form: rquickjs::Class<'js, GosubNode> = rquickjs::FromJs::from_js(&ctx, form)?;
+                    form.borrow().request_submit(ctx, rquickjs::prelude::Opt(None))?;
+                }
+            }
+            Some(true) => {
+                let owner = form::form_owner::<WptConfig>(&self.doc.borrow(), self.id);
+                if let Some(form) = owner {
+                    let form = crate::wrap(&ctx, &self.doc, form)?;
+                    let form: rquickjs::Class<'js, GosubNode> = rquickjs::FromJs::from_js(&ctx, form)?;
+                    form.borrow().reset(ctx)?;
+                }
+            }
+            None => {
+                let doc = self.doc.borrow();
+                if edit::toggle_kind::<WptConfig>(&doc, self.id).is_some() {
+                    for (node, checked) in edit::toggle::<WptConfig>(&doc, self.id) {
+                        doc.set_checked(node, Some(checked));
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
