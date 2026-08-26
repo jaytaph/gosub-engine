@@ -206,6 +206,12 @@ has no type-specific editor that can hold an unconvertible value.
 
 `reportValidity()` is `checkValidity()`: there is no UI to show a message in.
 
+Two rules that are easy to get backwards. A control **barred** from validation reports no
+failures at all - a disabled required field is not "missing", it simply is not a candidate.
+And `maxlength`/`minlength` constrain **what a person typed**, not what script assigned:
+`ControlEditState::user_edited` records that difference, set only on the engine's editing
+path, so assigning a long string to `value` never makes a control too long.
+
 ## What is not
 
 - **No activation behaviour** behind `click()`, and no `focus()`/`blur()`/`activeElement`

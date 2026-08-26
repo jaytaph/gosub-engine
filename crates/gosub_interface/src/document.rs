@@ -247,6 +247,10 @@ pub struct ControlEditState {
     pub anchor: Option<usize>,
     /// First visual row a `<textarea>` shows (the engine keeps the caret inside the view).
     pub scroll: usize,
+    /// Whether the user changed the value, as opposed to script assigning it. `maxlength`
+    /// and `minlength` only constrain what a person typed, so the length constraints hang
+    /// off this rather than off the value having changed at all.
+    pub user_edited: bool,
     /// Which end of the selection is the moving one. Kept explicitly rather than derived
     /// from `anchor` vs `caret`, because a collapsed selection still has a direction.
     pub direction: SelectionDirection,
@@ -259,6 +263,7 @@ impl ControlEditState {
             caret,
             anchor: None,
             scroll: 0,
+            user_edited: false,
             direction: SelectionDirection::None,
         }
     }

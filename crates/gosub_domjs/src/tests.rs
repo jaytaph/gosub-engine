@@ -735,3 +735,25 @@ fn temporal_and_color_values_sanitize() {
     );
     assert_eq!(result, "|#abcdef");
 }
+
+#[test]
+fn a_barred_control_reports_no_validity_failures() {
+    let result = eval(
+        "<input id=i required disabled><input id=j required>",
+        "const i = document.getElementById('i'), j = document.getElementById('j');
+         [i.validity.valueMissing, i.validity.valid, j.validity.valueMissing].join('|')",
+    );
+    assert_eq!(result, "false|true|true");
+}
+
+#[test]
+fn a_script_set_value_is_never_too_long() {
+    let result = eval(
+        "<input id=i maxlength=4>",
+        "const i = document.getElementById('i');
+         i.value = 'abcdefgh';
+         // maxlength constrains what a person typed, not what script assigned.
+         [i.validity.tooLong, i.checkValidity()].join('|')",
+    );
+    assert_eq!(result, "false|true");
+}

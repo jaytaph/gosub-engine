@@ -81,6 +81,11 @@ fn has_ancestor<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, tag: &
 
 /// Which constraints `id` currently fails.
 pub fn validity<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Validity {
+    // A control barred from constraint validation reports no failures at all, whatever its
+    // attributes say - a disabled required field is not "missing".
+    if !will_validate(doc, id) {
+        return Validity::default();
+    }
     let mut flags = Validity {
         custom_error: doc.custom_validity(id).is_some_and(|m| !m.is_empty()),
         ..Validity::default()
@@ -104,8 +109,9 @@ pub fn validity<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Val
         flags.step_mismatch = step;
     }
     if tag == "input" || tag == "textarea" {
-        // Length constraints only apply once the user (or script) has changed the value.
-        let dirty = doc.control_edit_state(id).is_some();
+        // Length constraints apply only to what a person typed: assigning to `value` from
+        // script never makes a control too long.
+        let dirty = doc.control_edit_state(id).is_some_and(|state| state.user_edited);
         let length = value.chars().count() as i64;
         if let Some(max) = length_attr(doc, id, "maxlength") {
             flags.too_long = dirty && length > max;

@@ -628,6 +628,9 @@ fn replace_selection(state: &mut ControlEditState, text: &str) -> bool {
 
 /// Returns whether anything changed. Indices are clamped to the value first.
 pub fn apply(state: &mut ControlEditState, action: &EditAction) -> bool {
+    // This is the user editing path - the IDL setters never come through here, which is
+    // exactly the distinction `user_edited` records.
+    state.user_edited = true;
     let len = state.value.chars().count();
     state.caret = state.caret.min(len);
     state.anchor = state.anchor.map(|a| a.min(len)).filter(|a| *a != state.caret);
@@ -771,8 +774,13 @@ pub fn select_options<C: DomConfiguration>(doc: &EngineDocument<C>, select: Node
 mod tests {
     use super::*;
 
+    /// Expected states are compared against ones that have been through `apply`, which marks
+    /// them as user-edited, so build them the same way.
     fn st(v: &str, caret: usize) -> ControlEditState {
-        ControlEditState::new(v.to_string(), caret)
+        ControlEditState {
+            user_edited: true,
+            ..ControlEditState::new(v.to_string(), caret)
+        }
     }
 
     fn sel(v: &str, anchor: usize, caret: usize) -> ControlEditState {
