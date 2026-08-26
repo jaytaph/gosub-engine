@@ -162,6 +162,12 @@ in that direction, and the result is clamped to `[min, max]` on the grid. `numbe
 reports `null` (not `undefined` - tests compare against null) and throws on
 `setSelectionRange`.
 
+Changing the selection queues a `select` event: only when the selection actually moves, never
+synchronously, and coalesced so several changes in one turn produce one event. Scheduling
+goes through the page's own `setTimeout`, so it lands in the same virtual-time queue as
+everything else. An untouched control reports its selection at 0 - the caret-at-the-end
+default is what *focus* does, not what the IDL reports.
+
 `focus()`/`blur()` and `document.activeElement` read and write the document's focus state,
 gated by `focus::focusability`, so an unfocusable element quietly stays unfocused. No
 scrolling and no focus ring: those are paint concerns and nothing here paints.

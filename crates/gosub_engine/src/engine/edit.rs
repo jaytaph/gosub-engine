@@ -225,12 +225,14 @@ pub fn supports_selection<C: DomConfiguration>(doc: &EngineDocument<C>, id: Node
 }
 
 /// The live editing state of `id`, created from its markup value if it has none yet.
+///
+/// An untouched control reports a selection at offset 0 - deliberately different from the
+/// UI's `text_ui::edit_state`, which drops the caret at the end of a single-line field when
+/// it takes focus. The IDL view is not the focus view: `selectionStart` on a control nobody
+/// has touched is 0, whatever a click would later do.
 fn edit_state<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> ControlEditState {
-    doc.control_edit_state(id).unwrap_or_else(|| {
-        let value = initial_value(doc, id);
-        let caret = value.chars().count();
-        ControlEditState::new(value, caret)
-    })
+    doc.control_edit_state(id)
+        .unwrap_or_else(|| ControlEditState::new(initial_value(doc, id), 0))
 }
 
 /// `(selectionStart, selectionEnd, selectionDirection)` in char indices.

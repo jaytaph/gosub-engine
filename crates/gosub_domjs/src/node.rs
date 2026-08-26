@@ -141,6 +141,18 @@ impl GosubNode {
         Ok(())
     }
 
+    /// Run a selection change and queue a `select` event if it actually moved the selection.
+    fn with_select_event<'js>(&self, ctx: &Ctx<'js>, change: impl FnOnce()) -> Result<()> {
+        let before = edit::selection::<WptConfig>(&self.doc.borrow(), self.id);
+        change();
+        let after = edit::selection::<WptConfig>(&self.doc.borrow(), self.id);
+        if before == after {
+            return Ok(());
+        }
+        let node = crate::wrap(ctx, &self.doc, self.id)?;
+        event::queue_select(ctx, node, u64::from(self.id))
+    }
+
     /// Shared by `stepUp`/`stepDown`: a control with no allowed value step throws.
     fn step_by(&self, ctx: Ctx<'_>, n: i64) -> Result<()> {
         let stepped = edit::step::<WptConfig>(&self.doc.borrow(), self.id, n);
@@ -1136,12 +1148,14 @@ impl GosubNode {
     }
 
     #[qjs(set, rename = "selectionStart")]
-    pub fn set_selection_start(&self, start: Coerced<i64>) {
+    pub fn set_selection_start(&self, ctx: Ctx<'_>, start: Coerced<i64>) -> Result<()> {
         let Some((_, end, direction)) = edit::selection::<WptConfig>(&self.doc.borrow(), self.id) else {
-            return;
+            return Ok(());
         };
         let start = start.0.max(0) as usize;
-        edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, start, end.max(start), direction);
+        self.with_select_event(&ctx, || {
+            edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, start, end.max(start), direction);
+        })
     }
 
     #[qjs(get, rename = "selectionEnd")]
@@ -1153,12 +1167,14 @@ impl GosubNode {
     }
 
     #[qjs(set, rename = "selectionEnd")]
-    pub fn set_selection_end(&self, end: Coerced<i64>) {
+    pub fn set_selection_end(&self, ctx: Ctx<'_>, end: Coerced<i64>) -> Result<()> {
         let Some((start, _, direction)) = edit::selection::<WptConfig>(&self.doc.borrow(), self.id) else {
-            return;
+            return Ok(());
         };
         let end = end.0.max(0) as usize;
-        edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, start.min(end), end, direction);
+        self.with_select_event(&ctx, || {
+            edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, start.min(end), end, direction);
+        })
     }
 
     #[qjs(get, rename = "selectionDirection")]
@@ -1170,12 +1186,14 @@ impl GosubNode {
     }
 
     #[qjs(set, rename = "selectionDirection")]
-    pub fn set_selection_direction(&self, direction: Coerced<String>) {
+    pub fn set_selection_direction(&self, ctx: Ctx<'_>, direction: Coerced<String>) -> Result<()> {
         let Some((start, end, _)) = edit::selection::<WptConfig>(&self.doc.borrow(), self.id) else {
-            return;
+            return Ok(());
         };
         let direction = SelectionDirection::parse(&direction.0);
-        edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, start, end, direction);
+        self.with_select_event(&ctx, || {
+            edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, start, end, direction);
+        })
     }
 
     #[qjs(rename = "setSelectionRange")]
@@ -1190,13 +1208,16 @@ impl GosubNode {
             .0
             .map(|d| SelectionDirection::parse(&d.0))
             .unwrap_or(SelectionDirection::None);
-        let ok = edit::set_selection::<WptConfig>(
-            &self.doc.borrow(),
-            self.id,
-            start.0.max(0) as usize,
-            end.0.max(0) as usize,
-            direction,
-        );
+        let mut ok = false;
+        self.with_select_event(&ctx, || {
+            ok = edit::set_selection::<WptConfig>(
+                &self.doc.borrow(),
+                self.id,
+                start.0.max(0) as usize,
+                end.0.max(0) as usize,
+                direction,
+            );
+        })?;
         if !ok {
             return Err(exception::throw(
                 &ctx,
@@ -1209,10 +1230,13 @@ impl GosubNode {
 
     /// Selects the whole value. Unlike `setSelectionRange`, a control that does not support
     /// selection just does nothing here.
-    pub fn select(&self) {
-        let doc = self.doc.borrow();
-        let length = edit::api_value::<WptConfig>(&doc, self.id).chars().count();
-        edit::set_selection::<WptConfig>(&doc, self.id, 0, length, SelectionDirection::None);
+    pub fn select(&self, ctx: Ctx<'_>) -> Result<()> {
+        let length = edit::api_value::<WptConfig>(&self.doc.borrow(), self.id)
+            .chars()
+            .count();
+        self.with_select_event(&ctx, || {
+            edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, 0, length, SelectionDirection::None);
+        })
     }
 
     #[qjs(rename = "setRangeText")]
@@ -1247,8 +1271,10 @@ impl GosubNode {
                 None => return Err(Exception::throw_message(&ctx, "TypeError: invalid selection mode")),
             },
         };
-        edit::set_range_text::<WptConfig>(&doc, self.id, &replacement.0, start, end, mode);
-        Ok(())
+        drop(doc);
+        self.with_select_event(&ctx, || {
+            edit::set_range_text::<WptConfig>(&self.doc.borrow(), self.id, &replacement.0, start, end, mode);
+        })
     }
 
     // ── focus ──────────────────────────────────────────────────────────────
@@ -1512,6 +1538,13 @@ impl GosubNode {
             }
         }
         Ok(())
+    }
+
+    /// Fires the `select` event the selection APIs queued. Not web-facing - the scheduled
+    /// task calls it.
+    #[qjs(rename = "__fireSelect")]
+    pub fn fire_select(&self, ctx: Ctx<'_>) -> Result<()> {
+        event::fire_select(&ctx, &self.doc, self.id)
     }
 
     #[qjs(rename = "toString")]

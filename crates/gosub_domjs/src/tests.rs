@@ -625,3 +625,44 @@ fn a_cancelled_click_skips_the_activation_behaviour() {
     );
     assert_eq!(result, "false");
 }
+
+#[test]
+fn an_untouched_control_starts_with_its_selection_at_zero() {
+    let result = eval(
+        "<input id=i value=foobar>",
+        "const i = document.getElementById('i');
+         [i.selectionStart, i.selectionEnd].join('|')",
+    );
+    assert_eq!(result, "0|0");
+}
+
+#[test]
+fn changing_the_selection_queues_one_select_event() {
+    let result = eval_after_timers(
+        "<input id=i value=foobar>",
+        "globalThis.count = 0;
+         const i = document.getElementById('i');
+         i.addEventListener('select', e => { count++; globalThis.trusted = e.isTrusted; });
+         i.select();
+         i.setSelectionRange(0, 6);
+         globalThis.sync = count;",
+        "[sync, count, trusted].join('|')",
+    );
+    // Nothing synchronously, one event however many changes there were, and it is trusted.
+    assert_eq!(result, "0|1|true");
+}
+
+#[test]
+fn a_selection_that_does_not_move_fires_nothing() {
+    let result = eval_after_timers(
+        "<input id=i value=foobar>",
+        "globalThis.count = 0;
+         const i = document.getElementById('i');
+         i.addEventListener('select', () => count++);
+         i.setSelectionRange(1, 3);
+         // A later task repeats the same range: the selection does not move, so no event.
+         setTimeout(() => i.setSelectionRange(1, 3), 10);",
+        "String(count)",
+    );
+    assert_eq!(result, "1");
+}

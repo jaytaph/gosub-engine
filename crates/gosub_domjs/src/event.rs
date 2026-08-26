@@ -47,6 +47,10 @@ struct Listener<'js> {
 #[rquickjs::class(rename = "EventListeners")]
 pub struct ListenerStore<'js> {
     entries: Vec<Listener<'js>>,
+    /// Controls with a `select` event already queued, so that several selection changes in
+    /// one turn produce a single event rather than one each.
+    #[qjs(skip_trace)]
+    pending_select: std::collections::HashSet<u64>,
 }
 
 /// How a listener is registered, per the spec's dedup rule: type + callback + capture.
@@ -167,6 +171,14 @@ pub struct DomEvent<'js> {
 }
 
 impl<'js> DomEvent<'js> {
+    /// An event the user agent itself fired, so `isTrusted` is true.
+    pub fn trusted(event_type: &str, bubbles: bool, cancelable: bool) -> Self {
+        Self {
+            trusted: true,
+            ..Self::synthetic(event_type, bubbles, cancelable)
+        }
+    }
+
     pub fn synthetic(event_type: &str, bubbles: bool, cancelable: bool) -> Self {
         Self {
             event_type: event_type.to_string(),
@@ -469,6 +481,38 @@ pub fn set_handler<'js>(ctx: &Ctx<'js>, key: u64, event_type: &str, callback: Va
     Ok(())
 }
 
+/// Queue a `select` event at `node`, unless one is already queued for it.
+///
+/// The event is asynchronous by design: tests assert it does not fire synchronously, and
+/// that two selection changes in the same turn produce one event. Scheduling goes through
+/// the page's own `setTimeout` so it lands in the harness's virtual-time queue.
+pub fn queue_select<'js>(ctx: &Ctx<'js>, node: Value<'js>, key: u64) -> Result<()> {
+    {
+        let store = store(ctx)?;
+        let mut store = store.borrow_mut();
+        if !store.pending_select.insert(key) {
+            return Ok(());
+        }
+    }
+    let make: Function<'js> = ctx.eval("(node) => () => node.__fireSelect()")?;
+    let callback: Function<'js> = make.call((node,))?;
+    let set_timeout: Function<'js> = ctx.globals().get("setTimeout")?;
+    set_timeout.call::<_, Value<'js>>((callback, 0))?;
+    Ok(())
+}
+
+/// Fire the queued `select` event and let the control queue another one.
+pub fn fire_select<'js>(ctx: &Ctx<'js>, doc: &DocHandle, id: NodeId) -> Result<()> {
+    {
+        let store = store(ctx)?;
+        let mut store = store.borrow_mut();
+        store.pending_select.remove(&u64::from(id));
+    }
+    let event = Class::instance(ctx.clone(), DomEvent::trusted("select", true, false))?;
+    dispatch(ctx, doc, id, event)?;
+    Ok(())
+}
+
 /// Pin every argument of a closure to the same `'js` lifetime - see `timers::schedule_fn`.
 fn add_fn<F>(f: F) -> F
 where
@@ -482,7 +526,13 @@ pub fn install(ctx: &Ctx<'_>) -> Result<()> {
     let globals = ctx.globals();
     globals.set(
         LISTENERS,
-        Class::instance(ctx.clone(), ListenerStore { entries: Vec::new() })?,
+        Class::instance(
+            ctx.clone(),
+            ListenerStore {
+                entries: Vec::new(),
+                pending_select: std::collections::HashSet::new(),
+            },
+        )?,
     )?;
     Class::<DomEvent>::define(&globals)?;
 
