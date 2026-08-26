@@ -744,14 +744,20 @@ impl GosubNode {
         }
     }
 
-    /// A `<textarea>`'s type is fixed; only `<input>` and `<button>` take a new one.
+    /// A `<textarea>`'s type is fixed. An `<input>` goes through the value-mode transition
+    /// rules, which may move its value between live state and the content attribute.
     #[qjs(set, rename = "type")]
     pub fn set_control_type(&self, value: Coerced<String>) {
         let value = value.0;
-        if matches!(self.doc.borrow().tag_name(self.id), Some("textarea")) {
-            return;
+        let tag = self.doc.borrow().tag_name(self.id).map(str::to_string);
+        match tag.as_deref() {
+            Some("textarea") => (),
+            Some("input") => {
+                let lowered = value.cow_to_ascii_lowercase().into_owned();
+                edit::change_type::<WptConfig>(&mut self.doc.borrow_mut(), self.id, &lowered);
+            }
+            _ => self.set_attr("type", &value),
         }
-        self.set_attr("type", &value);
     }
 
     // ── live control state ─────────────────────────────────────────────────
@@ -798,6 +804,18 @@ impl GosubNode {
         if matches!(self.doc.borrow().tag_name(self.id), Some("meter" | "progress")) {
             let number = number_arg(&ctx, &value)?;
             return self.set_number_attr(ctx, "value", number);
+        }
+        // A file control accepts only the empty string, and throws for anything else.
+        if edit::value_mode::<WptConfig>(&self.doc.borrow(), self.id) == Some(edit::ValueMode::Filename) {
+            let text = value.get::<Coerced<String>>()?.0;
+            if !text.is_empty() {
+                return Err(exception::throw(
+                    &ctx,
+                    "InvalidStateError",
+                    "a file control's value cannot be set to anything but the empty string",
+                ));
+            }
+            return Ok(());
         }
         self.set_value(Coerced(value.get::<Coerced<String>>()?.0));
         Ok(())

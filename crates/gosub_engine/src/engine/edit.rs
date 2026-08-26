@@ -93,6 +93,16 @@ pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, 
     let stripped: String = raw.chars().filter(|c| !matches!(c, '\n' | '\r')).collect();
     match ty.as_str() {
         "url" | "email" => stripped.trim().to_string(),
+        // No date/time parsing exists yet, so every value is non-conforming and sanitizes
+        // away. Implementing the temporal types means replacing this arm, not deleting it.
+        "date" | "month" | "week" | "time" | "datetime-local" => String::new(),
+        "color" => {
+            if is_simple_color(&stripped) {
+                stripped.cow_to_ascii_lowercase().into_owned()
+            } else {
+                "#000000".to_string()
+            }
+        }
         "number" => match parse_number(&stripped) {
             Some(_) => stripped,
             None => String::new(),
@@ -104,6 +114,62 @@ pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, 
             value.clamp(min, max.max(min)).to_string()
         }
         _ => stripped,
+    }
+}
+
+/// A "simple colour": `#` followed by exactly six ASCII hex digits.
+fn is_simple_color(value: &str) -> bool {
+    let Some(digits) = value.strip_prefix('#') else {
+        return false;
+    };
+    digits.len() == 6 && digits.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Apply the value-mode transition rules for an `<input>` whose `type` is changing.
+///
+/// The three modes disagree about where the value lives - live editing state, the `value`
+/// content attribute, or nowhere at all - so changing type has to move it across before the
+/// new type's sanitization runs on it.
+pub fn change_type<C: DomConfiguration>(doc: &mut EngineDocument<C>, id: NodeId, new_type: &str) {
+    if doc.tag_name(id) != Some("input") {
+        return;
+    }
+    let before = value_mode(doc, id);
+    let was_selectable = supports_selection(doc, id);
+    let current = api_value(doc, id);
+    doc.set_attribute(id, "type", new_type);
+    let after = value_mode(doc, id);
+
+    match (before, after) {
+        // The value was live state and now lives in the attribute: write it across - but
+        // only a non-empty one, so a checkbox arriving from an empty field still reports
+        // its "on" default rather than an empty attribute.
+        (Some(ValueMode::Value), Some(ValueMode::Default | ValueMode::DefaultOn)) => {
+            if !current.is_empty() {
+                doc.set_attribute(id, "value", &current);
+            }
+            doc.set_control_edit_state(id, None);
+        }
+        // The value now comes from the attribute again, so forget what was typed.
+        (Some(ValueMode::Default | ValueMode::DefaultOn), Some(ValueMode::Value)) => {
+            doc.set_control_edit_state(id, None);
+        }
+        // A file control holds no value a script can set.
+        (_, Some(ValueMode::Filename)) => {
+            doc.set_control_edit_state(id, None);
+        }
+        _ => {}
+    }
+
+    // A control that has just gained a selection API starts at the beginning, whatever
+    // cursor position the previous type happened to leave behind.
+    if !was_selectable && supports_selection(doc, id) {
+        if let Some(mut state) = doc.control_edit_state(id) {
+            state.caret = 0;
+            state.anchor = None;
+            state.direction = SelectionDirection::None;
+            doc.set_control_edit_state(id, Some(state));
+        }
     }
 }
 

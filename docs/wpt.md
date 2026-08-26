@@ -176,6 +176,21 @@ scrolling and no focus ring: those are paint concerns and nothing here paints.
 `assert_throws_dom` checks all three, so a plain `Error` fails a test the engine actually got
 right.
 
+## Changing an input's type
+
+`edit::change_type` implements the value-mode transition rules. The three modes disagree
+about where a value lives - live editing state, the `value` content attribute, or nowhere -
+so changing type moves it across before the new type's sanitization runs on it. Two details
+the tests are strict about: an empty value is *not* written into the attribute (so a
+checkbox arriving from an emptied field still reports its `"on"` default), and a control
+that has just gained a selection API starts at offset 0 whatever cursor the previous type
+left behind.
+
+Sanitization now covers the temporal types (no date parsing exists, so every value is
+non-conforming and sanitizes away - implementing them means replacing that arm, not deleting
+it) and `color` (anything that is not `#` plus six hex digits becomes `#000000`). A `file`
+control throws `InvalidStateError` for any value but the empty string.
+
 ## Constraint validation
 
 `willValidate`, `validity`, `validationMessage`, `checkValidity()`, `reportValidity()` and

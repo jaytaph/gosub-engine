@@ -666,3 +666,72 @@ fn a_selection_that_does_not_move_fires_nothing() {
     );
     assert_eq!(result, "1");
 }
+
+#[test]
+fn changing_type_moves_the_value_between_state_and_attribute() {
+    let result = eval(
+        "<input id=i>",
+        "const i = document.getElementById('i');
+         i.value = 'typed';
+         i.type = 'submit';
+         // Live state moved into the attribute...
+         const asSubmit = [i.value, i.getAttribute('value')].join(',');
+         i.type = 'text';
+         // ...and comes back out of it.
+         [asSubmit, i.value].join('|')",
+    );
+    assert_eq!(result, "typed,typed|typed");
+}
+
+#[test]
+fn a_checkbox_arriving_from_an_empty_field_keeps_its_on_default() {
+    let result = eval(
+        "<input id=i type=number>",
+        "const i = document.getElementById('i');
+         i.value = 'not a number';
+         const emptied = i.value;
+         i.type = 'checkbox';
+         [emptied, i.value, i.hasAttribute('value')].join('|')",
+    );
+    assert_eq!(result, "|on|false");
+}
+
+#[test]
+fn becoming_selectable_resets_the_selection() {
+    let result = eval(
+        "<input id=i type=color>",
+        "const i = document.getElementById('i');
+         i.value = 'nonsense';
+         // A colour has no selection API, and its value sanitized to seven characters.
+         const beforeSelectable = String(i.selectionStart);
+         i.type = 'text';
+         [beforeSelectable, i.value, i.selectionStart, i.selectionEnd].join('|')",
+    );
+    assert_eq!(result, "null|#000000|0|0");
+}
+
+#[test]
+fn a_file_control_refuses_a_value() {
+    let result = eval(
+        "<input id=i type=file>",
+        "const i = document.getElementById('i');
+         let name = '';
+         try { i.value = 'C:/passwd'; } catch (e) { name = e.name; }
+         [name, i.value].join('|')",
+    );
+    assert_eq!(result, "InvalidStateError|");
+}
+
+#[test]
+fn temporal_and_color_values_sanitize() {
+    let result = eval(
+        "<input id=d type=date><input id=c type=color>",
+        "const d = document.getElementById('d'), c = document.getElementById('c');
+         d.value = 'not a date';
+         c.value = 'not a colour';
+         const good = document.getElementById('c');
+         good.value = '#ABCDEF';
+         [d.value, c.value].join('|')",
+    );
+    assert_eq!(result, "|#abcdef");
+}
