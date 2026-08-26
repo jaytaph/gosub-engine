@@ -90,6 +90,11 @@ pub fn parse_number(value: &str) -> Option<f64> {
 
 /// The value sanitization algorithm: what a control does to a value on its way in.
 pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, raw: &str) -> String {
+    // A textarea keeps its line breaks but normalises them: CRLF and a lone CR both become
+    // LF, so assigning "a\r\nb" to a control already holding "a\nb" changes nothing.
+    if doc.tag_name(id) == Some("textarea") {
+        return normalize_newlines(raw);
+    }
     if doc.tag_name(id) != Some("input") {
         return raw.to_string();
     }
@@ -125,6 +130,21 @@ pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, 
             _ => stripped,
         },
     }
+}
+
+/// CRLF and lone CR both collapse to LF.
+fn normalize_newlines(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    let mut chars = value.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\r' {
+            chars.next_if_eq(&'\n');
+            out.push('\n');
+            continue;
+        }
+        out.push(ch);
+    }
+    out
 }
 
 /// A "simple colour": `#` followed by exactly six ASCII hex digits.
@@ -379,6 +399,7 @@ pub fn bound<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, name: &st
 pub fn supports_selection<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
     match doc.tag_name(id) {
         Some("textarea") => true,
+        // Not email: `multiple` lets it hold a list, so it has no single selection.
         Some("input") => matches!(
             doc.attribute(id, "type")
                 .map(|t| t.cow_to_ascii_lowercase().into_owned())

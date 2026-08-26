@@ -861,3 +861,49 @@ fn files_is_null_unless_the_control_takes_files() {
     );
     assert_eq!(result, "null|0");
 }
+
+#[test]
+fn only_some_input_types_have_a_selection_api() {
+    let result = eval(
+        "<input id=t type=text><input id=e type=email><input id=n type=number>",
+        "const probe = id => {
+           const el = document.getElementById(id);
+           let threw = false;
+           try { el.selectionStart = 0; } catch (e) { threw = e.name === 'InvalidStateError'; }
+           return String(el.selectionStart) + ':' + threw;
+         };
+         // Email is out: `multiple` lets it hold a list, so it has no single selection.
+         [probe('t'), probe('e'), probe('n')].join('|')",
+    );
+    assert_eq!(result, "0:false|null:true|null:true");
+}
+
+#[test]
+fn assigning_the_same_value_leaves_the_cursor_alone() {
+    let result = eval(
+        "<input id=i value=abcdef><textarea id=t>a\nb</textarea>",
+        "const i = document.getElementById('i'), t = document.getElementById('t');
+         i.setSelectionRange(1, 4);
+         i.value = 'abcdef';
+         const kept = [i.selectionStart, i.selectionEnd].join(',');
+         i.value = 'changed';
+         const moved = [i.selectionStart, i.selectionEnd].join(',');
+         // A textarea normalises CRLF, so this counts as the same value too.
+         t.setSelectionRange(1, 1);
+         t.value = 'a\\r\\nb';
+         [kept, moved, t.selectionStart].join('|')",
+    );
+    assert_eq!(result, "1,4|7,7|1");
+}
+
+#[test]
+fn a_detached_label_cannot_reach_into_the_document() {
+    let result = eval(
+        "<input id=target><label id=inside for=target>x</label>",
+        "const detached = document.createElement('label');
+         detached.setAttribute('for', 'target');
+         const inside = document.getElementById('inside');
+         [String(detached.control), inside.control.id].join('|')",
+    );
+    assert_eq!(result, "null|target");
+}

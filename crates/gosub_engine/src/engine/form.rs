@@ -86,10 +86,16 @@ fn is_connected<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> boo
 /// The first element in tree order whose `id` attribute is exactly `target`. An empty
 /// string is not an ID, so it never matches anything.
 fn first_by_id<C: DomConfiguration>(doc: &EngineDocument<C>, target: &str) -> Option<NodeId> {
+    first_by_id_within(doc, doc.root(), target)
+}
+
+/// The same search, but scoped to one tree: an element in a detached subtree can only see
+/// the ids in that subtree, not the document's.
+pub fn first_by_id_within<C: DomConfiguration>(doc: &EngineDocument<C>, root: NodeId, target: &str) -> Option<NodeId> {
     if target.is_empty() {
         return None;
     }
-    let mut stack: Vec<NodeId> = doc.children(doc.root()).iter().rev().copied().collect();
+    let mut stack: Vec<NodeId> = doc.children(root).iter().rev().copied().collect();
     while let Some(node) = stack.pop() {
         stack.extend(doc.children(node).iter().rev());
         if doc.attribute(node, "id") == Some(target) {

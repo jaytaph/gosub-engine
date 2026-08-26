@@ -203,6 +203,12 @@ goes through the page's own `setTimeout`, so it lands in the same virtual-time q
 everything else. An untouched control reports its selection at 0 - the caret-at-the-end
 default is what *focus* does, not what the IDL reports.
 
+The selection API belongs to `text`, `search`, `url`, `tel` and `password` only - **not**
+`email`, whose `multiple` form can hold a list. On anything else the getters answer `null`
+and the setters throw `InvalidStateError`, which is a distinction the tests check both ways.
+Assigning a control the value it already has leaves the cursor where it is; a `<textarea>`
+normalises CRLF to LF first, so `"a\r\nb"` counts as the same value as `"a\nb"`.
+
 `focus()`/`blur()` and `document.activeElement` read and write the document's focus state,
 gated by `focus::focusability`, so an unfocusable element quietly stays unfocused. No
 scrolling and no focus ring: those are paint concerns and nothing here paints.

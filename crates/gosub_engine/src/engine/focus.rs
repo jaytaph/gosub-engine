@@ -88,17 +88,43 @@ pub fn click_target<C: DomConfiguration>(doc: &EngineDocument<C>, leaf: NodeId) 
 /// The control a `<label>` activates: its `for` target, else the first descendant control.
 /// The control a `<label>` labels: its `for` target, else the first control inside it.
 pub fn label_control<C: DomConfiguration>(doc: &EngineDocument<C>, label: NodeId) -> Option<NodeId> {
-    if let Some(target) = doc.attribute(label, "for").and_then(|f| doc.node_by_named_id(f)) {
-        return (focusability(doc, target) != Focusability::No).then_some(target);
+    if doc.tag_name(label) != Some("label") {
+        return None;
+    }
+    if let Some(target) = doc.attribute(label, "for") {
+        // The `for` attribute reaches into the label's own tree, so a label nobody has
+        // inserted cannot label anything in the document.
+        let node = crate::engine::form::first_by_id_within(doc, tree_root(doc, label), target)?;
+        return is_labelable(doc, node).then_some(node);
     }
     let mut stack: Vec<NodeId> = doc.children(label).iter().rev().copied().collect();
     while let Some(id) = stack.pop() {
-        if doc.tag_name(id).is_some_and(|t| FORM_CONTROLS.contains(&t)) && focusability(doc, id) != Focusability::No {
+        if is_labelable(doc, id) {
             return Some(id);
         }
         stack.extend(doc.children(id).iter().rev());
     }
     None
+}
+
+/// The elements a `<label>` can label. Labelable is not the same as focusable: a disabled
+/// input still has a label, and a `<meter>` can be labelled without ever taking focus.
+fn is_labelable<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+    match doc.tag_name(id) {
+        Some("input") => !doc
+            .attribute(id, "type")
+            .is_some_and(|t| t.eq_ignore_ascii_case("hidden")),
+        Some(tag) => matches!(tag, "button" | "meter" | "output" | "progress" | "select" | "textarea"),
+        None => false,
+    }
+}
+
+/// The root of whatever tree `id` hangs in - the document, or a detached subtree's own top.
+fn tree_root<C: DomConfiguration>(doc: &EngineDocument<C>, mut id: NodeId) -> NodeId {
+    while let Some(parent) = doc.parent(id) {
+        id = parent;
+    }
+    id
 }
 
 /// Positive `tabindex` first (ascending, then document order), then the rest in document order.

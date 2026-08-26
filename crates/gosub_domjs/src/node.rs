@@ -141,6 +141,19 @@ impl GosubNode {
         Ok(())
     }
 
+    /// The current selection, or a thrown `InvalidStateError` for a control that has none.
+    /// The getters answer `null` there, but the setters are required to throw.
+    fn selection_or_throw(&self, ctx: &Ctx<'_>) -> Result<Option<(usize, usize, SelectionDirection)>> {
+        match edit::selection::<WptConfig>(&self.doc.borrow(), self.id) {
+            Some(selection) => Ok(Some(selection)),
+            None => Err(exception::throw(
+                ctx,
+                "InvalidStateError",
+                "this control does not support selection",
+            )),
+        }
+    }
+
     /// Run a selection change and queue a `select` event if it actually moved the selection.
     fn with_select_event<'js>(&self, ctx: &Ctx<'js>, change: impl FnOnce()) -> Result<()> {
         let before = edit::selection::<WptConfig>(&self.doc.borrow(), self.id);
@@ -835,8 +848,19 @@ impl GosubNode {
                     Some(edit::ValueMode::Value) => {
                         let doc = self.doc.borrow();
                         let value = edit::sanitize_value::<WptConfig>(&doc, self.id, &value);
-                        let caret = value.chars().count();
-                        doc.set_control_edit_state(self.id, Some(ControlEditState::new(value, caret)));
+                        // Assigning the value it already has leaves the cursor where it is;
+                        // only a real change drops it at the end.
+                        let mut state = doc
+                            .control_edit_state(self.id)
+                            .unwrap_or_else(|| ControlEditState::new(String::new(), 0));
+                        let unchanged = state.value == value && doc.control_edit_state(self.id).is_some();
+                        if !unchanged {
+                            state.caret = value.chars().count();
+                            state.anchor = None;
+                            state.direction = Default::default();
+                        }
+                        state.value = value;
+                        doc.set_control_edit_state(self.id, Some(state));
                     }
                     Some(edit::ValueMode::Default | edit::ValueMode::DefaultOn) => self.set_attr("value", &value),
                     _ => {}
@@ -1239,7 +1263,7 @@ impl GosubNode {
 
     #[qjs(set, rename = "selectionStart")]
     pub fn set_selection_start(&self, ctx: Ctx<'_>, start: Coerced<i64>) -> Result<()> {
-        let Some((_, end, direction)) = edit::selection::<WptConfig>(&self.doc.borrow(), self.id) else {
+        let Some((_, end, direction)) = self.selection_or_throw(&ctx)? else {
             return Ok(());
         };
         let start = start.0.max(0) as usize;
@@ -1258,7 +1282,7 @@ impl GosubNode {
 
     #[qjs(set, rename = "selectionEnd")]
     pub fn set_selection_end(&self, ctx: Ctx<'_>, end: Coerced<i64>) -> Result<()> {
-        let Some((start, _, direction)) = edit::selection::<WptConfig>(&self.doc.borrow(), self.id) else {
+        let Some((start, _, direction)) = self.selection_or_throw(&ctx)? else {
             return Ok(());
         };
         let end = end.0.max(0) as usize;
@@ -1277,7 +1301,7 @@ impl GosubNode {
 
     #[qjs(set, rename = "selectionDirection")]
     pub fn set_selection_direction(&self, ctx: Ctx<'_>, direction: Coerced<String>) -> Result<()> {
-        let Some((start, end, _)) = edit::selection::<WptConfig>(&self.doc.borrow(), self.id) else {
+        let Some((start, end, _)) = self.selection_or_throw(&ctx)? else {
             return Ok(());
         };
         let direction = SelectionDirection::parse(&direction.0);

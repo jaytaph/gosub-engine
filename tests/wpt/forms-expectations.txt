@@ -112,8 +112,6 @@ FILE html/semantics/forms/the-form-element/form-elements-sameobject.html
 FILE html/semantics/forms/the-form-element/form-indexed-element-shadow.html
 FAIL html/semantics/forms/the-form-element/form-indexed-element-shadow.html :: Untitled
 FILE html/semantics/forms/textfieldselection/selection-value-interactions.html
-FAIL html/semantics/forms/textfieldselection/selection-value-interactions.html :: selection is not collapsed to the end when value is set to its existing value on input
-FAIL html/semantics/forms/textfieldselection/selection-value-interactions.html :: selection is not collapsed to the end when value is set to its existing value on textarea
 FILE html/semantics/forms/textfieldselection/selection-set-value-after-focus.html
 FAIL html/semantics/forms/textfieldselection/selection-set-value-after-focus.html :: Script value change during a mouse click keeps the caret at the end after focus
 FILE html/semantics/forms/textfieldselection/selection-start-end.html
@@ -134,18 +132,6 @@ FILE html/semantics/forms/textfieldselection/selection-not-application-textarea.
 FILE html/semantics/forms/textfieldselection/selection-not-application.html
 HARNESS html/semantics/forms/textfieldselection/selection-not-application.html
 FILE html/semantics/forms/textfieldselection/selection-after-content-change.html
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: input out of document: selection must not change when setting the same value
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: input out of document: selection must not change when setting a value that becomes the same after the value sanitization algorithm
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: input in document: selection must not change when setting the same value
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: input in document: selection must not change when setting a value that becomes the same after the value sanitization algorithm
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: input in document, with focus: selection must not change when setting the same value
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: input in document, with focus: selection must not change when setting a value that becomes the same after the value sanitization algorithm
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: textarea out of document: selection must not change when setting the same value
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: textarea out of document: selection must not change when setting the same normalized value
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: textarea in document: selection must not change when setting the same value
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: textarea in document: selection must not change when setting the same normalized value
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: textarea in document, with focus: selection must not change when setting the same value
-FAIL html/semantics/forms/textfieldselection/selection-after-content-change.html :: textarea in document, with focus: selection must not change when setting the same normalized value
 FILE html/semantics/forms/textfieldselection/setSelectionRange.html
 FAIL html/semantics/forms/textfieldselection/setSelectionRange.html :: setSelectionRange on line boundaries
 FILE html/semantics/forms/textfieldselection/defaultSelection.html
@@ -405,14 +391,8 @@ FILE html/semantics/forms/the-fieldset-element/fieldset-validationmessage.html
 FILE html/semantics/forms/the-fieldset-element/HTMLFieldSetElement.html
 HARNESS html/semantics/forms/the-fieldset-element/HTMLFieldSetElement.html
 FILE html/semantics/forms/the-label-element/labelable-elements.html
-FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the output element is a labelable element
-FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the output element can access 'labels'
-FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the progress element is a labelable element
-FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the progress element can access 'labels'
 FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the hidden input element has null 'labels'
 FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the keygen element can access 'labels'
-FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the meter element is a labelable element
-FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the meter element can access 'labels'
 FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the fieldset element can access 'labels'
 FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the label element can access 'labels'
 FAIL html/semantics/forms/the-label-element/labelable-elements.html :: Check if the object element can access 'labels'
@@ -447,10 +427,7 @@ HARNESS html/semantics/forms/the-label-element/proxy-click-to-associated-element
 FAIL html/semantics/forms/the-label-element/proxy-click-to-associated-element.html :: label with for attribute should proxy click events to the associated element
 FAIL html/semantics/forms/the-label-element/proxy-click-to-associated-element.html :: label without for attribute should proxy click events to the first labelable child
 FILE html/semantics/forms/the-label-element/label-attributes.sub.html
-FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: A label element not in a document can not label any element in the document.
 FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: The labeled control for a label element that has no 'for' attribute is the first labelable element which is a descendant of that label element.
-FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: The 'for' attribute points to an inexistent id.
-FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: The 'for' attribute is an empty string.
 FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: A form control has multiple labels.
 FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: A labelable element is moved to outside of nested associated labels.
 FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: A labelable element is moved to inside of nested associated labels.
@@ -461,7 +438,6 @@ FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: A label
 FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: A labelable element inside the shadow DOM.
 FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: A form control has an implicit label.
 FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: A form control has no label 1.
-FAIL html/semantics/forms/the-label-element/label-attributes.sub.html :: A form control has no label 2.
 FILE html/semantics/forms/the-button-element/button-checkvalidity.html
 FILE html/semantics/forms/the-button-element/button-untrusted-key-event.html
 FAIL html/semantics/forms/the-button-element/button-untrusted-key-event.html :: Dispatching untrusted keypress events to submit button should not cause click event
@@ -854,8 +830,6 @@ FILE html/semantics/forms/the-textarea-element/value-defaultValue-textContent.ht
 FAIL html/semantics/forms/the-textarea-element/value-defaultValue-textContent.html :: defaultValue and value are affected by setting nodeValue on a child text node
 FAIL html/semantics/forms/the-textarea-element/value-defaultValue-textContent.html :: defaultValue and value are affected by setting data on a child text node
 FAIL html/semantics/forms/the-textarea-element/value-defaultValue-textContent.html :: defaultValue and value are affected by textContent in combination with appending a DocumentFragment
-FAIL html/semantics/forms/the-textarea-element/value-defaultValue-textContent.html :: defaultValue and value treat CRLF differently
-FAIL html/semantics/forms/the-textarea-element/value-defaultValue-textContent.html :: value normalizes CRLF even spread over multiple text nodes
 FAIL html/semantics/forms/the-textarea-element/value-defaultValue-textContent.html :: tests for the value setter
 FILE html/semantics/forms/the-textarea-element/textarea-placeholder-lineheight.html
 HARNESS html/semantics/forms/the-textarea-element/textarea-placeholder-lineheight.html
@@ -1024,21 +998,6 @@ FAIL html/semantics/forms/the-input-element/checkbox.html :: canceled activation
 FAIL html/semantics/forms/the-input-element/checkbox.html :: canceled activation steps on unchecked checkbox (indeterminate=true in onclick)
 FILE html/semantics/forms/the-input-element/input-value-invalidstateerr.html
 FILE html/semantics/forms/the-input-element/selection.html
-FAIL html/semantics/forms/the-input-element/selection.html :: input type hidden should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type email should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type date should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type time should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type datetime-local should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type number should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type range should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type color should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type checkbox should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type radio should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type file should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type submit should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type image should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type reset should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection.html :: input type button should not support variable-length selections
 FILE html/semantics/forms/the-input-element/url.html
 FILE html/semantics/forms/the-input-element/minlength.html
 FAIL html/semantics/forms/the-input-element/minlength.html :: Negative minlength is always -1
@@ -1107,8 +1066,6 @@ FILE html/semantics/forms/the-input-element/input-stepdown-weekmonth.html
 FAIL html/semantics/forms/the-input-element/input-stepdown-weekmonth.html :: Calling stepDown() on input - month - where value < min should not modify value.
 FAIL html/semantics/forms/the-input-element/input-stepdown-weekmonth.html :: Calling stepDown() on input - week - where value < min should not modify value.
 FILE html/semantics/forms/the-input-element/selection-weekmonth.html
-FAIL html/semantics/forms/the-input-element/selection-weekmonth.html :: input type month should not support variable-length selections
-FAIL html/semantics/forms/the-input-element/selection-weekmonth.html :: input type week should not support variable-length selections
 FILE html/semantics/forms/the-input-element/required_attribute.html
 FILE html/semantics/forms/the-input-element/maxlength.html
 FAIL html/semantics/forms/the-input-element/maxlength.html :: Assigning negative integer throws IndexSizeError
