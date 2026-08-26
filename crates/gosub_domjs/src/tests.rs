@@ -484,3 +484,67 @@ fn a_label_reports_its_controls_form() {
     );
     assert_eq!(result, "i|f|1");
 }
+
+#[test]
+fn meter_values_are_clamped_in_order() {
+    let result = eval(
+        "<meter id=m min=10 max=20 low=25 value=30></meter>",
+        "const m = document.getElementById('m');
+         // low clamps into [min, max]; high defaults to max; value clamps last.
+         [m.value, m.min, m.max, m.low, m.high, m.optimum].join('|')",
+    );
+    assert_eq!(result, "20|10|20|20|20|15");
+}
+
+#[test]
+fn a_meter_maximum_below_its_minimum_collapses() {
+    let result = eval(
+        "<meter id=m min=12.1></meter>",
+        "const m = document.getElementById('m');
+         [m.max, m.value, m.optimum].join('|')",
+    );
+    assert_eq!(result, "12.1|12.1|12.1");
+}
+
+#[test]
+fn meter_setters_reject_values_that_are_not_numbers() {
+    let result = eval(
+        "<meter id=m></meter>",
+        "const m = document.getElementById('m');
+         const names = [];
+         for (const prop of ['value', 'min', 'max', 'low', 'high', 'optimum']) {
+           try { m[prop] = 'foobar'; } catch (e) { names.push(e.constructor.name); }
+         }
+         names.join(',')",
+    );
+    assert_eq!(result, "TypeError,TypeError,TypeError,TypeError,TypeError,TypeError");
+}
+
+#[test]
+fn a_progress_without_a_value_is_indeterminate() {
+    let result = eval(
+        "<progress id=p></progress><progress id=q value=1 max=4></progress>",
+        "const p = document.getElementById('p'), q = document.getElementById('q');
+         [p.position, p.value, p.max, q.position].join('|')",
+    );
+    assert_eq!(result, "-1|0|1|0.25");
+}
+
+#[test]
+fn a_progress_refuses_a_maximum_that_is_not_positive() {
+    let result = eval(
+        "<progress id=p></progress>",
+        "const p = document.getElementById('p');
+         p.max = 42;
+         p.max = 0;
+         p.max = -1000;
+         [p.max, p.getAttribute('max')].join('|')",
+    );
+    assert_eq!(result, "42|42");
+}
+
+#[test]
+fn an_element_id_is_reachable_as_a_global() {
+    let result = eval("<progress id=bar value=3 max=6></progress>", "String(bar.position)");
+    assert_eq!(result, "0.5");
+}

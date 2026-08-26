@@ -111,6 +111,21 @@ the option/textarea reflections `value`, `label`, `text`, `type`.
 
 Node wrappers are cached per node, so `a.parentNode === b` holds.
 
+## Gauges and named access
+
+`<meter>`'s `value`/`min`/`max`/`low`/`high`/`optimum` and `<progress>`'s `value`/`max`/
+`position` resolve through `gosub_engine::gauge`, which applies the spec's defaults and
+clamps in order - `high` is clamped against the already-clamped `low`, not the raw
+attribute. The getters report resolved numbers while the setters store the raw one, so a
+`low` above `max` keeps its attribute and reads back clamped. Setting any of them to
+something that is not a finite number throws `TypeError`, and a `<progress>` ignores a
+maximum that is not positive.
+
+An element with `id="foo"` is reachable as the global `foo`. Real named access is a live
+lookup on the window; this is a snapshot taken once after parsing, which is enough because
+the harness runs every script afterwards. Names that would shadow an existing global - or a
+testharness function - are skipped.
+
 ## Form submission and stepping
 
 `submit()`, `requestSubmit()` and `reset()` are bound, but there is no navigation here: what

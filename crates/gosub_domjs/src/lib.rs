@@ -17,6 +17,7 @@ use gosub_html5::document::builder::DocumentBuilderImpl;
 use gosub_html5::document::document_impl::DocumentImpl;
 use gosub_html5::parser::Html5Parser;
 use gosub_interface::config::ModuleConfiguration;
+use gosub_interface::document::Document as _;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
 use rquickjs::{Class, Ctx, Object, Value};
 use url::Url;
@@ -95,10 +96,39 @@ pub fn install(ctx: &Ctx<'_>, doc: DocHandle, timers: &timers::Timers) -> rquick
     timers::install(ctx, timers)?;
     globals.set(WRAPPER_CACHE, ctx.eval::<Value, _>("new Map()")?)?;
 
-    let document = Class::instance(ctx.clone(), GosubDocument::new(doc))?;
+    let document = Class::instance(ctx.clone(), GosubDocument::new(doc.clone()))?;
     globals.set("document", document)?;
     globals.set("window", globals.clone())?;
     globals.set("self", globals.clone())?;
+    install_named_access(ctx, &doc)?;
+    Ok(())
+}
+
+/// The window's named properties: an element with `id="foo"` is reachable as `foo`.
+///
+/// Real named access is a live lookup on the global object; this is a snapshot taken once,
+/// after parsing, because the harness runs every script afterwards anyway. Elements created
+/// later by script do not appear, and a name that would shadow an existing global (or a
+/// testharness function) is left alone.
+fn install_named_access(ctx: &Ctx<'_>, doc: &DocHandle) -> rquickjs::Result<()> {
+    let globals = ctx.globals();
+    let named: Vec<(String, gosub_shared::node::NodeId)> = {
+        let document = doc.borrow();
+        let root = document.root();
+        select::descendants(&document, root)
+            .into_iter()
+            .filter_map(|id| Some((document.attribute(id, "id")?.to_string(), id)))
+            .filter(|(name, _)| !name.is_empty())
+            .collect()
+    };
+
+    for (name, id) in named {
+        if globals.contains_key(name.as_str())? {
+            continue;
+        }
+        let wrapper = wrap(ctx, doc, id)?;
+        globals.set(name.as_str(), wrapper)?;
+    }
     Ok(())
 }
 

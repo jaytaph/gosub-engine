@@ -10,12 +10,12 @@ use gosub_interface::node::NodeType;
 use gosub_shared::byte_stream::Location;
 use gosub_shared::node::NodeId;
 use rquickjs::class::Trace;
-use rquickjs::{Coerced, Ctx, Exception, JsLifetime, Result, Value};
+use rquickjs::{Coerced, Ctx, Exception, IntoJs, JsLifetime, Result, Value};
 
 use crate::exception;
 use crate::validity::DomValidity;
 use crate::{event, select, text, wrap, wrap_opt, DocHandle, WptConfig};
-use gosub_engine::{edit, focus, form, validity};
+use gosub_engine::{edit, focus, form, gauge, validity};
 use gosub_interface::document::{ControlEditState, SelectionDirection};
 
 #[derive(Trace, JsLifetime)]
@@ -118,6 +118,26 @@ impl GosubNode {
                 return Some(candidate);
             }
         }
+    }
+
+    /// Write a number into a content attribute in its shortest decimal form.
+    fn set_number_attr(&self, ctx: Ctx<'_>, name: &str, value: f64) -> Result<()> {
+        if !value.is_finite() {
+            return Err(Exception::throw_type(&ctx, "value is not a finite number"));
+        }
+        self.set_attr(name, &edit::format_number(value));
+        Ok(())
+    }
+
+    /// `min`/`max` are numbers on a `<meter>` and opaque strings on an `<input>`, where they
+    /// can hold a date.
+    fn set_reflected_number(&self, ctx: Ctx<'_>, name: &str, value: Value<'_>) -> Result<()> {
+        if self.doc.borrow().tag_name(self.id) == Some("meter") {
+            let number = number_arg(&ctx, &value)?;
+            return self.set_number_attr(ctx, name, number);
+        }
+        self.set_attr(name, &value.get::<Coerced<String>>()?.0);
+        Ok(())
     }
 
     /// Shared by `stepUp`/`stepDown`: a control with no allowed value step throws.
@@ -454,26 +474,47 @@ impl GosubNode {
         self.set_attr("pattern", &value);
     }
 
+    /// A `<meter>`'s `min` is a resolved number; on any other element it is the raw attribute.
     #[qjs(get)]
-    pub fn min(&self) -> String {
-        self.attr("min")
+    pub fn min<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        if self.doc.borrow().tag_name(self.id) == Some("meter") {
+            return gauge::meter::<WptConfig>(&self.doc.borrow(), self.id).min.into_js(&ctx);
+        }
+        self.attr("min").into_js(&ctx)
     }
 
     #[qjs(set, rename = "min")]
-    pub fn set_min(&self, value: Coerced<String>) {
-        let value = value.0;
-        self.set_attr("min", &value);
+    pub fn set_min(&self, ctx: Ctx<'_>, value: Value<'_>) -> Result<()> {
+        self.set_reflected_number(ctx, "min", value)
     }
 
+    /// Resolved for `<meter>` and `<progress>`, the raw attribute everywhere else.
     #[qjs(get)]
-    pub fn max(&self) -> String {
-        self.attr("max")
+    pub fn max<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let doc = self.doc.borrow();
+        match doc.tag_name(self.id) {
+            Some("meter") => gauge::meter::<WptConfig>(&doc, self.id).max.into_js(&ctx),
+            Some("progress") => gauge::progress::<WptConfig>(&doc, self.id).max.into_js(&ctx),
+            _ => {
+                drop(doc);
+                self.attr("max").into_js(&ctx)
+            }
+        }
     }
 
     #[qjs(set, rename = "max")]
-    pub fn set_max(&self, value: Coerced<String>) {
-        let value = value.0;
-        self.set_attr("max", &value);
+    pub fn set_max(&self, ctx: Ctx<'_>, value: Value<'_>) -> Result<()> {
+        // A `<progress>` refuses a maximum that is not positive - the attribute keeps its
+        // old value rather than picking up a nonsense one.
+        if self.doc.borrow().tag_name(self.id) == Some("progress") {
+            let number = number_arg(&ctx, &value)?;
+            if number <= 0.0 {
+                return Ok(());
+            }
+            self.set_attr("max", &edit::format_number(number));
+            return Ok(());
+        }
+        self.set_reflected_number(ctx, "max", value)
     }
 
     #[qjs(get)]
@@ -705,7 +746,21 @@ impl GosubNode {
     /// The control's current value. Which state that reads depends on the element and, for
     /// an `<input>`, on its value mode - both decided by engine code, not here.
     #[qjs(get)]
-    pub fn value(&self) -> Option<String> {
+    pub fn value<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        {
+            // A gauge's value is a number, not a string.
+            let doc = self.doc.borrow();
+            match doc.tag_name(self.id) {
+                Some("meter") => return gauge::meter::<WptConfig>(&doc, self.id).value.into_js(&ctx),
+                Some("progress") => return gauge::progress::<WptConfig>(&doc, self.id).value.into_js(&ctx),
+                _ => {}
+            }
+        }
+        nullable(&ctx, self.control_value())
+    }
+
+    /// The string value of a form control, or `None` for anything that has no value.
+    fn control_value(&self) -> Option<String> {
         let doc = self.doc.borrow();
         match doc.tag_name(self.id)? {
             "option" => Some(form::option_value::<WptConfig>(&doc, self.id)),
@@ -726,6 +781,16 @@ impl GosubNode {
     }
 
     #[qjs(set, rename = "value")]
+    pub fn set_value_js(&self, ctx: Ctx<'_>, value: Value<'_>) -> Result<()> {
+        if matches!(self.doc.borrow().tag_name(self.id), Some("meter" | "progress")) {
+            let number = number_arg(&ctx, &value)?;
+            return self.set_number_attr(ctx, "value", number);
+        }
+        self.set_value(Coerced(value.get::<Coerced<String>>()?.0));
+        Ok(())
+    }
+
+    #[qjs(skip)]
     pub fn set_value(&self, value: Coerced<String>) {
         let value = value.0;
         let tag = self.doc.borrow().tag_name(self.id).map(str::to_string);
@@ -888,7 +953,7 @@ impl GosubNode {
 
     #[qjs(get, rename = "textLength")]
     pub fn text_length(&self) -> u32 {
-        self.value().unwrap_or_default().chars().count() as u32
+        self.control_value().unwrap_or_default().chars().count() as u32
     }
 
     /// The `<form>` this control belongs to - its `form` attribute's target, else the
@@ -1192,6 +1257,47 @@ impl GosubNode {
         }
     }
 
+    // ── <meter> and <progress> ─────────────────────────────────────────────
+    //
+    // The getters report resolved values, the setters write the raw number: a `low` above
+    // `max` stores what you gave it and reads back clamped.
+
+    #[qjs(get, rename = "low")]
+    pub fn meter_low(&self) -> f64 {
+        gauge::meter::<WptConfig>(&self.doc.borrow(), self.id).low
+    }
+
+    #[qjs(set, rename = "low")]
+    pub fn set_meter_low(&self, ctx: Ctx<'_>, value: Coerced<f64>) -> Result<()> {
+        self.set_number_attr(ctx, "low", value.0)
+    }
+
+    #[qjs(get, rename = "high")]
+    pub fn meter_high(&self) -> f64 {
+        gauge::meter::<WptConfig>(&self.doc.borrow(), self.id).high
+    }
+
+    #[qjs(set, rename = "high")]
+    pub fn set_meter_high(&self, ctx: Ctx<'_>, value: Coerced<f64>) -> Result<()> {
+        self.set_number_attr(ctx, "high", value.0)
+    }
+
+    #[qjs(get, rename = "optimum")]
+    pub fn meter_optimum(&self) -> f64 {
+        gauge::meter::<WptConfig>(&self.doc.borrow(), self.id).optimum
+    }
+
+    #[qjs(set, rename = "optimum")]
+    pub fn set_meter_optimum(&self, ctx: Ctx<'_>, value: Coerced<f64>) -> Result<()> {
+        self.set_number_attr(ctx, "optimum", value.0)
+    }
+
+    /// `-1` while a `<progress>` is indeterminate, otherwise `value / max`.
+    #[qjs(get)]
+    pub fn position(&self) -> f64 {
+        gauge::progress::<WptConfig>(&self.doc.borrow(), self.id).position
+    }
+
     // ── constraint validation ──────────────────────────────────────────────
 
     #[qjs(get, rename = "willValidate")]
@@ -1288,6 +1394,16 @@ impl GosubNode {
     pub fn to_string_js(&self) -> String {
         format!("[object Node {}]", self.node_name())
     }
+}
+
+/// WebIDL's `double` conversion: coerce to a number, and reject anything that is not finite
+/// with a `TypeError` the way a `double` argument does.
+fn number_arg(ctx: &Ctx<'_>, value: &Value<'_>) -> Result<f64> {
+    let number = value.get::<Coerced<f64>>().map(|n| n.0).unwrap_or(f64::NAN);
+    if !number.is_finite() {
+        return Err(Exception::throw_type(ctx, "value is not a finite number"));
+    }
+    Ok(number)
 }
 
 /// `Some` as itself, `None` as JS `null` (rquickjs would otherwise hand back `undefined`).

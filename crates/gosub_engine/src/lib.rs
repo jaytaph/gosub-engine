@@ -187,6 +187,10 @@ pub use engine::edit;
 #[doc(inline)]
 pub use engine::focus;
 
+/// `<meter>` and `<progress>`: attributes resolved into the numbers they display.
+#[doc(inline)]
+pub use engine::gauge;
+
 /// Constraint validation: candidacy, the validity flags and their messages.
 #[doc(inline)]
 pub use engine::validity;
