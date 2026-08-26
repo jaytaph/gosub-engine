@@ -14,7 +14,7 @@ use rquickjs::{Coerced, Ctx, Exception, JsLifetime, Result, Value};
 
 use crate::exception;
 use crate::validity::DomValidity;
-use crate::{event, select, text, wrap, wrap_opt, DocHandle, DomConfig};
+use crate::{event, select, text, wrap, wrap_opt, DocHandle, WptConfig};
 use gosub_engine::{edit, focus, form, validity};
 use gosub_interface::document::{ControlEditState, SelectionDirection};
 
@@ -100,7 +100,7 @@ impl GosubNode {
         let chosen = self
             .option_ids()
             .into_iter()
-            .find(|&option| form::option_value::<DomConfig>(&doc, option) == value);
+            .find(|&option| form::option_value::<WptConfig>(&doc, option) == value);
         doc.set_selected_option(self.id, chosen);
     }
 
@@ -122,7 +122,7 @@ impl GosubNode {
 
     /// Shared by `stepUp`/`stepDown`: a control with no allowed value step throws.
     fn step_by(&self, ctx: Ctx<'_>, n: i64) -> Result<()> {
-        let stepped = edit::step::<DomConfig>(&self.doc.borrow(), self.id, n);
+        let stepped = edit::step::<WptConfig>(&self.doc.borrow(), self.id, n);
         match stepped {
             Ok(value) => {
                 self.set_value(Coerced(value));
@@ -708,16 +708,16 @@ impl GosubNode {
     pub fn value(&self) -> Option<String> {
         let doc = self.doc.borrow();
         match doc.tag_name(self.id)? {
-            "option" => Some(form::option_value::<DomConfig>(&doc, self.id)),
+            "option" => Some(form::option_value::<WptConfig>(&doc, self.id)),
             "button" => Some(doc.attribute(self.id, "value").unwrap_or_default().to_string()),
             "select" => Some(
                 doc.selected_option(self.id)
-                    .map(|option| form::option_value::<DomConfig>(&doc, option))
+                    .map(|option| form::option_value::<WptConfig>(&doc, option))
                     .unwrap_or_default(),
             ),
-            _ => match edit::value_mode::<DomConfig>(&doc, self.id)? {
+            _ => match edit::value_mode::<WptConfig>(&doc, self.id)? {
                 // The IDL value is sanitized; what the painter shows is not.
-                edit::ValueMode::Value => Some(edit::api_value::<DomConfig>(&doc, self.id)),
+                edit::ValueMode::Value => Some(edit::api_value::<WptConfig>(&doc, self.id)),
                 edit::ValueMode::Default => Some(doc.attribute(self.id, "value").unwrap_or_default().to_string()),
                 edit::ValueMode::DefaultOn => Some(doc.attribute(self.id, "value").unwrap_or("on").to_string()),
                 edit::ValueMode::Filename => Some(String::new()),
@@ -733,12 +733,12 @@ impl GosubNode {
             Some("option" | "button") => self.set_attr("value", &value),
             Some("select") => self.select_by_value(&value),
             _ => {
-                let mode = edit::value_mode::<DomConfig>(&self.doc.borrow(), self.id);
+                let mode = edit::value_mode::<WptConfig>(&self.doc.borrow(), self.id);
                 match mode {
                     // Setting the value moves the text entry cursor to the end.
                     Some(edit::ValueMode::Value) => {
                         let doc = self.doc.borrow();
-                        let value = edit::sanitize_value::<DomConfig>(&doc, self.id, &value);
+                        let value = edit::sanitize_value::<WptConfig>(&doc, self.id, &value);
                         let caret = value.chars().count();
                         doc.set_control_edit_state(self.id, Some(ControlEditState::new(value, caret)));
                     }
@@ -775,7 +775,7 @@ impl GosubNode {
     /// The markup value: an `<input>`'s `value` attribute, a `<textarea>`'s child text.
     #[qjs(get, rename = "defaultValue")]
     pub fn default_value(&self) -> String {
-        edit::initial_value::<DomConfig>(&self.doc.borrow(), self.id)
+        edit::initial_value::<WptConfig>(&self.doc.borrow(), self.id)
     }
 
     #[qjs(set, rename = "defaultValue")]
@@ -858,7 +858,7 @@ impl GosubNode {
     #[qjs(get)]
     pub fn text(&self) -> Option<String> {
         let doc = self.doc.borrow();
-        (doc.tag_name(self.id) == Some("option")).then(|| form::option_text::<DomConfig>(&doc, self.id))
+        (doc.tag_name(self.id) == Some("option")).then(|| form::option_text::<WptConfig>(&doc, self.id))
     }
 
     #[qjs(set, rename = "text")]
@@ -876,7 +876,7 @@ impl GosubNode {
         }
         match doc.attribute(self.id, "label") {
             Some(label) => Some(label.to_string()),
-            None => Some(form::option_text::<DomConfig>(&doc, self.id)),
+            None => Some(form::option_text::<WptConfig>(&doc, self.id)),
         }
     }
 
@@ -898,9 +898,9 @@ impl GosubNode {
         let doc = self.doc.borrow();
         // A label reports its labeled control's owner, not its own.
         let owner = if doc.tag_name(self.id) == Some("label") {
-            form::label_form::<DomConfig>(&doc, self.id)
+            form::label_form::<WptConfig>(&doc, self.id)
         } else {
-            form::form_owner::<DomConfig>(&doc, self.id)
+            form::form_owner::<WptConfig>(&doc, self.id)
         };
         drop(doc);
         wrap_opt(&ctx, &self.doc, owner)
@@ -966,7 +966,7 @@ impl GosubNode {
     pub fn control<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
         let doc = self.doc.borrow();
         let labeled = (doc.tag_name(self.id) == Some("label"))
-            .then(|| focus::label_control::<DomConfig>(&doc, self.id))
+            .then(|| focus::label_control::<WptConfig>(&doc, self.id))
             .flatten();
         drop(doc);
         wrap_opt(&ctx, &self.doc, labeled)
@@ -981,7 +981,7 @@ impl GosubNode {
             select::descendants(&doc, root)
                 .into_iter()
                 .filter(|&id| doc.tag_name(id) == Some("label"))
-                .filter(|&id| focus::label_control::<DomConfig>(&doc, id) == Some(self.id))
+                .filter(|&id| focus::label_control::<WptConfig>(&doc, id) == Some(self.id))
                 .collect::<Vec<_>>()
         };
         wrap_list(&ctx, &self.doc, &found)
@@ -1003,10 +1003,10 @@ impl GosubNode {
         if let Some(submitter) = submitter.0 {
             let id = submitter.borrow().id;
             let doc = self.doc.borrow();
-            if form::button_kind::<DomConfig>(&doc, id) != Some(false) {
+            if form::button_kind::<WptConfig>(&doc, id) != Some(false) {
                 return Err(Exception::throw_message(&ctx, "TypeError: not a submit button"));
             }
-            if form::form_owner::<DomConfig>(&doc, id) != Some(self.id) {
+            if form::form_owner::<WptConfig>(&doc, id) != Some(self.id) {
                 return Err(exception::throw(
                     &ctx,
                     "NotFoundError",
@@ -1032,7 +1032,7 @@ impl GosubNode {
         if !event::dispatch(&ctx, &self.doc, self.id, event)? {
             return Ok(());
         }
-        form::reset::<DomConfig>(&self.doc.borrow(), self.id);
+        form::reset::<WptConfig>(&self.doc.borrow(), self.id);
         Ok(())
     }
 
@@ -1054,51 +1054,51 @@ impl GosubNode {
     pub fn selection_start<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
         nullable(
             &ctx,
-            edit::selection::<DomConfig>(&self.doc.borrow(), self.id).map(|(s, _, _)| s as u32),
+            edit::selection::<WptConfig>(&self.doc.borrow(), self.id).map(|(s, _, _)| s as u32),
         )
     }
 
     #[qjs(set, rename = "selectionStart")]
     pub fn set_selection_start(&self, start: Coerced<i64>) {
-        let Some((_, end, direction)) = edit::selection::<DomConfig>(&self.doc.borrow(), self.id) else {
+        let Some((_, end, direction)) = edit::selection::<WptConfig>(&self.doc.borrow(), self.id) else {
             return;
         };
         let start = start.0.max(0) as usize;
-        edit::set_selection::<DomConfig>(&self.doc.borrow(), self.id, start, end.max(start), direction);
+        edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, start, end.max(start), direction);
     }
 
     #[qjs(get, rename = "selectionEnd")]
     pub fn selection_end<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
         nullable(
             &ctx,
-            edit::selection::<DomConfig>(&self.doc.borrow(), self.id).map(|(_, e, _)| e as u32),
+            edit::selection::<WptConfig>(&self.doc.borrow(), self.id).map(|(_, e, _)| e as u32),
         )
     }
 
     #[qjs(set, rename = "selectionEnd")]
     pub fn set_selection_end(&self, end: Coerced<i64>) {
-        let Some((start, _, direction)) = edit::selection::<DomConfig>(&self.doc.borrow(), self.id) else {
+        let Some((start, _, direction)) = edit::selection::<WptConfig>(&self.doc.borrow(), self.id) else {
             return;
         };
         let end = end.0.max(0) as usize;
-        edit::set_selection::<DomConfig>(&self.doc.borrow(), self.id, start.min(end), end, direction);
+        edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, start.min(end), end, direction);
     }
 
     #[qjs(get, rename = "selectionDirection")]
     pub fn selection_direction<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
         nullable(
             &ctx,
-            edit::selection::<DomConfig>(&self.doc.borrow(), self.id).map(|(_, _, d)| d.as_str().to_string()),
+            edit::selection::<WptConfig>(&self.doc.borrow(), self.id).map(|(_, _, d)| d.as_str().to_string()),
         )
     }
 
     #[qjs(set, rename = "selectionDirection")]
     pub fn set_selection_direction(&self, direction: Coerced<String>) {
-        let Some((start, end, _)) = edit::selection::<DomConfig>(&self.doc.borrow(), self.id) else {
+        let Some((start, end, _)) = edit::selection::<WptConfig>(&self.doc.borrow(), self.id) else {
             return;
         };
         let direction = SelectionDirection::parse(&direction.0);
-        edit::set_selection::<DomConfig>(&self.doc.borrow(), self.id, start, end, direction);
+        edit::set_selection::<WptConfig>(&self.doc.borrow(), self.id, start, end, direction);
     }
 
     #[qjs(rename = "setSelectionRange")]
@@ -1113,7 +1113,7 @@ impl GosubNode {
             .0
             .map(|d| SelectionDirection::parse(&d.0))
             .unwrap_or(SelectionDirection::None);
-        let ok = edit::set_selection::<DomConfig>(
+        let ok = edit::set_selection::<WptConfig>(
             &self.doc.borrow(),
             self.id,
             start.0.max(0) as usize,
@@ -1134,8 +1134,8 @@ impl GosubNode {
     /// selection just does nothing here.
     pub fn select(&self) {
         let doc = self.doc.borrow();
-        let length = edit::api_value::<DomConfig>(&doc, self.id).chars().count();
-        edit::set_selection::<DomConfig>(&doc, self.id, 0, length, SelectionDirection::None);
+        let length = edit::api_value::<WptConfig>(&doc, self.id).chars().count();
+        edit::set_selection::<WptConfig>(&doc, self.id, 0, length, SelectionDirection::None);
     }
 
     #[qjs(rename = "setRangeText")]
@@ -1148,7 +1148,7 @@ impl GosubNode {
         mode: rquickjs::prelude::Opt<Coerced<String>>,
     ) -> Result<()> {
         let doc = self.doc.borrow();
-        let Some((current_start, current_end, _)) = edit::selection::<DomConfig>(&doc, self.id) else {
+        let Some((current_start, current_end, _)) = edit::selection::<WptConfig>(&doc, self.id) else {
             return Err(exception::throw(
                 &ctx,
                 "InvalidStateError",
@@ -1170,7 +1170,7 @@ impl GosubNode {
                 None => return Err(Exception::throw_message(&ctx, "TypeError: invalid selection mode")),
             },
         };
-        edit::set_range_text::<DomConfig>(&doc, self.id, &replacement.0, start, end, mode);
+        edit::set_range_text::<WptConfig>(&doc, self.id, &replacement.0, start, end, mode);
         Ok(())
     }
 
@@ -1180,7 +1180,7 @@ impl GosubNode {
     /// paint concern and nothing here paints.
     pub fn focus(&self) {
         let doc = self.doc.borrow();
-        if focus::focusability::<DomConfig>(&doc, self.id) != focus::Focusability::No {
+        if focus::focusability::<WptConfig>(&doc, self.id) != focus::Focusability::No {
             doc.set_focused_node(Some(self.id), false);
         }
     }
@@ -1196,7 +1196,7 @@ impl GosubNode {
 
     #[qjs(get, rename = "willValidate")]
     pub fn will_validate(&self) -> bool {
-        validity::will_validate::<DomConfig>(&self.doc.borrow(), self.id)
+        validity::will_validate::<WptConfig>(&self.doc.borrow(), self.id)
     }
 
     #[qjs(get)]
@@ -1207,7 +1207,7 @@ impl GosubNode {
 
     #[qjs(get, rename = "validationMessage")]
     pub fn validation_message(&self) -> String {
-        validity::validation_message::<DomConfig>(&self.doc.borrow(), self.id)
+        validity::validation_message::<WptConfig>(&self.doc.borrow(), self.id)
     }
 
     /// Validating fires an `invalid` event at every control that fails - at this element,
@@ -1217,8 +1217,8 @@ impl GosubNode {
         let failing = {
             let doc = self.doc.borrow();
             if doc.tag_name(self.id) == Some("form") {
-                validity::invalid_controls::<DomConfig>(&doc, self.id)
-            } else if validity::check_validity::<DomConfig>(&doc, self.id) {
+                validity::invalid_controls::<WptConfig>(&doc, self.id)
+            } else if validity::check_validity::<WptConfig>(&doc, self.id) {
                 Vec::new()
             } else {
                 vec![self.id]
