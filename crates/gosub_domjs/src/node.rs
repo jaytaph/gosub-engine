@@ -1143,6 +1143,29 @@ impl GosubNode {
         Ok(())
     }
 
+    /// `NaN` on a control whose type has no numeric reading at all.
+    #[qjs(get, rename = "valueAsNumber")]
+    pub fn value_as_number(&self) -> f64 {
+        edit::value_as_number::<WptConfig>(&self.doc.borrow(), self.id)
+    }
+
+    #[qjs(set, rename = "valueAsNumber")]
+    pub fn set_value_as_number(&self, ctx: Ctx<'_>, number: Coerced<f64>) -> Result<()> {
+        let value = {
+            let doc = self.doc.borrow();
+            edit::value_from_number::<WptConfig>(&doc, self.id, number.0)
+        };
+        let Some(value) = value else {
+            return Err(exception::throw(
+                &ctx,
+                "InvalidStateError",
+                "this control has no numeric value",
+            ));
+        };
+        self.set_value(Coerced(value));
+        Ok(())
+    }
+
     #[qjs(rename = "stepUp")]
     pub fn step_up(&self, ctx: Ctx<'_>, n: rquickjs::prelude::Opt<Coerced<i64>>) -> Result<()> {
         self.step_by(ctx, n.0.map_or(1, |n| n.0))

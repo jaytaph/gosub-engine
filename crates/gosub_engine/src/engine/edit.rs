@@ -1,6 +1,7 @@
 //! Editing form controls: typing into text fields, toggling checkboxes/radios. The state lives
 //! on the DOM document (`ControlEditState`, `is_checked`) where selectors and the painter read it.
 
+use crate::engine::temporal;
 use crate::html::{DomConfiguration, EngineDocument};
 use cow_utils::CowUtils;
 use gosub_interface::document::{ControlEditState, Document as _, SelectionDirection};
@@ -93,9 +94,6 @@ pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, 
     let stripped: String = raw.chars().filter(|c| !matches!(c, '\n' | '\r')).collect();
     match ty.as_str() {
         "url" | "email" => stripped.trim().to_string(),
-        // No date/time parsing exists yet, so every value is non-conforming and sanitizes
-        // away. Implementing the temporal types means replacing this arm, not deleting it.
-        "date" | "month" | "week" | "time" | "datetime-local" => String::new(),
         "color" => {
             if is_simple_color(&stripped) {
                 stripped.cow_to_ascii_lowercase().into_owned()
@@ -113,7 +111,11 @@ pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, 
             let value = parse_number(&stripped).unwrap_or((min + max) / 2.0);
             value.clamp(min, max.max(min)).to_string()
         }
-        _ => stripped,
+        // A date or time value survives only if it is a conforming string of its own format.
+        _ => match temporal::Kind::of(&ty) {
+            Some(kind) if !temporal::is_valid(kind, &stripped) => String::new(),
+            _ => stripped,
+        },
     }
 }
 
@@ -123,6 +125,45 @@ fn is_simple_color(value: &str) -> bool {
         return false;
     };
     digits.len() == 6 && digits.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// The `valueAsNumber` of a control, or `NaN` when its type has no numeric reading.
+pub fn value_as_number<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> f64 {
+    let Some(ty) = numeric_type(doc, id) else {
+        return f64::NAN;
+    };
+    let value = api_value(doc, id);
+    match temporal::Kind::of(&ty) {
+        Some(kind) => temporal::parse(kind, &value).unwrap_or(f64::NAN),
+        None => parse_number(&value).unwrap_or(f64::NAN),
+    }
+}
+
+/// The value string a `valueAsNumber` assignment produces, or `None` when the type has no
+/// numeric reading at all - which is what makes the IDL setter throw.
+pub fn value_from_number<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, number: f64) -> Option<String> {
+    let ty = numeric_type(doc, id)?;
+    Some(match temporal::Kind::of(&ty) {
+        // A number that lands outside the type's range leaves the control empty.
+        Some(kind) => temporal::serialize(kind, number).unwrap_or_default(),
+        None => format_number(number),
+    })
+}
+
+/// The `<input>` types whose value is a number underneath.
+fn numeric_type<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<String> {
+    if doc.tag_name(id) != Some("input") {
+        return None;
+    }
+    let ty = doc
+        .attribute(id, "type")
+        .map(|t| t.cow_to_ascii_lowercase().into_owned())
+        .unwrap_or_else(|| "text".to_string());
+    matches!(
+        ty.as_str(),
+        "number" | "range" | "date" | "month" | "week" | "time" | "datetime-local"
+    )
+    .then_some(ty)
 }
 
 /// Apply the value-mode transition rules for an `<input>` whose `type` is changing.
@@ -224,21 +265,21 @@ pub enum StepError {
 }
 
 /// The allowed value step of `id`, or why it has none.
-fn allowed_step<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Result<f64, StepError> {
-    let steppable = doc.tag_name(id) == Some("input")
-        && matches!(
-            doc.attribute(id, "type")
-                .map(|t| t.cow_to_ascii_lowercase().into_owned())
-                .as_deref(),
-            Some("number" | "range")
-        );
-    if !steppable {
+pub fn allowed_step<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Result<f64, StepError> {
+    let Some(ty) = numeric_type(doc, id) else {
         return Err(StepError::NotSteppable);
-    }
+    };
+    // A temporal step counts in its own unit: `step="2"` on a date is two days.
+    let (default, scale) = match temporal::Kind::of(&ty) {
+        Some(kind) => (kind.default_step(), kind.step_scale()),
+        None => (1.0, 1.0),
+    };
     match doc.attribute(id, "step").map(str::trim) {
         Some(s) if s.eq_ignore_ascii_case("any") => Err(StepError::StepAny),
-        Some(s) => Ok(parse_number(s).filter(|step| *step > 0.0).unwrap_or(1.0)),
-        None => Ok(1.0),
+        Some(s) => Ok(parse_number(s)
+            .filter(|step| *step > 0.0)
+            .map_or(default, |s| s * scale)),
+        None => Ok(default),
     }
 }
 
@@ -246,11 +287,18 @@ fn allowed_step<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Res
 /// value, already clamped into `[min, max]` and aligned to the step base.
 pub fn step<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, n: i64) -> Result<String, StepError> {
     let step = allowed_step(doc, id)?;
-    let min = doc.attribute(id, "min").and_then(parse_number);
-    let max = doc.attribute(id, "max").and_then(parse_number);
-    let base = min.unwrap_or(0.0);
+    let min = bound(doc, id, "min");
+    let max = bound(doc, id, "max");
+    let base = step_base(doc, id);
+    // A range that cannot contain anything leaves the value alone.
+    if let (Some(min), Some(max)) = (min, max) {
+        if min > max {
+            return Ok(value_from_number(doc, id, value_as_number(doc, id)).unwrap_or_default());
+        }
+    }
     // A value that will not convert counts as zero, rather than making the call fail.
-    let value = parse_number(&api_value(doc, id)).unwrap_or(0.0);
+    let value = value_as_number(doc, id);
+    let value = if value.is_nan() { 0.0 } else { value };
 
     let offset = (value - base) / step;
     let aligned = (offset - offset.round()).abs() < 1e-9;
@@ -272,7 +320,28 @@ pub fn step<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, n: i64) ->
             result = base + ((max - base) / step).floor() * step;
         }
     }
-    Ok(format_number(result))
+    Ok(value_from_number(doc, id, result).unwrap_or_default())
+}
+
+/// Where the step grid starts: the `min` attribute, else the type's own default base.
+pub fn step_base<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> f64 {
+    if let Some(min) = bound(doc, id, "min") {
+        return min;
+    }
+    numeric_type(doc, id)
+        .as_deref()
+        .and_then(temporal::Kind::of)
+        .map_or(0.0, |kind| kind.default_step_base())
+}
+
+/// A `min`/`max` attribute read in whatever units the control's type counts in.
+pub fn bound<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, name: &str) -> Option<f64> {
+    let raw = doc.attribute(id, name)?;
+    let ty = numeric_type(doc, id)?;
+    match temporal::Kind::of(&ty) {
+        Some(kind) => temporal::parse(kind, raw.trim()),
+        None => parse_number(raw.trim()),
+    }
 }
 
 /// Whether `id` exposes the text selection API. The types that do not (number, date,

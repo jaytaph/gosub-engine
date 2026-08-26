@@ -12,6 +12,7 @@ pub mod form;
 pub mod gauge;
 pub mod internal_pages;
 pub mod places;
+pub mod temporal;
 pub mod validity;
 
 pub mod events;

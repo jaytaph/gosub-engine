@@ -88,5 +88,50 @@ pub fn throw(ctx: &Ctx<'_>, name: &str, message: &str) -> rquickjs::Error {
 }
 
 pub fn install(ctx: &Ctx<'_>) -> rquickjs::Result<()> {
-    Class::<DomException>::define(&ctx.globals())
+    let globals = ctx.globals();
+    Class::<DomException>::define(&globals)?;
+
+    // WebIDL puts the legacy code constants on both the interface object and its prototype,
+    // and tests read them off a caught exception - `e.code === e.INVALID_STATE_ERR`.
+    let constructor: rquickjs::Object<'_> = globals.get("DOMException")?;
+    let prototype: rquickjs::Object<'_> = constructor.get("prototype")?;
+    for (name, code) in LEGACY_CODES {
+        let legacy = legacy_constant_name(name);
+        constructor.set(legacy.as_str(), code)?;
+        prototype.set(legacy.as_str(), code)?;
+    }
+    Ok(())
+}
+
+/// `IndexSizeError` is exposed as the constant `INDEX_SIZE_ERR`: shouted, underscored, and
+/// with the trailing "or" clipped off.
+fn legacy_constant_name(name: &str) -> String {
+    let trimmed = name.trim_end_matches("or");
+    let chars: Vec<char> = trimmed.chars().collect();
+    let mut out = String::with_capacity(trimmed.len() + 4);
+    for (index, &ch) in chars.iter().enumerate() {
+        // A word starts where lowercase meets uppercase, and at the end of an acronym like
+        // the URL in URLMismatchError - but not inside one.
+        let starts_word = index > 0
+            && ch.is_ascii_uppercase()
+            && (!chars[index - 1].is_ascii_uppercase() || chars.get(index + 1).is_some_and(char::is_ascii_lowercase));
+        if starts_word {
+            out.push('_');
+        }
+        out.push(ch.to_ascii_uppercase());
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::legacy_constant_name;
+
+    #[test]
+    fn legacy_names_are_the_shouted_form() {
+        assert_eq!(legacy_constant_name("IndexSizeError"), "INDEX_SIZE_ERR");
+        assert_eq!(legacy_constant_name("InvalidStateError"), "INVALID_STATE_ERR");
+        assert_eq!(legacy_constant_name("HierarchyRequestError"), "HIERARCHY_REQUEST_ERR");
+        assert_eq!(legacy_constant_name("URLMismatchError"), "URL_MISMATCH_ERR");
+    }
 }

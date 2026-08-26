@@ -221,10 +221,22 @@ checkbox arriving from an emptied field still reports its `"on"` default), and a
 that has just gained a selection API starts at offset 0 whatever cursor the previous type
 left behind.
 
-Sanitization now covers the temporal types (no date parsing exists, so every value is
-non-conforming and sanitizes away - implementing them means replacing that arm, not deleting
-it) and `color` (anything that is not `#` plus six hex digits becomes `#000000`). A `file`
+Sanitization covers the temporal types through `gosub_engine::temporal` and `color` (anything that is not `#` plus six hex digits becomes `#000000`). A `file`
 control throws `InvalidStateError` for any value but the empty string.
+
+## Date and time types
+
+`gosub_engine::temporal` parses and serialises `date`, `month`, `week`, `time` and
+`datetime-local`, and converts each to the number `valueAsNumber` reports - milliseconds
+since the epoch for most, months since 1970-01 for a month, milliseconds into the day for a
+time. Sanitization, stepping and the range constraints all read through it.
+
+Three things the formats disagree about, and each one is a test that fails if you assume
+otherwise: a `time` **wraps** into its day when a number is assigned (any millisecond count
+lands somewhere between 00:00 and 24:00) while a `datetime-local` that lands outside a real
+date just goes empty; the default step is a **minute** for `time` and `datetime-local`, not
+a second; and a `week` counts its steps from **1969-12-29**, because 1970-01-01 was a
+Thursday and week steps have to land on Mondays.
 
 ## Constraint validation
 

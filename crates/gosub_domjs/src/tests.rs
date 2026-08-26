@@ -757,3 +757,48 @@ fn a_script_set_value_is_never_too_long() {
     );
     assert_eq!(result, "false|true");
 }
+
+#[test]
+fn value_as_number_reads_each_temporal_format() {
+    let result = eval(
+        "<input id=d type=date><input id=m type=month><input id=w type=week><input id=t type=time>",
+        "const read = (id, v) => { const el = document.getElementById(id); el.value = v; return el.valueAsNumber; };
+         [read('d', '2019-12-10'), read('m', '2019-12'), read('w', '2019-W50'), read('t', '12:00'),
+          read('d', '2019-02-29')].join('|')",
+    );
+    assert_eq!(result, "1575936000000|599|1575849600000|43200000|NaN");
+}
+
+#[test]
+fn setting_value_as_number_serializes_back() {
+    let result = eval(
+        "<input id=d type=date><input id=t type=time><input id=x type=datetime-local>",
+        "const write = (id, n) => { const el = document.getElementById(id); el.valueAsNumber = n; return el.value; };
+         // A time wraps into its day; a datetime that lands nowhere real goes empty.
+         [write('d', 0), write('t', -3600000), write('x', 2.7343337071894478e26)].join('|')",
+    );
+    assert_eq!(result, "1970-01-01|23:00|");
+}
+
+#[test]
+fn temporal_stepping_uses_the_types_own_unit() {
+    let result = eval(
+        "<input id=d type=date value=2019-12-10><input id=t type=time value=12:00><input id=w type=week>",
+        "const step = id => { const el = document.getElementById(id); el.stepUp(); return el.value; };
+         // A day, a minute (not a second), and the Monday of the next week.
+         [step('d'), step('t'), step('w')].join('|')",
+    );
+    assert_eq!(result, "2019-12-11|12:01|1970-W02");
+}
+
+#[test]
+fn a_control_with_no_numeric_value_refuses_one() {
+    let result = eval(
+        "<input id=c type=checkbox>",
+        "const c = document.getElementById('c');
+         let caught = '';
+         try { c.valueAsNumber = 5; } catch (e) { caught = e.name + '/' + (e.code === e.INVALID_STATE_ERR); }
+         [String(c.valueAsNumber), caught].join('|')",
+    );
+    assert_eq!(result, "NaN|InvalidStateError/true");
+}

@@ -1,6 +1,6 @@
 # Known WPT failures for `gosub-wpt --expect`.
 #
-# Three record types, one per line:
+# Four record types, one per line:
 #   FILE  <path>              a suite CI runs. Listed explicitly, so adding files to a wpt
 #                             checkout cannot silently change what is covered.
 #   FAIL  <path> :: <name>    a subtest expected to fail (control chars escaped \n \r \t).
@@ -22,6 +22,10 @@
 FILE html/semantics/forms/historical.html
 FAIL html/semantics/forms/historical.html :: <input type=datetime> should not be supported
 FILE html/semantics/forms/historical.html
+FILE html/semantics/forms/historical.html
+HARNESS html/semantics/forms/historical.html
+FAIL html/semantics/forms/historical.html :: <input type=datetime> should not be supported
+FAIL html/semantics/forms/historical.html :: progress.form should not be supported
 FILE html/semantics/forms/historical.html
 HARNESS html/semantics/forms/historical.html
 FAIL html/semantics/forms/historical.html :: <input type=datetime> should not be supported
@@ -750,17 +754,6 @@ FAIL html/semantics/forms/attributes-common-to-form-controls/formaction.html :: 
 FILE html/semantics/forms/constraints/input-pattern-dynamic-value.html
 FAIL html/semantics/forms/constraints/input-pattern-dynamic-value.html :: input validation is updated after pattern attribute change
 FILE html/semantics/forms/constraints/form-validation-validity-valueMissing.html
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in DATETIME-LOCAL status] Valid local date and time string(2000-12-10T12:00:00)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in DATETIME-LOCAL status] Valid local date and time string(2000-12-10 12:00)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in DATETIME-LOCAL status] Valid local date and time string(1979-10-14T12:00:00.001)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in DATETIME-LOCAL status] Valid local date and time string(1979-10-14 12:00:00)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in DATE status] Valid date string(2000-12-10)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in DATE status] Valid date string(9999-01-01)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in TIME status] Validtime string(12:00:00)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in TIME status] Validtime string(12:00)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in TIME status] Valid time string(12:00:60.001)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in TIME status] Valid time string(12:00:60.01)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in TIME status] Valid time string(12:00:60.1)
 FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in CHECKBOX status] The checked attribute is false
 FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in RADIO status] The checked attribute is true
 FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing.html :: [INPUT in RADIO status] The checked attribute is false
@@ -805,10 +798,6 @@ FAIL html/semantics/forms/constraints/radio-valueMissing.html :: One of the radi
 FAIL html/semantics/forms/constraints/radio-valueMissing.html :: One of the radios is required and disabled, but none checked
 FAIL html/semantics/forms/constraints/radio-valueMissing.html :: One of the radios is required, checked and disabled
 FILE html/semantics/forms/constraints/form-validation-validity-valueMissing-weekmonth.html
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing-weekmonth.html :: [INPUT in MONTH status] Valid month string(2000-12)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing-weekmonth.html :: [INPUT in MONTH status] Valid month string(9999-01)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing-weekmonth.html :: [INPUT in WEEK status] Valid week string(2000-W12)
-FAIL html/semantics/forms/constraints/form-validation-validity-valueMissing-weekmonth.html :: [INPUT in WEEK status] Valid week string(9999-W01)
 FILE html/semantics/forms/constraints/input-number-validity-dynamic-value-no-change.html
 FAIL html/semantics/forms/constraints/input-number-validity-dynamic-value-no-change.html :: number input number validation is updated correctly after value attribute change which doesn't change input value
 FILE html/semantics/forms/constraints/form-validation-validity-tooShort.html
@@ -1087,7 +1076,6 @@ FILE html/semantics/forms/the-input-element/range-2.html
 FAIL html/semantics/forms/the-input-element/range-2.html :: range input value set to ''
 FAIL html/semantics/forms/the-input-element/range-2.html :: range input value equals 2
 FILE html/semantics/forms/the-input-element/input-valueasnumber-invalidstateerr.html
-HARNESS html/semantics/forms/the-input-element/input-valueasnumber-invalidstateerr.html
 FILE html/semantics/forms/the-input-element/radio-groupname-case.html
 FILE html/semantics/forms/the-input-element/radio-focus-navigation-group-first-focus.html
 FAIL html/semantics/forms/the-input-element/radio-focus-navigation-group-first-focus.html :: Both forward and backward focus navigation target the radio group first element.
@@ -1096,10 +1084,8 @@ FAIL html/semantics/forms/the-input-element/radio-morphed.html :: Setting type a
 FILE html/semantics/forms/the-input-element/hidden.html
 FAIL html/semantics/forms/the-input-element/hidden.html :: files attribute must return null for hidden
 FAIL html/semantics/forms/the-input-element/hidden.html :: valueAsDate attribute must return null for hidden
-FAIL html/semantics/forms/the-input-element/hidden.html :: valueAsNumber attribute must return NaN for hidden
 FAIL html/semantics/forms/the-input-element/hidden.html :: list attribute must return null for hidden
 FILE html/semantics/forms/the-input-element/datetime-local.html
-FAIL html/semantics/forms/the-input-element/datetime-local.html :: datetime-local input value set to 2014-01-01T11:11:11.111 without min/max
 FAIL html/semantics/forms/the-input-element/datetime-local.html :: datetime-local input value set to 2014-01-01 11:11:11.111 without min/max
 FAIL html/semantics/forms/the-input-element/datetime-local.html :: datetime-local input value set to 2014-01-01 11:11 without min/max
 FAIL html/semantics/forms/the-input-element/datetime-local.html :: datetime-local input value set to 2014-01-01 00:00:00.000 without min/max
@@ -1135,22 +1121,7 @@ FAIL html/semantics/forms/the-input-element/radio-focus-navigation-checked.html 
 FILE html/semantics/forms/the-input-element/number-lang-change.html
 FILE html/semantics/forms/the-input-element/type-change-file-to-text-crash.html
 FILE html/semantics/forms/the-input-element/datetime.html
-FAIL html/semantics/forms/the-input-element/datetime.html :: [date] The value must be a valid global date and time string
-FAIL html/semantics/forms/the-input-element/datetime.html :: [time] The value must be a valid global date and time string
-FAIL html/semantics/forms/the-input-element/datetime.html :: [datetime-local] The must be a valid local date and time string
 FILE html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected valueAsNumber=946729801000 from 2000-01-01T12:30:01
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected digits unchanged in round-trip of 2000-01-01T12:30:01
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected valueAsNumber=946729800500 from 2000-01-01T12:30:00.5
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected digits unchanged in round-trip of 2000-01-01T12:30:00.5
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected valueAsNumber=946729800040 from 2000-01-01T12:30:00.04
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected digits unchanged in round-trip of 2000-01-01T12:30:00.04
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected valueAsNumber=946729800003 from 2000-01-01T12:30:00.003
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected digits unchanged in round-trip of 2000-01-01T12:30:00.003
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected valueAsNumber=45001000 from 12:30:01
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected valueAsNumber=45000500 from 12:30:00.5
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected valueAsNumber=45000040 from 12:30:00.04
-FAIL html/semantics/forms/the-input-element/input-seconds-leading-zeroes.html :: Expected valueAsNumber=45000003 from 12:30:00.003
 ERROR html/semantics/forms/the-input-element/show-picker-cross-origin-iframe.html
 FILE html/semantics/forms/the-input-element/input-validity.html
 FILE html/semantics/forms/the-input-element/radio-keyboard-navigation-order.html
@@ -1188,18 +1159,15 @@ FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDat
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "2019-12-10")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "2016-02-29")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type date (new Date("2019-12-10T00:00:00.000Z"))
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type date (new Date("2016-02-29T00:00:00.000Z"))
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type month (with value: "")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type month (with value: "0000-12")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type month (with value: "2019-00")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type month (with value: "2019-12")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type month (new Date("2019-12-01T00:00:00.000Z"))
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "0000-W50")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "2019-W00")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "2019-W60")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "2019-W50")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type week (new Date("2019-12-09T00:00:00.000Z"))
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "24:00")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "00:60")
@@ -1208,66 +1176,20 @@ FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDat
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "23:59")
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type time (new Date("1970-01-01T00:00:00.000Z"))
 FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type time (new Date("1970-01-01T12:00:00.000Z"))
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type time (new Date("1970-01-01T23:59:00.000Z"))
 FILE html/semantics/forms/the-input-element/input-valueasnumber-stepping.html
-FAIL html/semantics/forms/the-input-element/input-valueasnumber-stepping.html :: date should step correctly
-FAIL html/semantics/forms/the-input-element/input-valueasnumber-stepping.html :: time should step correctly
-FAIL html/semantics/forms/the-input-element/input-valueasnumber-stepping.html :: month should step correctly
-FAIL html/semantics/forms/the-input-element/input-valueasnumber-stepping.html :: week should step correctly
-FAIL html/semantics/forms/the-input-element/input-valueasnumber-stepping.html :: datetime-local should step correctly
-FAIL html/semantics/forms/the-input-element/input-valueasnumber-stepping.html :: range should step correctly
-FAIL html/semantics/forms/the-input-element/input-valueasnumber-stepping.html :: number should step correctly
 FILE html/semantics/forms/the-input-element/input-disabled-fieldset-dynamic.html
 HARNESS html/semantics/forms/the-input-element/input-disabled-fieldset-dynamic.html
 FAIL html/semantics/forms/the-input-element/input-disabled-fieldset-dynamic.html :: Untitled
 FILE html/semantics/forms/the-input-element/email-set-value.html
 FAIL html/semantics/forms/the-input-element/email-set-value.html :: setValue(sanitizedValue) is reflected in visible text field content
 FILE html/semantics/forms/the-input-element/input-stepup.html
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=date with no step attribute
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=date with step=0
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=date with step=-2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=date with step=bogus
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=date with step=2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=datetime-local with no step attribute
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=datetime-local with step=0
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=datetime-local with step=-2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=datetime-local with step=bogus
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=datetime-local with step=2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=month with no step attribute
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=month with step=0
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=month with step=-2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=month with step=bogus
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=month with step=2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=number with no step attribute
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=number with step=0
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=number with step=-2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=number with step=bogus
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=number with step=2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=range with no step attribute
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=range with step=0
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=range with step=-2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=range with step=bogus
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=range with step=2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=time with no step attribute
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=time with step=0
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=time with step=-2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=time with step=bogus
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=time with step=2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=week with no step attribute
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=week with step=0
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=week with step=-2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=week with step=bogus
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: Step delta from stepUp on input type=week with step=2
-FAIL html/semantics/forms/the-input-element/input-stepup.html :: stepUp should clamp to the input maximum
 FILE html/semantics/forms/the-input-element/valueMode-weekmonth.html
 FILE html/semantics/forms/the-input-element/text.html
 FAIL html/semantics/forms/the-input-element/text.html :: files attribute must return null for text
 FAIL html/semantics/forms/the-input-element/text.html :: valueAsDate attribute must return null for text
-FAIL html/semantics/forms/the-input-element/text.html :: valueAsNumber attribute must return NaN for text
 FAIL html/semantics/forms/the-input-element/text.html :: list attribute must return null for text
 FAIL html/semantics/forms/the-input-element/text.html :: files attribute must return null for search
 FAIL html/semantics/forms/the-input-element/text.html :: valueAsDate attribute must return null for search
-FAIL html/semantics/forms/the-input-element/text.html :: valueAsNumber attribute must return NaN for search
 FAIL html/semantics/forms/the-input-element/text.html :: list attribute must return null for search
 FILE html/semantics/forms/the-input-element/radio-disconnected-group-owner.html
 FAIL html/semantics/forms/the-input-element/radio-disconnected-group-owner.html :: Removed elements are moved into separate radio groups.
@@ -1317,7 +1239,6 @@ FAIL html/semantics/forms/the-input-element/checkbox.html :: pre-activation step
 FAIL html/semantics/forms/the-input-element/checkbox.html :: canceled activation steps on unchecked checkbox
 FAIL html/semantics/forms/the-input-element/checkbox.html :: canceled activation steps on unchecked checkbox (indeterminate=true in onclick)
 FILE html/semantics/forms/the-input-element/input-value-invalidstateerr.html
-FAIL html/semantics/forms/the-input-element/input-value-invalidstateerr.html :: Untitled
 FILE html/semantics/forms/the-input-element/selection.html
 FAIL html/semantics/forms/the-input-element/selection.html :: input type hidden should not support variable-length selections
 FAIL html/semantics/forms/the-input-element/selection.html :: input type email should not support variable-length selections
@@ -1375,15 +1296,6 @@ FAIL html/semantics/forms/the-input-element/number.html :: value = +1
 FAIL html/semantics/forms/the-input-element/number.html :: value with a leading newline
 FAIL html/semantics/forms/the-input-element/number.html :: value with a leading carriage return
 FILE html/semantics/forms/the-input-element/time-2.html
-FAIL html/semantics/forms/the-input-element/time-2.html :: Valid value: value should be 00:00
-FAIL html/semantics/forms/the-input-element/time-2.html :: Valid value: value should be 00:00:00
-FAIL html/semantics/forms/the-input-element/time-2.html :: Valid value: value should be 00:00:00.0
-FAIL html/semantics/forms/the-input-element/time-2.html :: Valid value: value should be 00:00:00.00
-FAIL html/semantics/forms/the-input-element/time-2.html :: Valid value: value should be 00:00:00.000
-FAIL html/semantics/forms/the-input-element/time-2.html :: Value >= min attribute
-FAIL html/semantics/forms/the-input-element/time-2.html :: Value < min attribute
-FAIL html/semantics/forms/the-input-element/time-2.html :: Value <= max attribute
-FAIL html/semantics/forms/the-input-element/time-2.html :: Value > max attribute
 FILE html/semantics/forms/the-input-element/input-setcustomvalidity.html
 FILE html/semantics/forms/the-input-element/checkable-active-space-key-being-disabled.html
 FAIL html/semantics/forms/the-input-element/checkable-active-space-key-being-disabled.html :: Space key shouldn't active the checkbox when it's disabled by a keydown event listener
@@ -1438,36 +1350,8 @@ FILE html/semantics/forms/the-input-element/required_attribute.html
 FILE html/semantics/forms/the-input-element/maxlength.html
 FAIL html/semantics/forms/the-input-element/maxlength.html :: Assigning negative integer throws IndexSizeError
 FILE html/semantics/forms/the-input-element/week.html
-FAIL html/semantics/forms/the-input-element/week.html :: Valid value: Value should be 2014-W52
-FAIL html/semantics/forms/the-input-element/week.html :: 2015 has 53 weeks: Value should be 2015-W53
-FAIL html/semantics/forms/the-input-element/week.html :: Value >= min attribute
-FAIL html/semantics/forms/the-input-element/week.html :: Value < min attribute
-FAIL html/semantics/forms/the-input-element/week.html :: Value <= max attribute
-FAIL html/semantics/forms/the-input-element/week.html :: Value > max attribute
 FILE html/semantics/forms/the-input-element/time-datalist-crash.html
 FILE html/semantics/forms/the-input-element/time.html
-FAIL html/semantics/forms/the-input-element/time.html :: stepUp step value empty on default step value 
-FAIL html/semantics/forms/the-input-element/time.html :: stepDown step value empty default step value
-FAIL html/semantics/forms/the-input-element/time.html :: stepUp on step value minus
-FAIL html/semantics/forms/the-input-element/time.html :: stepDown on step value minus
-FAIL html/semantics/forms/the-input-element/time.html :: stepUp on step value zero 
-FAIL html/semantics/forms/the-input-element/time.html :: stepDown on step value zero 
-FAIL html/semantics/forms/the-input-element/time.html :: stepUp on step value 24 hour
-FAIL html/semantics/forms/the-input-element/time.html :: stepDown on step value 24 hour 
-FAIL html/semantics/forms/the-input-element/time.html :: stepUp on step value hour  
-FAIL html/semantics/forms/the-input-element/time.html :: stepDown on step value hour 
-FAIL html/semantics/forms/the-input-element/time.html :: stepUp on step value second 
-FAIL html/semantics/forms/the-input-element/time.html :: stepDown on step value second 
-FAIL html/semantics/forms/the-input-element/time.html :: stepUp on step value with fractional seconds
-FAIL html/semantics/forms/the-input-element/time.html :: stepDown on step value with fractional seconds
-FAIL html/semantics/forms/the-input-element/time.html :: stepUp argument 2 times
-FAIL html/semantics/forms/the-input-element/time.html :: stepDown argument 2 times
-FAIL html/semantics/forms/the-input-element/time.html :: stepUp stop because it exceeds the maximum value
-FAIL html/semantics/forms/the-input-element/time.html :: stepDown stop so lower than the minimum value
-FAIL html/semantics/forms/the-input-element/time.html :: stop at border on stepUp
-FAIL html/semantics/forms/the-input-element/time.html :: stop at border on stepDown
-FAIL html/semantics/forms/the-input-element/time.html ::  empty value of stepUp
-FAIL html/semantics/forms/the-input-element/time.html :: set value on not time format value
 FILE html/semantics/forms/the-input-element/defaultValue-clobbering.html
 FAIL html/semantics/forms/the-input-element/defaultValue-clobbering.html :: Visible value and validity should not be affected when assigning to the defaultValue property for type=email.
 FAIL html/semantics/forms/the-input-element/defaultValue-clobbering.html :: Visible value and validity should not be affected when assigning to the defaultValue property for type=number.
@@ -1482,10 +1366,6 @@ FILE html/semantics/forms/the-input-element/input-validationmessage.html
 FILE html/semantics/forms/the-input-element/date-readonly-keyboard.html
 FAIL html/semantics/forms/the-input-element/date-readonly-keyboard.html :: Readonly date input should not change value via keyboard interaction
 FILE html/semantics/forms/the-input-element/month.html
-FAIL html/semantics/forms/the-input-element/month.html :: year can be more than four digits
-FAIL html/semantics/forms/the-input-element/month.html :: valid value test
-FAIL html/semantics/forms/the-input-element/month.html :: year can contain prefixes of zero, as long as there are at least four digits
-FAIL html/semantics/forms/the-input-element/month.html :: When step attribute is given invalid value, it must ignore the invalid value and use defaul value instead.
 FILE html/semantics/forms/the-input-element/pattern_attribute_v_flag.html
 FAIL html/semantics/forms/the-input-element/pattern_attribute_v_flag.html :: <input pattern> supports set difference syntax
 FAIL html/semantics/forms/the-input-element/pattern_attribute_v_flag.html :: <input pattern> supports string literal syntax
@@ -1500,8 +1380,6 @@ FAIL html/semantics/forms/the-input-element/pattern_attribute.html :: <input pat
 FAIL html/semantics/forms/the-input-element/pattern_attribute.html :: <input pattern> supports Unicode property escape syntax
 FAIL html/semantics/forms/the-input-element/pattern_attribute.html :: <input pattern> supports Unicode property escape syntax for properties of strings
 FILE html/semantics/forms/the-input-element/datetime-weekmonth.html
-FAIL html/semantics/forms/the-input-element/datetime-weekmonth.html :: [month] The value must be a value that is a valid global date and time string
-FAIL html/semantics/forms/the-input-element/datetime-weekmonth.html :: [week] The value must be a value that is a valid global date and time string
 FILE html/semantics/forms/the-input-element/number-invalid-scientific-key-events.html
 FAIL html/semantics/forms/the-input-element/number-invalid-scientific-key-events.html :: Reject multiple signs after 'e' (-)
 FAIL html/semantics/forms/the-input-element/number-invalid-scientific-key-events.html :: Reject multiple signs after 'e' (+)
@@ -1512,70 +1390,7 @@ FILE html/semantics/forms/the-input-element/time-focus-dynamic-value-change.html
 HARNESS html/semantics/forms/the-input-element/time-focus-dynamic-value-change.html
 FAIL html/semantics/forms/the-input-element/time-focus-dynamic-value-change.html :: Time input handles focus correctly when value changes
 FILE html/semantics/forms/the-input-element/input-valueasnumber.html
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type date (actual value: , expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type date (actual value: 0000-12-10, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type date (actual value: 2019-00-12, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type date (actual value: 2019-12-00, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type date (actual value: 2019-13-10, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type date (actual value: 2019-02-29, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type date (actual value: 2019-12-10, expected valueAsNumber: 1575936000000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type date (actual value: 2016-02-29, expected valueAsNumber: 1456704000000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type date (actual valueAsNumber: 0, expected value: 1970-01-01)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type date (actual valueAsNumber: 1575936000000, expected value: 2019-12-10)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type date (actual valueAsNumber: 1456704000000, expected value: 2016-02-29)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type month (actual value: , expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type month (actual value: 0000-12, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type month (actual value: 2019-00, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type month (actual value: 2019-12, expected valueAsNumber: 599)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type month (actual value: 1969-12, expected valueAsNumber: -1)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type month (actual valueAsNumber: 599, expected value: 2019-12)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type month (actual valueAsNumber: -1, expected value: 1969-12)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type week (actual value: , expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type week (actual value: 0000-W50, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type week (actual value: 2019-W00, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type week (actual value: 2019-W60, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type week (actual value: 2019-W50, expected valueAsNumber: 1575849600000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type week (actual value: 1969-W20, expected valueAsNumber: -20217600000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type week (actual valueAsNumber: 0, expected value: 1970-W01)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type week (actual valueAsNumber: 1575849600000, expected value: 2019-W50)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type week (actual valueAsNumber: -20217600000, expected value: 1969-W20)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type time (actual value: , expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type time (actual value: 24:00, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type time (actual value: 00:60, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type time (actual value: 00:00, expected valueAsNumber: 0)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type time (actual value: 12:00, expected valueAsNumber: 43200000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type time (actual value: 23:59, expected valueAsNumber: 86340000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type time (actual valueAsNumber: 0, expected value: 00:00)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type time (actual valueAsNumber: 43200000, expected value: 12:00)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type time (actual valueAsNumber: 86340000, expected value: 23:59)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type time (actual valueAsNumber: 2.734333707189448e+26, expected value: 10:54:10.944)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type time (actual valueAsNumber: -3600000, expected value: 23:00)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type datetime-local (actual value: , expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type datetime-local (actual value: 2019-12-10T00:00, expected valueAsNumber: 1575936000000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type datetime-local (actual value: 2019-12-10T12:00, expected valueAsNumber: 1575979200000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type datetime-local (actual valueAsNumber: 1575936000000, expected value: 2019-12-10T00:00)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type datetime-local (actual valueAsNumber: 1575979200000, expected value: 2019-12-10T12:00)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type datetime-local (actual valueAsNumber: -86400000, expected value: 1969-12-31T00:00)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type number (actual value: , expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type number (actual value: 123, expected valueAsNumber: 123)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type number (actual value: 123.456, expected valueAsNumber: 123.456)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type number (actual value: 1e3, expected valueAsNumber: 1000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type number (actual value: 1e, expected valueAsNumber: NaN)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type number (actual value: -123, expected valueAsNumber: -123)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type number (actual valueAsNumber: 123, expected value: 123)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type number (actual valueAsNumber: 123.456, expected value: 123.456)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type number (actual valueAsNumber: 1000, expected value: 1000)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type range (actual value: , expected valueAsNumber: 50)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type range (actual value: 0, expected valueAsNumber: 0)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type range (actual value: 50, expected valueAsNumber: 50)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type range (actual value: 100, expected valueAsNumber: 100)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type range (actual value: -10, expected valueAsNumber: 0)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber getter on type range (actual value: 110, expected valueAsNumber: 100)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type range (actual valueAsNumber: 0, expected value: 0)
-FAIL html/semantics/forms/the-input-element/input-valueasnumber.html :: valueAsNumber setter on type range (actual valueAsNumber: 50, expected value: 50)
 FILE html/semantics/forms/the-input-element/date.html
-FAIL html/semantics/forms/the-input-element/date.html :: The value attribute, if specified and not empty, must have a value that is a valid date string.
-FAIL html/semantics/forms/the-input-element/date.html :: Number of days
 FILE html/semantics/forms/the-input-element/selection-pointer.html
 HARNESS html/semantics/forms/the-input-element/selection-pointer.html
 FILE html/semantics/forms/the-input-element/cloning-steps.html
