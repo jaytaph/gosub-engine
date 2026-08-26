@@ -158,6 +158,28 @@ pub fn value_from_number<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeI
     })
 }
 
+/// The instant `valueAsDate` reports, or `None` when this control has no date.
+pub fn value_as_date<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<f64> {
+    let kind = temporal::Kind::of(&numeric_type(doc, id)?)?;
+    temporal::to_instant(kind, temporal::parse(kind, &api_value(doc, id))?)
+}
+
+/// The value string an assignment to `valueAsDate` produces, or `None` when the control has
+/// no date at all - which is what makes the setter throw.
+pub fn value_from_date<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, instant: f64) -> Option<String> {
+    let kind = temporal::Kind::of(&numeric_type(doc, id)?)?;
+    // A local datetime names a wall-clock reading, not a moment, so it has no date either.
+    temporal::to_instant(kind, 0.0)?;
+    if !instant.is_finite() {
+        return Some(String::new());
+    }
+    Some(
+        temporal::from_instant(kind, instant)
+            .and_then(|number| temporal::serialize(kind, number))
+            .unwrap_or_default(),
+    )
+}
+
 /// The `<input>` types whose value is a number underneath.
 fn numeric_type<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<String> {
     if doc.tag_name(id) != Some("input") {

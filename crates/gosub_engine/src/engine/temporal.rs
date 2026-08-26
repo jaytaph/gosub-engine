@@ -102,6 +102,33 @@ pub fn serialize(kind: Kind, number: f64) -> Option<String> {
     }
 }
 
+/// The instant `valueAsDate` reports, in milliseconds since the epoch.
+///
+/// Not the same as the kind's own number: a month counts months, but its *date* is the first
+/// day of that month. A `datetime-local` has no instant at all - it names no moment in time.
+pub fn to_instant(kind: Kind, number: f64) -> Option<f64> {
+    match kind {
+        Kind::Date | Kind::Week | Kind::Time => Some(number),
+        Kind::Month => {
+            let (year, month) = month_from_number(number)?;
+            Some(date_to_number(NaiveDate::from_ymd_opt(year, month, 1)?))
+        }
+        Kind::DateTimeLocal => None,
+    }
+}
+
+/// The reverse: an instant back into whatever number the kind counts in.
+pub fn from_instant(kind: Kind, instant: f64) -> Option<f64> {
+    match kind {
+        Kind::Date | Kind::Week | Kind::Time => Some(instant),
+        Kind::Month => {
+            let date = date_from_number(instant)?;
+            Some(month_to_number(date.year(), date.month()))
+        }
+        Kind::DateTimeLocal => None,
+    }
+}
+
 /// Whether `value` is a valid string of that kind.
 pub fn is_valid(kind: Kind, value: &str) -> bool {
     parse(kind, value).is_some()
@@ -269,6 +296,16 @@ fn format_datetime(when: NaiveDateTime) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_months_instant_is_the_first_of_that_month() {
+        let december = parse(Kind::Month, "2019-12").expect("2019-12 parses");
+        let instant = to_instant(Kind::Month, december).expect("a month has an instant");
+        assert_eq!(serialize(Kind::Date, instant).as_deref(), Some("2019-12-01"));
+        assert_eq!(from_instant(Kind::Month, instant), Some(december));
+        // A local datetime names no moment, so it has no date at all.
+        assert_eq!(to_instant(Kind::DateTimeLocal, 0.0), None);
+    }
 
     #[test]
     fn epoch_is_where_we_think_it_is() {

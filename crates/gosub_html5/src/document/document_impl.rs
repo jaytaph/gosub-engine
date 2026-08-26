@@ -140,15 +140,9 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
     }
 
     fn clone_node(&mut self, id: NodeId) -> NodeId {
-        let Some(node) = self.arena.node(id) else { return id };
-        // `new_from_node` drops the children, so the subtree has to be cloned by hand -
-        // otherwise this would be `duplicate_node` under another name.
-        let cloned = NodeImpl::new_from_node(&node);
-        let root = self.register_node(cloned);
-        for child in self.children(id).to_vec() {
-            let copy = self.clone_node(child);
-            self.attach_node(copy, root, None);
-        }
+        let mut copies = HashMap::new();
+        let root = self.clone_subtree(id, &mut copies);
+        self.copy_control_state(&copies);
         root
     }
 
@@ -770,6 +764,57 @@ impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
         }
         self.on_document_node_mutation(node);
         self.arena.update_node(node.clone());
+    }
+
+    /// Clone a node and everything under it, recording which copy came from which original.
+    ///
+    /// `new_from_node` drops the children, so the subtree has to be walked by hand -
+    /// otherwise this would be `duplicate_node` under another name.
+    fn clone_subtree(&mut self, id: NodeId, copies: &mut HashMap<NodeId, NodeId>) -> NodeId {
+        let Some(node) = self.arena.node(id) else { return id };
+        let cloned = NodeImpl::new_from_node(&node);
+        let root = self.register_node(cloned);
+        copies.insert(id, root);
+        for child in self.children(id).to_vec() {
+            let copy = self.clone_subtree(child, copies);
+            self.attach_node(copy, root, None);
+        }
+        root
+    }
+
+    /// Carry the live control state onto the copies. Only state that exists is copied, which
+    /// is exactly the spec's "if the dirty flag is set": a control nobody has touched has no
+    /// entry to carry.
+    fn copy_control_state(&self, copies: &HashMap<NodeId, NodeId>) {
+        for (&original, &copy) in copies {
+            // Read into a local first: these locks are not reentrant, and an `if let` holds
+            // its scrutinee's guard for the whole block, so reading inline then writing
+            // inside deadlocks.
+            let state = self.edits.read().get(&original).cloned();
+            if let Some(state) = state {
+                // The value carries; the selection does not. Cloning copies the value and
+                // its dirty flag, and the copy starts with its cursor at the beginning.
+                self.edits.write().insert(
+                    copy,
+                    ControlEditState {
+                        caret: 0,
+                        anchor: None,
+                        scroll: 0,
+                        direction: Default::default(),
+                        ..state
+                    },
+                );
+            }
+            let checked = self.checked.read().get(&original).copied();
+            if let Some(checked) = checked {
+                self.checked.write().insert(copy, checked);
+            }
+            // The chosen option has to be the cloned one, not the original's.
+            let chosen = self.selected.read().get(&original).copied();
+            if let Some(chosen) = chosen.and_then(|option| copies.get(&option).copied()) {
+                self.selected.write().insert(copy, chosen);
+            }
+        }
     }
 
     pub fn delete_node_by_id(&mut self, node_id: NodeId) {

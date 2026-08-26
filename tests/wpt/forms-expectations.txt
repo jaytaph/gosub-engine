@@ -780,25 +780,18 @@ FILE html/semantics/forms/constraints/input-maxlength-emoji.html
 FAIL html/semantics/forms/constraints/input-maxlength-emoji.html :: Emoji gets truncated due to maxlength attribute
 FILE html/semantics/forms/constraints/form-validation-validity-patternMismatch.html
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEXT status] Invalid `v` regular expression gets ignored
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEXT status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEXT status] The value attribute mismatches JavaScript-specific regular expression
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in SEARCH status] Invalid `v` regular expression gets ignored
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in SEARCH status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in SEARCH status] The value attribute mismatches JavaScript-specific regular expression
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEL status] Invalid `v` regular expression gets ignored
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEL status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in TEL status] The value attribute mismatches JavaScript-specific regular expression
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in URL status] Invalid `v` regular expression gets ignored
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in URL status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in URL status] The value attribute mismatches JavaScript-specific regular expression
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] Invalid `v` regular expression gets ignored
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The value attribute mismatches JavaScript-specific regular expression
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in PASSWORD status] Invalid `v` regular expression gets ignored
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in PASSWORD status] The pattern attribute tries to escape a group
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in PASSWORD status] The value attribute mismatches JavaScript-specific regular expression
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] Invalid `v` regular expression gets ignored, if multiple is present
-FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The pattern attribute tries to escape a group, if multiple is present
 FAIL html/semantics/forms/constraints/form-validation-validity-patternMismatch.html :: [INPUT in EMAIL status] The value attribute mismatches JavaScript-specific regular expression, if multiple is present
 FILE html/semantics/forms/constraints/form-validation-willValidate-datalist.html
 FILE html/semantics/forms/constraints/form-validation-validity-rangeOverflow-weekmonth.html
@@ -884,27 +877,6 @@ FAIL html/semantics/forms/the-input-element/checkbox-click-events.html :: a chec
 FAIL html/semantics/forms/the-input-element/checkbox-click-events.html :: a checkbox input emits click, input, change events in order after dispatching click event
 FILE html/semantics/forms/the-input-element/input-type-change-value.html
 FILE html/semantics/forms/the-input-element/files.html
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=hidden
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=text
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=search
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=tel
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=url
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=email
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=password
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=date
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=month
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=week
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=time
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=datetime-local
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=number
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=range
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=color
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=checkbox
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=radio
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=submit
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=image
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=reset
-FAIL html/semantics/forms/the-input-element/files.html :: files for input type=button
 FAIL html/semantics/forms/the-input-element/files.html :: files for input type=file
 FAIL html/semantics/forms/the-input-element/files.html :: setting <input type=file>.files
 FAIL html/semantics/forms/the-input-element/files.html :: setting <input type=file>.files from DataTransfer
@@ -927,8 +899,6 @@ FAIL html/semantics/forms/the-input-element/radio-focus-navigation-group-first-f
 FILE html/semantics/forms/the-input-element/radio-morphed.html
 FAIL html/semantics/forms/the-input-element/radio-morphed.html :: Setting type attribute must unset checkedness of other elements
 FILE html/semantics/forms/the-input-element/hidden.html
-FAIL html/semantics/forms/the-input-element/hidden.html :: files attribute must return null for hidden
-FAIL html/semantics/forms/the-input-element/hidden.html :: valueAsDate attribute must return null for hidden
 FAIL html/semantics/forms/the-input-element/hidden.html :: list attribute must return null for hidden
 FILE html/semantics/forms/the-input-element/datetime-local.html
 FAIL html/semantics/forms/the-input-element/datetime-local.html :: datetime-local input value set to 2014-01-01 11:11:11.111 without min/max
@@ -955,7 +925,6 @@ FAIL html/semantics/forms/the-input-element/image-click-form-data.html :: Image 
 FILE html/semantics/forms/the-input-element/focus-dynamic-type-change.html
 HARNESS html/semantics/forms/the-input-element/focus-dynamic-type-change.html
 FILE html/semantics/forms/the-input-element/input-valueasdate-invalidstateerr.html
-FAIL html/semantics/forms/the-input-element/input-valueasdate-invalidstateerr.html :: Untitled
 FILE html/semantics/forms/the-input-element/password.html
 FAIL html/semantics/forms/the-input-element/password.html :: Setting value changes the current value for password, but not the value content attribute
 FILE html/semantics/forms/the-input-element/radio-focus-navigation-checked.html
@@ -995,32 +964,6 @@ HARNESS html/semantics/forms/the-input-element/show-picker-user-gesture.html
 FILE html/semantics/forms/the-input-element/valueMode.html
 FAIL html/semantics/forms/the-input-element/valueMode.html :: value IDL attribute of input type file without value attribute
 FILE html/semantics/forms/the-input-element/input-valueasdate.html
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "0000-12-10")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "2019-00-12")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "2019-12-00")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "2019-13-10")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "2019-02-29")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "2019-12-10")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type date (with value: "2016-02-29")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type date (new Date("2019-12-10T00:00:00.000Z"))
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type month (with value: "")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type month (with value: "0000-12")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type month (with value: "2019-00")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type month (with value: "2019-12")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "0000-W50")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "2019-W00")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "2019-W60")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type week (with value: "2019-W50")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "24:00")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "00:60")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "00:00")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "12:00")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate getter on type time (with value: "23:59")
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type time (new Date("1970-01-01T00:00:00.000Z"))
-FAIL html/semantics/forms/the-input-element/input-valueasdate.html :: valueAsDate setter on type time (new Date("1970-01-01T12:00:00.000Z"))
 FILE html/semantics/forms/the-input-element/input-valueasnumber-stepping.html
 FILE html/semantics/forms/the-input-element/input-disabled-fieldset-dynamic.html
 HARNESS html/semantics/forms/the-input-element/input-disabled-fieldset-dynamic.html
@@ -1030,11 +973,7 @@ FAIL html/semantics/forms/the-input-element/email-set-value.html :: setValue(san
 FILE html/semantics/forms/the-input-element/input-stepup.html
 FILE html/semantics/forms/the-input-element/valueMode-weekmonth.html
 FILE html/semantics/forms/the-input-element/text.html
-FAIL html/semantics/forms/the-input-element/text.html :: files attribute must return null for text
-FAIL html/semantics/forms/the-input-element/text.html :: valueAsDate attribute must return null for text
 FAIL html/semantics/forms/the-input-element/text.html :: list attribute must return null for text
-FAIL html/semantics/forms/the-input-element/text.html :: files attribute must return null for search
-FAIL html/semantics/forms/the-input-element/text.html :: valueAsDate attribute must return null for search
 FAIL html/semantics/forms/the-input-element/text.html :: list attribute must return null for search
 FILE html/semantics/forms/the-input-element/radio-disconnected-group-owner.html
 FAIL html/semantics/forms/the-input-element/radio-disconnected-group-owner.html :: Removed elements are moved into separate radio groups.
@@ -1110,24 +1049,7 @@ FILE html/semantics/forms/the-input-element/input-width.html
 FILE html/semantics/forms/the-input-element/radio-double-activate-pseudo.html
 FAIL html/semantics/forms/the-input-element/radio-double-activate-pseudo.html :: <input type=radio> shouldn't have the :active pseudo element after pressing the spacebar twice.
 FILE html/semantics/forms/the-input-element/clone.html
-FAIL html/semantics/forms/the-input-element/clone.html :: Checkbox must retain checked state.
-FAIL html/semantics/forms/the-input-element/clone.html :: Checkbox must retain unchecked state.
-FAIL html/semantics/forms/the-input-element/clone.html :: Radiobutton must retain checked state.
 FAIL html/semantics/forms/the-input-element/clone.html :: Radiobutton must retain unchecked state.
-FAIL html/semantics/forms/the-input-element/clone.html :: Text field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Search field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Phone number field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: URL field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Email field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Password field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Date field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Month field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Week field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Time field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Datetime (local) field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Number field must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Range control must retain changed value.
-FAIL html/semantics/forms/the-input-element/clone.html :: Color picker must retain changed value.
 FILE html/semantics/forms/the-input-element/radio-multiple-selected.html
 FILE html/semantics/forms/the-input-element/input-type-button.html
 FAIL html/semantics/forms/the-input-element/input-type-button.html :: label value
@@ -1174,10 +1096,6 @@ FAIL html/semantics/forms/the-input-element/input-type-change-submit.html :: def
 FAIL html/semantics/forms/the-input-element/input-type-change-submit.html :: default submit action when the input type is changed from reset to submit
 FAIL html/semantics/forms/the-input-element/input-type-change-submit.html :: default submit action when the input type is changed from button to submit
 FILE html/semantics/forms/the-input-element/input-valueasdate-stepping.html
-FAIL html/semantics/forms/the-input-element/input-valueasdate-stepping.html :: date should step correctly
-FAIL html/semantics/forms/the-input-element/input-valueasdate-stepping.html :: time should step correctly
-FAIL html/semantics/forms/the-input-element/input-valueasdate-stepping.html :: month should step correctly
-FAIL html/semantics/forms/the-input-element/input-valueasdate-stepping.html :: week should step correctly
 FILE html/semantics/forms/the-input-element/type-change-state.html
 FILE html/semantics/forms/the-input-element/button.html
 FAIL html/semantics/forms/the-input-element/button.html :: clicking on button should not change its indeterminate IDL attribute
@@ -1261,7 +1179,6 @@ FILE html/semantics/forms/the-input-element/checkable-active-space-key-untrusted
 FAIL html/semantics/forms/the-input-element/checkable-active-space-key-untrusted-event.html :: Space key shouldn't active the checkbox when space key press is emulated by untrusted events
 FAIL html/semantics/forms/the-input-element/checkable-active-space-key-untrusted-event.html :: Space key shouldn't active the radio when space key press is emulated by untrusted events
 FILE html/semantics/forms/the-input-element/datetime-local-valueasdate.html
-FAIL html/semantics/forms/the-input-element/datetime-local-valueasdate.html :: Untitled
 FILE html/semantics/forms/the-input-element/input-labels.html
 FILE html/semantics/forms/the-input-element/search_input.html
 FILE html/semantics/forms/the-input-element/input-willvalidate.html

@@ -1166,6 +1166,55 @@ impl GosubNode {
         Ok(())
     }
 
+    /// A `Date` for the types that name a moment, `null` for the rest - including
+    /// `datetime-local`, which names a wall-clock reading rather than an instant.
+    #[qjs(get, rename = "valueAsDate")]
+    pub fn value_as_date<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let Some(instant) = edit::value_as_date::<WptConfig>(&self.doc.borrow(), self.id) else {
+            return Ok(Value::new_null(ctx.clone()));
+        };
+        let make: rquickjs::Function<'js> = ctx.eval("(ms) => new Date(ms)")?;
+        make.call((instant,))
+    }
+
+    #[qjs(set, rename = "valueAsDate")]
+    pub fn set_value_as_date<'js>(&self, ctx: Ctx<'js>, date: Value<'js>) -> Result<()> {
+        // Anything that is not a Date - null included - empties the control.
+        let get_time = date
+            .as_object()
+            .and_then(|object| object.get::<_, rquickjs::Function<'js>>("getTime").ok());
+        let instant = match get_time {
+            Some(get_time) => get_time.call::<_, f64>((rquickjs::function::This(date.clone()),))?,
+            None => f64::NAN,
+        };
+        let value = {
+            let doc = self.doc.borrow();
+            edit::value_from_date::<WptConfig>(&doc, self.id, instant)
+        };
+        match value {
+            Some(value) => {
+                self.set_value(Coerced(value));
+                Ok(())
+            }
+            None => Err(exception::throw(
+                &ctx,
+                "InvalidStateError",
+                "this control has no date value",
+            )),
+        }
+    }
+
+    /// A `FileList` for a file control, `null` for everything else. Uploads do not exist
+    /// yet, so the list is always empty.
+    #[qjs(get)]
+    pub fn files<'js>(&self, ctx: Ctx<'js>) -> Result<Value<'js>> {
+        let is_file = edit::value_mode::<WptConfig>(&self.doc.borrow(), self.id) == Some(edit::ValueMode::Filename);
+        if !is_file {
+            return Ok(Value::new_null(ctx.clone()));
+        }
+        ctx.eval("({ length: 0, item: () => null })")
+    }
+
     #[qjs(rename = "stepUp")]
     pub fn step_up(&self, ctx: Ctx<'_>, n: rquickjs::prelude::Opt<Coerced<i64>>) -> Result<()> {
         self.step_by(ctx, n.0.map_or(1, |n| n.0))

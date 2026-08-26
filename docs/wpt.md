@@ -238,6 +238,15 @@ date just goes empty; the default step is a **minute** for `time` and `datetime-
 a second; and a `week` counts its steps from **1969-12-29**, because 1970-01-01 was a
 Thursday and week steps have to land on Mondays.
 
+## Cloning
+
+`cloneNode` carries a control's **value** and **checkedness** onto the copy, but not its
+**selection**: the copy starts with its cursor at the beginning. Only state that exists is
+copied, which is exactly the spec's "if the dirty flag is set" - a control nobody has touched
+has no entry to carry. Getting this wrong in either direction is visible: copying too little
+loses a typed value, copying the selection too breaks every test that clones a field and then
+expects moving the selection to fire `select`.
+
 ## Constraint validation
 
 `willValidate`, `validity`, `validationMessage`, `checkValidity()`, `reportValidity()` and

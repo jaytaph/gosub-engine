@@ -198,8 +198,13 @@ fn pattern_mismatch<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, ty
     let Some(pattern) = doc.attribute(id, "pattern") else {
         return false;
     };
-    // The pattern must match the whole value. A pattern the engine cannot compile is
-    // ignored, which is what the spec says to do with one that fails to parse.
+    // The pattern is compiled on its own first: a pattern that does not parse is ignored,
+    // and checking only the anchored form would rescue broken ones - `a)(b` is invalid, but
+    // `^(?:a)(b)$` compiles perfectly well.
+    if regex::Regex::new(pattern).is_err() {
+        return false;
+    }
+    // Then match against the whole value, not a substring of it.
     let Ok(regex) = regex::Regex::new(&format!("^(?:{pattern})$")) else {
         return false;
     };

@@ -825,3 +825,39 @@ fn temporal_bounds_are_compared_in_their_own_units() {
     );
     assert_eq!(result, "true|false|true");
 }
+
+#[test]
+fn value_as_date_is_an_instant_not_the_types_own_number() {
+    let result = eval(
+        "<input id=m type=month value=2019-12><input id=w type=week value=2019-W50>
+         <input id=n type=number value=5>",
+        "const iso = id => { const d = document.getElementById(id).valueAsDate; return d && d.toISOString(); };
+         // A month's date is the first of that month; a week's is its Monday.
+         [iso('m'), iso('w'), String(iso('n'))].join('|')",
+    );
+    assert_eq!(result, "2019-12-01T00:00:00.000Z|2019-12-09T00:00:00.000Z|null");
+}
+
+#[test]
+fn cloning_carries_the_value_but_not_the_selection() {
+    let result = eval(
+        "<input id=i value=DEFAULT><input id=c type=checkbox checked>",
+        "const i = document.getElementById('i'), c = document.getElementById('c');
+         i.value = 'CHANGED';
+         i.setSelectionRange(1, 4);
+         c.checked = false;
+         const [ic, cc] = [i.cloneNode(true), c.cloneNode(true)];
+         [ic.value, ic.selectionStart, ic.selectionEnd, cc.checked].join('|')",
+    );
+    assert_eq!(result, "CHANGED|0|0|false");
+}
+
+#[test]
+fn files_is_null_unless_the_control_takes_files() {
+    let result = eval(
+        "<input id=t><input id=f type=file>",
+        "[String(document.getElementById('t').files),
+          document.getElementById('f').files.length].join('|')",
+    );
+    assert_eq!(result, "null|0");
+}
