@@ -3271,6 +3271,7 @@ dependencies = [
 name = "gosub_html5"
 version = "0.1.1"
 dependencies = [
+ "chrono",
  "cow-utils",
  "criterion",
  "flate2",

@@ -731,6 +731,13 @@ pub trait PipelineDocument: Send + Sync {
     }
 
     /// Typed value, caret and selection of a text control; `None` = untouched.
+    /// The value the control holds, resolved by the document: what has been typed, else its
+    /// markup value sanitized for its type. `None` means fall back to the raw attribute.
+    /// The pipeline cannot work this out itself - it never sees the DOM's value rules.
+    fn control_value(&self, _id: NodeId) -> Option<String> {
+        None
+    }
+
     fn control_edit_state(&self, _id: NodeId) -> Option<gosub_interface::document::ControlEditState> {
         None
     }
@@ -1263,6 +1270,10 @@ where
 
     fn is_focused(&self, id: NodeId) -> bool {
         self.doc.is_focused(id)
+    }
+
+    fn control_value(&self, id: NodeId) -> Option<String> {
+        self.doc.control_value(id)
     }
 
     fn control_edit_state(&self, id: NodeId) -> Option<gosub_interface::document::ControlEditState> {

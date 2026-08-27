@@ -5,11 +5,14 @@ use gosub_interface::config::HasDocument;
 
 use gosub_shared::byte_stream::{ByteStream, Encoding};
 
+pub mod control;
 pub mod document;
 pub mod dom;
 pub mod errors;
 pub mod node;
 pub mod parser;
+#[path = "control_temporal.rs"]
+pub mod temporal;
 // Test-fixture harness for the WHATWG html5lib test suites; panicking on a
 // malformed fixture is the desired behavior there, as in any test code.
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

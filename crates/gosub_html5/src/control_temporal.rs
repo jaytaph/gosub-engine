@@ -1,5 +1,8 @@
 //! The date and time input types: parsing, serialising, and the numbers behind them.
 //!
+//! Lives beside the DOM rather than in the engine because the layouter and painter need the
+//! same answers as script does - see [`crate::control`].
+//!
 //! Each of `date`, `month`, `week`, `time` and `datetime-local` has its own string format
 //! and its own idea of what `valueAsNumber` means - months since 1970-01 for one,
 //! milliseconds since midnight for another. Everything those types need to be sanitized,

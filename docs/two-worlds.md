@@ -79,3 +79,13 @@ Layout is listed only to head off an old assumption: `gosub_interface` has **no*
 ## Why it is this way (and where it might go)
 
 The trade is isolation versus duplication. Owning its document model lets the pipeline be developed and tested without routing every experiment through the full parse/cascade machinery, and gives the painter a closed style enum it can match on exhaustively; the cost is a translation layer on every rebuild and two places to teach about any new CSS property --- `css_property_to_value` in the adapter as well as `StyleProperty` in the pipeline. Collapsing the models further would mean either the pipeline consuming `CssProperty` directly (losing exhaustive matching) or the parse side producing pipeline values (losing generality); the adapter is the deliberate middle.
+
+## Form control values cross as answers, not rules
+
+The value a control holds - typed text, else its markup value sanitized for its type - is
+decided by `gosub_html5::control`, next to the DOM. The pipeline never runs those rules: it
+asks, through `PipelineDocument::control_value`, and the adapter forwards the document's
+answer. The layouter bakes that resolved value into the layout tree and the painter draws it.
+
+That indirection is the point. When the layouter read the raw `value` attribute instead,
+`<input type=date value="not a date">` painted a value its own DOM reported as empty.

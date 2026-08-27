@@ -162,6 +162,15 @@ pub trait Document<C: HasCssSystem>: Sized + Display + Debug + PartialEq + 'stat
     fn is_checked(&self, id: NodeId) -> bool {
         self.attribute(id, "checked").is_some()
     }
+    /// The value this control holds: what has been typed into it, else its markup value
+    /// sanitized for its type. `None` = this document does not resolve control values, so
+    /// callers fall back to the raw attribute.
+    ///
+    /// It lives on the trait so the answer can cross into the render pipeline, which is
+    /// deliberately DOM-agnostic and cannot run the value rules itself.
+    fn control_value(&self, _id: NodeId) -> Option<String> {
+        None
+    }
     /// What has been typed into a text control; `None` = untouched (shows its markup value).
     fn control_edit_state(&self, _id: NodeId) -> Option<ControlEditState> {
         None

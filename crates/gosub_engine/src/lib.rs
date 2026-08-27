@@ -191,10 +191,6 @@ pub use engine::focus;
 #[doc(inline)]
 pub use engine::gauge;
 
-/// Date and time value formats and the numbers behind them.
-#[doc(inline)]
-pub use engine::temporal;
-
 /// Constraint validation: candidacy, the validity flags and their messages.
 #[doc(inline)]
 pub use engine::validity;

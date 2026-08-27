@@ -1464,6 +1464,13 @@ impl TaffyLayouter {
         let font_info = control_font_info(&**doc, node_id);
         let disabled = data.get_attribute("disabled").is_some();
         let attr = |name: &str| data.get_attribute(name).map(|s| s.trim().to_string());
+        // The document resolves what a control actually holds - typed text, or the markup
+        // value sanitized for its type. Reading the raw attribute here is what used to make
+        // `<input type=date value="not a date">` paint a value its own DOM reported as empty.
+        let control_value = || {
+            doc.control_value(node_id)
+                .unwrap_or_else(|| attr("value").unwrap_or_default())
+        };
         let attr_f64 = |name: &str| attr(name).and_then(|s| s.parse::<f64>().ok());
 
         let (control, dimension) = match tag.as_ref() {
@@ -1505,14 +1512,13 @@ impl TaffyLayouter {
                         )
                     }
                     "color" => {
-                        let value = attr("value")
-                            .filter(|s| !s.is_empty())
-                            .unwrap_or_else(|| "#000000".to_string());
+                        let value = control_value();
+                        let value = if value.is_empty() { "#000000".to_string() } else { value };
                         (FormControl::ColorSwatch { value }, geo::Dimension::new(44.0, 21.0))
                     }
                     // Text-entry types.
                     _ => {
-                        let value = attr("value").unwrap_or_default();
+                        let value = control_value();
                         let placeholder = attr("placeholder").unwrap_or_else(|| {
                             // Date/time pickers show their edit format when empty.
                             match ty.as_str() {
@@ -1548,7 +1554,11 @@ impl TaffyLayouter {
                 }
             }
             "textarea" => {
-                let value = text_content(&**doc, dom_node);
+                // Same resolution as an input: a textarea's markup value is its text content,
+                // with newlines normalised, and the document is what knows that.
+                let value = doc
+                    .control_value(node_id)
+                    .unwrap_or_else(|| text_content(&**doc, dom_node));
                 let placeholder = attr("placeholder").unwrap_or_default();
                 let cols = attr("cols")
                     .and_then(|s| s.parse::<usize>().ok())

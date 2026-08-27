@@ -52,21 +52,12 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
             .map(|(id, _)| *id)
     }
 
-    /// The control's edit state, or a fresh one from the markup: a textarea starts with the caret
-    /// at the top (its scroll is 0), a single-line field at the end.
+    /// The control's edit state, with a fresh one placed where focus would leave the caret.
     pub(super) fn edit_state(&self, node: NodeId) -> ControlEditState {
         let Some(doc) = self.document.as_ref() else {
             return ControlEditState::new(String::new(), 0);
         };
-        doc.control_edit_state(node).unwrap_or_else(|| {
-            let value = edit::initial_value(doc, node);
-            let caret = if doc.tag_name(node) == Some("textarea") {
-                0
-            } else {
-                value.chars().count()
-            };
-            ControlEditState::new(value, caret)
-        })
+        gosub_html5::control::edit_state(doc.as_ref(), node, gosub_html5::control::CaretStart::Focus)
     }
 
     /// What the painter draws for `state`: bullets for a password field.

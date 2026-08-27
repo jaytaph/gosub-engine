@@ -782,9 +782,13 @@ impl Painter {
                 // paint-only.
                 let doc = &self.layer_list.layout_tree.render_tree.doc;
                 let focused = doc.is_focused(dom_node_id);
-                let state = doc
-                    .control_edit_state(dom_node_id)
-                    .unwrap_or_else(|| ControlEditState::new(initial_value.clone(), initial_value.chars().count()));
+                // The layouter already baked the resolved value; a control nobody has typed
+                // into gets its caret where focus would leave it - the end of a single-line
+                // field, the top of a textarea.
+                let state = doc.control_edit_state(dom_node_id).unwrap_or_else(|| {
+                    let caret = if *multiline { 0 } else { initial_value.chars().count() };
+                    ControlEditState::new(initial_value.clone(), caret)
+                });
                 let value = state.value.clone();
                 let caret = focused.then_some(state.caret);
                 let selection = if focused { state.selection() } else { None };

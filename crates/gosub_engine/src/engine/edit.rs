@@ -1,44 +1,39 @@
 //! Editing form controls: typing into text fields, toggling checkboxes/radios. The state lives
 //! on the DOM document (`ControlEditState`, `is_checked`) where selectors and the painter read it.
 
-use crate::engine::temporal;
 use crate::html::{DomConfiguration, EngineDocument};
 use cow_utils::CowUtils;
+use gosub_html5::control::{self, CaretStart};
+use gosub_html5::temporal;
 use gosub_interface::document::{ControlEditState, Document as _, SelectionDirection};
 use gosub_shared::node::NodeId;
 
-/// How a control's `value` behaves: the spec gives every `<input>` type one of these modes,
-/// and they disagree about whether the value is live state or just the content attribute.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ValueMode {
-    /// Live editable state; the `value` attribute is only the default.
-    Value,
-    /// The `value` attribute itself.
-    Default,
-    /// The `value` attribute, or `"on"` when it is absent.
-    DefaultOn,
-    /// The selected file's name - always empty until uploads exist.
-    Filename,
-}
+/// The value layer lives next to the DOM (`gosub_html5::control`) so the layouter and
+/// painter share one answer with the engine. These wrappers pin the config type, which the
+/// bare functions cannot infer from `&C::Document` alone.
+pub use gosub_html5::control::ValueMode;
 
 /// The value mode of `id`, or `None` when it is not a control with a value at all.
 pub fn value_mode<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<ValueMode> {
-    match doc.tag_name(id)? {
-        "textarea" => Some(ValueMode::Value),
-        "input" => Some(
-            match doc
-                .attribute(id, "type")
-                .map(|t| t.cow_to_ascii_lowercase().into_owned())
-                .as_deref()
-            {
-                Some("checkbox" | "radio") => ValueMode::DefaultOn,
-                Some("file") => ValueMode::Filename,
-                Some("hidden" | "submit" | "image" | "reset" | "button") => ValueMode::Default,
-                _ => ValueMode::Value,
-            },
-        ),
-        _ => None,
-    }
+    control::value_mode(doc, id)
+}
+
+/// The markup value: the `value` attribute, or a `<textarea>`'s text content.
+pub fn initial_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
+    control::markup_value(doc, id)
+}
+
+/// The value sanitization algorithm for `id`'s type.
+pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, raw: &str) -> String {
+    control::sanitize_value(doc, id, raw)
+}
+
+/// The spec's "rules for parsing floating-point number values".
+pub use gosub_html5::control::parse_number;
+
+/// The control's edit state as the IDL sees it: an untouched control's cursor is at 0.
+fn edit_state<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> ControlEditState {
+    control::edit_state(doc, id, CaretStart::Idl)
 }
 
 /// Whether `id` is disabled: its own `disabled` attribute, or an ancestor `<fieldset disabled>`.
@@ -71,88 +66,6 @@ pub fn is_disabled<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> 
 /// "missing", but a value past its `max` is still past its `max`.
 pub fn is_mutable<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
     !is_disabled(doc, id) && doc.attribute(id, "readonly").is_none()
-}
-
-/// The spec's "rules for parsing floating-point number values": no whitespace, no infinities
-/// and no NaN, so `" 1"`, `"inf"` and `"1px"` are all failures.
-pub fn parse_number(value: &str) -> Option<f64> {
-    if value.is_empty() || value.chars().any(|c| c.is_whitespace()) {
-        return None;
-    }
-    if value
-        .chars()
-        .any(|c| c.is_ascii_alphabetic() && !matches!(c, 'e' | 'E'))
-    {
-        return None;
-    }
-    value.parse::<f64>().ok().filter(|n| n.is_finite())
-}
-
-/// The value sanitization algorithm: what a control does to a value on its way in.
-pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, raw: &str) -> String {
-    // A textarea keeps its line breaks but normalises them: CRLF and a lone CR both become
-    // LF, so assigning "a\r\nb" to a control already holding "a\nb" changes nothing.
-    if doc.tag_name(id) == Some("textarea") {
-        return normalize_newlines(raw);
-    }
-    if doc.tag_name(id) != Some("input") {
-        return raw.to_string();
-    }
-    let ty = doc
-        .attribute(id, "type")
-        .map(|t| t.cow_to_ascii_lowercase().into_owned())
-        .unwrap_or_else(|| "text".to_string());
-
-    // Every single-line control drops line breaks, whatever else its type does.
-    let stripped: String = raw.chars().filter(|c| !matches!(c, '\n' | '\r')).collect();
-    match ty.as_str() {
-        "url" | "email" => stripped.trim().to_string(),
-        "color" => {
-            if is_simple_color(&stripped) {
-                stripped.cow_to_ascii_lowercase().into_owned()
-            } else {
-                "#000000".to_string()
-            }
-        }
-        "number" => match parse_number(&stripped) {
-            Some(_) => stripped,
-            None => String::new(),
-        },
-        "range" => {
-            let min = doc.attribute(id, "min").and_then(parse_number).unwrap_or(0.0);
-            let max = doc.attribute(id, "max").and_then(parse_number).unwrap_or(100.0);
-            let value = parse_number(&stripped).unwrap_or((min + max) / 2.0);
-            value.clamp(min, max.max(min)).to_string()
-        }
-        // A date or time value survives only if it is a conforming string of its own format.
-        _ => match temporal::Kind::of(&ty) {
-            Some(kind) if !temporal::is_valid(kind, &stripped) => String::new(),
-            _ => stripped,
-        },
-    }
-}
-
-/// CRLF and lone CR both collapse to LF.
-fn normalize_newlines(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    let mut chars = value.chars().peekable();
-    while let Some(ch) = chars.next() {
-        if ch == '\r' {
-            chars.next_if_eq(&'\n');
-            out.push('\n');
-            continue;
-        }
-        out.push(ch);
-    }
-    out
-}
-
-/// A "simple colour": `#` followed by exactly six ASCII hex digits.
-fn is_simple_color(value: &str) -> bool {
-    let Some(digits) = value.strip_prefix('#') else {
-        return false;
-    };
-    digits.len() == 6 && digits.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 /// The `valueAsNumber` of a control, or `NaN` when its type has no numeric reading.
@@ -410,17 +323,6 @@ pub fn supports_selection<C: DomConfiguration>(doc: &EngineDocument<C>, id: Node
     }
 }
 
-/// The live editing state of `id`, created from its markup value if it has none yet.
-///
-/// An untouched control reports a selection at offset 0 - deliberately different from the
-/// UI's `text_ui::edit_state`, which drops the caret at the end of a single-line field when
-/// it takes focus. The IDL view is not the focus view: `selectionStart` on a control nobody
-/// has touched is 0, whatever a click would later do.
-fn edit_state<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> ControlEditState {
-    doc.control_edit_state(id)
-        .unwrap_or_else(|| ControlEditState::new(initial_value(doc, id), 0))
-}
-
 /// `(selectionStart, selectionEnd, selectionDirection)` in char indices.
 pub fn selection<C: DomConfiguration>(
     doc: &EngineDocument<C>,
@@ -554,21 +456,6 @@ pub fn filter_insert<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, t
         return text.chars().filter(|c| !matches!(c, '\n' | '\r')).collect();
     }
     text.to_string()
-}
-
-/// The markup value: the `value` attribute, or a `<textarea>`'s text content minus the one
-/// leading newline HTML allows after the start tag.
-pub fn initial_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
-    if doc.tag_name(id) == Some("textarea") {
-        let mut out = String::new();
-        for &child in doc.children(id) {
-            if let Some(t) = doc.text_value(child) {
-                out.push_str(t);
-            }
-        }
-        return out.strip_prefix('\n').unwrap_or(&out).to_string();
-    }
-    doc.attribute(id, "value").unwrap_or_default().to_string()
 }
 
 /// `Some(is_radio)` when `id` is an enabled checkbox or radio button.

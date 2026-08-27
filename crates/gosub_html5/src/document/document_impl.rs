@@ -434,6 +434,10 @@ impl<C: HasDocument<Document = Self>> Document<C> for DocumentImpl<C> {
         self.edits.read().get(&id).cloned()
     }
 
+    fn control_value(&self, id: NodeId) -> Option<String> {
+        Some(crate::control::current_value(self, id))
+    }
+
     fn custom_validity(&self, id: NodeId) -> Option<String> {
         self.custom_validity.read().get(&id).cloned()
     }

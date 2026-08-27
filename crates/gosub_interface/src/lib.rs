@@ -1,4 +1,5 @@
 pub mod config;
+pub mod control;
 pub mod css3;
 pub mod document;
 pub mod font;
