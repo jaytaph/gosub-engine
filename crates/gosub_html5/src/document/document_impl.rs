@@ -805,10 +805,14 @@ impl<C: HasDocument<Document = Self>> DocumentImpl<C> {
         self.edits.write().remove(&node_id);
         self.checked.write().remove(&node_id);
         self.sizes.write().remove(&node_id);
-        // Also drop entries that *point at* the node: a deleted `<option>`.
+        self.custom_validity.write().remove(&node_id);
+        // Also drop entries that *point at* the node: a deleted `<option>` or `<form>`.
         self.selected
             .write()
             .retain(|select, option| *select != node_id && *option != node_id);
+        self.parser_form_owner
+            .write()
+            .retain(|control, form| *control != node_id && *form != node_id);
         let mut open = self.open_select.write();
         if open.as_ref().is_some_and(|o| o.select == node_id) {
             *open = None;
