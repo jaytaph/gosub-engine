@@ -1,15 +1,134 @@
 //! Editing form controls: typing into text fields, toggling checkboxes/radios. The state lives
 //! on the DOM document (`ControlEditState`, `is_checked`) where selectors and the painter read it.
 
-use crate::html::{EngineDocument, RenderConfiguration};
+use crate::html::{DomConfiguration, EngineDocument};
 use cow_utils::CowUtils;
-use gosub_interface::document::{ControlEditState, Document as _};
+use gosub_interface::document::{ControlEditState, Document as _, SelectionDirection};
 use gosub_shared::node::NodeId;
 
+/// How a control's `value` behaves: the spec gives every `<input>` type one of these modes,
+/// and they disagree about whether the value is live state or just the content attribute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueMode {
+    /// Live editable state; the `value` attribute is only the default.
+    Value,
+    /// The `value` attribute itself.
+    Default,
+    /// The `value` attribute, or `"on"` when it is absent.
+    DefaultOn,
+    /// The selected file's name - always empty until uploads exist.
+    Filename,
+}
+
+/// The value mode of `id`, or `None` when it is not a control with a value at all.
+pub fn value_mode<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<ValueMode> {
+    match doc.tag_name(id)? {
+        "textarea" => Some(ValueMode::Value),
+        "input" => Some(
+            match doc
+                .attribute(id, "type")
+                .map(|t| t.cow_to_ascii_lowercase().into_owned())
+                .as_deref()
+            {
+                Some("checkbox" | "radio") => ValueMode::DefaultOn,
+                Some("file") => ValueMode::Filename,
+                Some("hidden" | "submit" | "image" | "reset" | "button") => ValueMode::Default,
+                _ => ValueMode::Value,
+            },
+        ),
+        _ => None,
+    }
+}
+
+/// Whether `id` is disabled: its own `disabled` attribute, or an ancestor `<fieldset disabled>`.
+/// Controls inside that fieldset's first `<legend>` escape it, which is how a disabled
+/// fieldset keeps its own legend usable.
+pub fn is_disabled<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+    if doc.attribute(id, "disabled").is_some() {
+        return true;
+    }
+    let mut child = id;
+    while let Some(parent) = doc.parent(child) {
+        if doc.tag_name(parent) == Some("fieldset") && doc.attribute(parent, "disabled").is_some() {
+            let first_legend = doc
+                .children(parent)
+                .iter()
+                .find(|&&c| doc.tag_name(c) == Some("legend"))
+                .copied();
+            if first_legend != Some(child) {
+                return true;
+            }
+        }
+        child = parent;
+    }
+    false
+}
+
+/// The spec's "rules for parsing floating-point number values": no whitespace, no infinities
+/// and no NaN, so `" 1"`, `"inf"` and `"1px"` are all failures.
+pub fn parse_number(value: &str) -> Option<f64> {
+    if value.is_empty() || value.chars().any(|c| c.is_whitespace()) {
+        return None;
+    }
+    if value
+        .chars()
+        .any(|c| c.is_ascii_alphabetic() && !matches!(c, 'e' | 'E'))
+    {
+        return None;
+    }
+    value.parse::<f64>().ok().filter(|n| n.is_finite())
+}
+
+/// The value sanitization algorithm: what a control does to a value on its way in.
+pub fn sanitize_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, raw: &str) -> String {
+    if doc.tag_name(id) != Some("input") {
+        return raw.to_string();
+    }
+    let ty = doc
+        .attribute(id, "type")
+        .map(|t| t.cow_to_ascii_lowercase().into_owned())
+        .unwrap_or_else(|| "text".to_string());
+
+    // Every single-line control drops line breaks, whatever else its type does.
+    let stripped: String = raw.chars().filter(|c| !matches!(c, '\n' | '\r')).collect();
+    match ty.as_str() {
+        "url" | "email" => stripped.trim().to_string(),
+        "number" => match parse_number(&stripped) {
+            Some(_) => stripped,
+            None => String::new(),
+        },
+        "range" => {
+            let min = doc.attribute(id, "min").and_then(parse_number).unwrap_or(0.0);
+            let max = doc.attribute(id, "max").and_then(parse_number).unwrap_or(100.0);
+            let value = parse_number(&stripped).unwrap_or((min + max) / 2.0);
+            value.clamp(min, max.max(min)).to_string()
+        }
+        _ => stripped,
+    }
+}
+
+/// The value the IDL and constraint validation see: the live value, sanitized.
+///
+/// This is deliberately not what the painter reads - a half-typed `"1e"` in a number field
+/// sanitizes to the empty string, and blanking the box mid-keystroke would be absurd.
+pub fn api_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
+    match doc.tag_name(id) {
+        Some("select") => doc
+            .selected_option(id)
+            .map(|option| crate::engine::form::option_value(doc, option))
+            .unwrap_or_default(),
+        Some("input" | "textarea") => {
+            let live = crate::engine::form::live_value(doc, id);
+            sanitize_value(doc, id, &live)
+        }
+        _ => String::new(),
+    }
+}
+
 /// `Some(multiline)` when `id` is an enabled, writable text-entry control.
-pub fn text_entry_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
+pub fn text_entry_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
     let tag = doc.tag_name(id)?;
-    if doc.attribute(id, "disabled").is_some() || doc.attribute(id, "readonly").is_some() {
+    if is_disabled(doc, id) || doc.attribute(id, "readonly").is_some() {
         return None;
     }
     match tag {
@@ -28,9 +147,209 @@ pub fn text_entry_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: Node
     }
 }
 
+/// Why a `stepUp()`/`stepDown()` could not run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StepError {
+    /// The control has no stepping behaviour (a text field, or a type the engine has no
+    /// number conversion for).
+    NotSteppable,
+    /// `step="any"`, which the spec says has no allowed value step at all.
+    StepAny,
+}
+
+/// The allowed value step of `id`, or why it has none.
+fn allowed_step<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Result<f64, StepError> {
+    let steppable = doc.tag_name(id) == Some("input")
+        && matches!(
+            doc.attribute(id, "type")
+                .map(|t| t.cow_to_ascii_lowercase().into_owned())
+                .as_deref(),
+            Some("number" | "range")
+        );
+    if !steppable {
+        return Err(StepError::NotSteppable);
+    }
+    match doc.attribute(id, "step").map(str::trim) {
+        Some(s) if s.eq_ignore_ascii_case("any") => Err(StepError::StepAny),
+        Some(s) => Ok(parse_number(s).filter(|step| *step > 0.0).unwrap_or(1.0)),
+        None => Ok(1.0),
+    }
+}
+
+/// The `stepUp()`/`stepDown()` algorithm. `n` is negative for a step down. Returns the new
+/// value, already clamped into `[min, max]` and aligned to the step base.
+pub fn step<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, n: i64) -> Result<String, StepError> {
+    let step = allowed_step(doc, id)?;
+    let min = doc.attribute(id, "min").and_then(parse_number);
+    let max = doc.attribute(id, "max").and_then(parse_number);
+    let base = min.unwrap_or(0.0);
+    // A value that will not convert counts as zero, rather than making the call fail.
+    let value = parse_number(&api_value(doc, id)).unwrap_or(0.0);
+
+    let offset = (value - base) / step;
+    let aligned = (offset - offset.round()).abs() < 1e-9;
+    let mut result = if aligned {
+        value + (n as f64) * step
+    } else if n > 0 {
+        // Not on the grid: snapping to the next step in the direction asked IS the step.
+        base + offset.ceil() * step
+    } else {
+        base + offset.floor() * step
+    };
+
+    if let Some(min) = min {
+        result = result.max(min);
+    }
+    if let Some(max) = max {
+        if result > max {
+            // The largest value on the grid that still fits.
+            result = base + ((max - base) / step).floor() * step;
+        }
+    }
+    Ok(format_number(result))
+}
+
+/// Whether `id` exposes the text selection API. The types that do not (number, date,
+/// checkbox, ...) report `null` selections and throw on `setSelectionRange`.
+pub fn supports_selection<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+    match doc.tag_name(id) {
+        Some("textarea") => true,
+        Some("input") => matches!(
+            doc.attribute(id, "type")
+                .map(|t| t.cow_to_ascii_lowercase().into_owned())
+                .as_deref(),
+            None | Some("text" | "search" | "url" | "tel" | "password")
+        ),
+        _ => false,
+    }
+}
+
+/// The live editing state of `id`, created from its markup value if it has none yet.
+fn edit_state<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> ControlEditState {
+    doc.control_edit_state(id).unwrap_or_else(|| {
+        let value = initial_value(doc, id);
+        let caret = value.chars().count();
+        ControlEditState::new(value, caret)
+    })
+}
+
+/// `(selectionStart, selectionEnd, selectionDirection)` in char indices.
+pub fn selection<C: DomConfiguration>(
+    doc: &EngineDocument<C>,
+    id: NodeId,
+) -> Option<(usize, usize, SelectionDirection)> {
+    if !supports_selection(doc, id) {
+        return None;
+    }
+    let state = edit_state(doc, id);
+    let (start, end) = state.selection().unwrap_or((state.caret, state.caret));
+    Some((start, end, state.direction))
+}
+
+/// The `setSelectionRange()` algorithm: clamp both ends to the value, and put the caret at
+/// the end the direction points to.
+pub fn set_selection<C: DomConfiguration>(
+    doc: &EngineDocument<C>,
+    id: NodeId,
+    start: usize,
+    end: usize,
+    direction: SelectionDirection,
+) -> bool {
+    if !supports_selection(doc, id) {
+        return false;
+    }
+    let mut state = edit_state(doc, id);
+    let len = state.value.chars().count();
+    let end = end.min(len);
+    let start = start.min(end);
+
+    state.direction = direction;
+    state.anchor = Some(if direction == SelectionDirection::Backward {
+        end
+    } else {
+        start
+    });
+    state.caret = if direction == SelectionDirection::Backward {
+        start
+    } else {
+        end
+    };
+    doc.set_control_edit_state(id, Some(state));
+    true
+}
+
+/// How `setRangeText()` leaves the selection afterwards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RangeTextMode {
+    Select,
+    Start,
+    End,
+    Preserve,
+}
+
+impl RangeTextMode {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "select" => Some(RangeTextMode::Select),
+            "start" => Some(RangeTextMode::Start),
+            "end" => Some(RangeTextMode::End),
+            "preserve" => Some(RangeTextMode::Preserve),
+            _ => None,
+        }
+    }
+}
+
+/// The `setRangeText()` algorithm: splice `replacement` into `[start, end)` and place the
+/// selection according to `mode`.
+pub fn set_range_text<C: DomConfiguration>(
+    doc: &EngineDocument<C>,
+    id: NodeId,
+    replacement: &str,
+    start: usize,
+    end: usize,
+    mode: RangeTextMode,
+) -> bool {
+    if !supports_selection(doc, id) {
+        return false;
+    }
+    let mut state = edit_state(doc, id);
+    let len = state.value.chars().count();
+    let end = end.min(len);
+    let start = start.min(end);
+
+    let (old_start, old_end) = state.selection().unwrap_or((state.caret, state.caret));
+    let prefix: String = state.value.chars().take(start).collect();
+    let suffix: String = state.value.chars().skip(end).collect();
+    let added = replacement.chars().count();
+    state.value = format!("{prefix}{replacement}{suffix}");
+
+    let (new_start, new_end) = match mode {
+        RangeTextMode::Select => (start, start + added),
+        RangeTextMode::Start => (start, start),
+        RangeTextMode::End => (start + added, start + added),
+        RangeTextMode::Preserve => {
+            // The old selection slides by however much the replacement grew or shrank.
+            let shift = |index: usize| {
+                if index <= start {
+                    index
+                } else if index >= end {
+                    index + added - (end - start)
+                } else {
+                    start + added
+                }
+            };
+            (shift(old_start), shift(old_end))
+        }
+    };
+    state.anchor = Some(new_start);
+    state.caret = new_end;
+    doc.set_control_edit_state(id, Some(state));
+    true
+}
+
 /// Drop the characters a control refuses: `type=number` takes only what can be part of a number
 /// (Chrome/Safari behaviour); everything else takes anything.
-pub fn filter_insert<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId, text: &str) -> String {
+pub fn filter_insert<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, text: &str) -> String {
     let numeric = doc.tag_name(id) == Some("input")
         && doc
             .attribute(id, "type")
@@ -51,7 +370,7 @@ pub fn filter_insert<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId
 
 /// The markup value: the `value` attribute, or a `<textarea>`'s text content minus the one
 /// leading newline HTML allows after the start tag.
-pub fn initial_value<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
+pub fn initial_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
     if doc.tag_name(id) == Some("textarea") {
         let mut out = String::new();
         for &child in doc.children(id) {
@@ -65,8 +384,8 @@ pub fn initial_value<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId
 }
 
 /// `Some(is_radio)` when `id` is an enabled checkbox or radio button.
-pub fn toggle_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
-    if doc.tag_name(id) != Some("input") || doc.attribute(id, "disabled").is_some() {
+pub fn toggle_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
+    if doc.tag_name(id) != Some("input") || is_disabled(doc, id) {
         return None;
     }
     match doc
@@ -82,7 +401,7 @@ pub fn toggle_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) 
 
 /// A checkbox flips; a radio becomes checked and the rest of its group (same `name` within the
 /// nearest `<form>`, or the document) is unchecked. Returns the `(node, checked)` changes.
-pub fn toggle<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Vec<(NodeId, bool)> {
+pub fn toggle<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Vec<(NodeId, bool)> {
     match toggle_kind(doc, id) {
         None => Vec::new(),
         Some(false) => vec![(id, !doc.is_checked(id))],
@@ -316,9 +635,9 @@ pub fn apply(state: &mut ControlEditState, action: &EditAction) -> bool {
 }
 
 /// `(min, max, step)` of an enabled `<input type=range>`. `step="any"` → a fine step.
-pub fn range_params<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<(f64, f64, f64)> {
+pub fn range_params<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<(f64, f64, f64)> {
     if doc.tag_name(id) != Some("input")
-        || doc.attribute(id, "disabled").is_some()
+        || is_disabled(doc, id)
         || !doc
             .attribute(id, "type")
             .is_some_and(|t| t.eq_ignore_ascii_case("range"))
@@ -337,7 +656,7 @@ pub fn range_params<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId)
 
 /// The slider's current value: what the user dragged to, else the `value` attribute, else the
 /// midpoint (HTML's default for range).
-pub fn range_value<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId, min: f64, max: f64) -> f64 {
+pub fn range_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, min: f64, max: f64) -> f64 {
     doc.control_edit_state(id)
         .and_then(|s| s.value.trim().parse::<f64>().ok())
         .or_else(|| doc.attribute(id, "value").and_then(|v| v.trim().parse::<f64>().ok()))
@@ -362,12 +681,12 @@ pub fn format_number(v: f64) -> String {
 }
 
 /// `id` is an enabled `<select>`.
-pub fn is_select<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
-    doc.tag_name(id) == Some("select") && doc.attribute(id, "disabled").is_none()
+pub fn is_select<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+    doc.tag_name(id) == Some("select") && !is_disabled(doc, id)
 }
 
 /// The enabled options of a `<select>`, in order, through `<optgroup>`s.
-pub fn select_options<C: RenderConfiguration>(doc: &EngineDocument<C>, select: NodeId) -> Vec<NodeId> {
+pub fn select_options<C: DomConfiguration>(doc: &EngineDocument<C>, select: NodeId) -> Vec<NodeId> {
     let mut out = Vec::new();
     let mut stack: Vec<NodeId> = doc.children(select).iter().rev().copied().collect();
     while let Some(id) = stack.pop() {

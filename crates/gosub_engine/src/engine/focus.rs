@@ -1,7 +1,8 @@
 //! Which elements are focusable and where focus moves on a click or Tab. The state itself lives
 //! on the DOM document, where the `:focus` selectors read it (like `:hover`).
 
-use crate::html::{EngineDocument, RenderConfiguration};
+use crate::engine::edit;
+use crate::html::{DomConfiguration, EngineDocument};
 use cow_utils::CowUtils;
 use gosub_interface::document::Document as _;
 use gosub_interface::node::NodeType;
@@ -21,12 +22,12 @@ const FORM_CONTROLS: [&str; 4] = ["input", "textarea", "select", "button"];
 
 /// `contenteditable` makes an element editable only when the attribute is empty or `true`;
 /// `contenteditable="false"` explicitly opts out. Matching `is_text_input` in `context.rs`.
-pub fn is_contenteditable<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+pub fn is_contenteditable<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
     doc.attribute(id, "contenteditable")
         .is_some_and(|v| v.is_empty() || v.eq_ignore_ascii_case("true"))
 }
 
-pub fn focusability<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Focusability {
+pub fn focusability<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Focusability {
     if doc.node_type(id) != NodeType::ElementNode {
         return Focusability::No;
     }
@@ -34,7 +35,7 @@ pub fn focusability<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId)
         return Focusability::No;
     };
     let is_control = FORM_CONTROLS.contains(&tag);
-    if is_control && doc.attribute(id, "disabled").is_some() {
+    if is_control && edit::is_disabled(doc, id) {
         return Focusability::No;
     }
     if let Some(ti) = doc.attribute(id, "tabindex").and_then(|v| v.trim().parse::<i32>().ok()) {
@@ -61,7 +62,7 @@ pub fn focusability<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId)
 
 /// Whether a *click* shows the focus ring: browsers do for text-entry controls, not for buttons,
 /// checkboxes or links. Keyboard focus always shows it.
-pub fn click_shows_ring<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+pub fn click_shows_ring<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
     match doc.tag_name(id) {
         Some("textarea") | Some("select") => true,
         Some("input") => !doc.attribute(id, "type").is_some_and(|t| {
@@ -76,7 +77,7 @@ pub fn click_shows_ring<C: RenderConfiguration>(doc: &EngineDocument<C>, id: Nod
 
 /// The nearest focusable ancestor-or-self of `leaf`, or the control a `<label>` on that path is
 /// bound to.
-pub fn click_target<C: RenderConfiguration>(doc: &EngineDocument<C>, leaf: NodeId) -> Option<NodeId> {
+pub fn click_target<C: DomConfiguration>(doc: &EngineDocument<C>, leaf: NodeId) -> Option<NodeId> {
     let mut id = leaf;
     loop {
         if focusability(doc, id) != Focusability::No {
@@ -92,7 +93,8 @@ pub fn click_target<C: RenderConfiguration>(doc: &EngineDocument<C>, leaf: NodeI
 }
 
 /// The control a `<label>` activates: its `for` target, else the first descendant control.
-fn label_control<C: RenderConfiguration>(doc: &EngineDocument<C>, label: NodeId) -> Option<NodeId> {
+/// The control a `<label>` labels: its `for` target, else the first control inside it.
+pub fn label_control<C: DomConfiguration>(doc: &EngineDocument<C>, label: NodeId) -> Option<NodeId> {
     if let Some(target) = doc.attribute(label, "for").and_then(|f| doc.node_by_named_id(f)) {
         return (focusability(doc, target) != Focusability::No).then_some(target);
     }
@@ -109,7 +111,7 @@ fn label_control<C: RenderConfiguration>(doc: &EngineDocument<C>, label: NodeId)
 /// Positive `tabindex` first (ascending, then document order), then the rest in document order.
 /// `rendered` = elements that have a box (the others are unreachable by keyboard); `None` = no
 /// render yet, keep every focusable element.
-pub fn tab_order<C: RenderConfiguration>(doc: &EngineDocument<C>, rendered: Option<&HashSet<NodeId>>) -> Vec<NodeId> {
+pub fn tab_order<C: DomConfiguration>(doc: &EngineDocument<C>, rendered: Option<&HashSet<NodeId>>) -> Vec<NodeId> {
     let mut positive: Vec<(i32, usize, NodeId)> = Vec::new();
     let mut natural: Vec<NodeId> = Vec::new();
     let mut stack = vec![doc.root()];

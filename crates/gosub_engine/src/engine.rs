@@ -3,14 +3,15 @@
 //! Most users should start with [`GosubEngine`].
 
 mod context;
-mod edit;
+pub mod edit;
 #[allow(clippy::module_inception)]
 mod engine;
 mod errors;
-mod focus;
-mod form;
+pub mod focus;
+pub mod form;
 pub mod internal_pages;
 pub mod places;
+pub mod validity;
 
 pub mod events;
 

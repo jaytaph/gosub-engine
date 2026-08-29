@@ -2,7 +2,7 @@
 //! `application/x-www-form-urlencoded` encoding, and the request a submit turns into.
 
 use crate::engine::edit;
-use crate::html::{EngineDocument, RenderConfiguration};
+use crate::html::{DomConfiguration, EngineDocument};
 use cow_utils::CowUtils;
 use gosub_interface::document::Document as _;
 use gosub_shared::node::NodeId;
@@ -17,31 +17,111 @@ pub struct Submission {
     pub body: Option<String>,
 }
 
-/// The `<form>` a control belongs to: its `form` attribute's target, else the nearest ancestor.
-pub fn form_owner<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<NodeId> {
-    if let Some(target) = doc.attribute(id, "form").and_then(|f| doc.node_by_named_id(f)) {
-        if doc.tag_name(target) == Some("form") {
-            return Some(target);
+/// Elements that can have a form owner at all.
+const FORM_ASSOCIATED: [&str; 9] = [
+    "button", "fieldset", "input", "img", "label", "object", "output", "select", "textarea",
+];
+
+/// Listed elements: the ones that honour the `form` content attribute and take part in the
+/// form data set. `<img>` and `<label>` are form-associated but not listed.
+const LISTED: [&str; 7] = ["button", "fieldset", "input", "object", "output", "select", "textarea"];
+
+/// The `<form>` that owns `id`.
+///
+/// Three cases, in order: an association the parser made (which outlives tree moves that
+/// carry the element along with its form), then the `form` content attribute, then the
+/// nearest ancestor form. Everything but the first is a live read of the tree, so an id
+/// changing anywhere gives a different answer next time - which is what the spec's "reset
+/// the form owner" achieves by re-running on every mutation.
+pub fn form_owner<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<NodeId> {
+    let tag = doc.tag_name(id)?;
+    if !FORM_ASSOCIATED.contains(&tag) {
+        return None;
+    }
+    if let Some(owner) = doc.parser_form_owner(id) {
+        return Some(owner);
+    }
+    if LISTED.contains(&tag) {
+        if let Some(target) = doc.attribute(id, "form") {
+            // A detached control ignores its form attribute and falls back to its ancestors.
+            if is_connected(doc, id) {
+                // Only a form counts, and only the first element in tree order with that id:
+                // a `<span>` with the same id earlier in the document means no owner at all.
+                return first_by_id(doc, target).filter(|&node| doc.tag_name(node) == Some("form"));
+            }
         }
     }
-    let mut cur = doc.parent(id)?;
+    nearest_ancestor_form(doc, id)
+}
+
+/// What `HTMLLabelElement.form` returns: **not** the label's own owner, but the form owner
+/// of the control it labels.
+pub fn label_form<C: DomConfiguration>(doc: &EngineDocument<C>, label: NodeId) -> Option<NodeId> {
+    let control = crate::engine::focus::label_control(doc, label)?;
+    if !LISTED.contains(&doc.tag_name(control)?) {
+        return None;
+    }
+    form_owner(doc, control)
+}
+
+fn nearest_ancestor_form<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<NodeId> {
+    let mut current = doc.parent(id)?;
     loop {
-        if doc.tag_name(cur) == Some("form") {
-            return Some(cur);
+        if doc.tag_name(current) == Some("form") {
+            return Some(current);
         }
-        cur = doc.parent(cur)?;
+        current = doc.parent(current)?;
     }
 }
 
-fn input_type<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
+/// Whether `id` hangs off the document rather than a detached subtree.
+fn is_connected<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> bool {
+    let mut current = id;
+    while let Some(parent) = doc.parent(current) {
+        current = parent;
+    }
+    current == doc.root()
+}
+
+/// The first element in tree order whose `id` attribute is exactly `target`. An empty
+/// string is not an ID, so it never matches anything.
+fn first_by_id<C: DomConfiguration>(doc: &EngineDocument<C>, target: &str) -> Option<NodeId> {
+    if target.is_empty() {
+        return None;
+    }
+    let mut stack: Vec<NodeId> = doc.children(doc.root()).iter().rev().copied().collect();
+    while let Some(node) = stack.pop() {
+        stack.extend(doc.children(node).iter().rev());
+        if doc.attribute(node, "id") == Some(target) {
+            return Some(node);
+        }
+    }
+    None
+}
+
+/// Every element `form` owns, in tree order. Not the same as its descendants: a control can
+/// point at a form it sits outside of, and a control inside a form can point somewhere else.
+pub fn owned_elements<C: DomConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Vec<NodeId> {
+    let mut out = Vec::new();
+    let mut stack: Vec<NodeId> = doc.children(doc.root()).iter().rev().copied().collect();
+    while let Some(node) = stack.pop() {
+        stack.extend(doc.children(node).iter().rev());
+        if form_owner(doc, node) == Some(form) {
+            out.push(node);
+        }
+    }
+    out
+}
+
+fn input_type<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
     doc.attribute(id, "type")
         .map(|t| t.cow_to_ascii_lowercase().into_owned())
         .unwrap_or_else(|| "text".to_string())
 }
 
 /// `Some(is_reset)` when `id` is an enabled submit or reset button.
-pub fn button_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
-    if doc.attribute(id, "disabled").is_some() {
+pub fn button_kind<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> Option<bool> {
+    if edit::is_disabled(doc, id) {
         return None;
     }
     let ty = match doc.tag_name(id) {
@@ -61,19 +141,17 @@ pub fn button_kind<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) 
 
 /// The form data set: `(name, value)` of every successful control in `form`, in tree order.
 /// `submitter` is the button that triggered the submit (other buttons don't contribute).
-pub fn data_set<C: RenderConfiguration>(
+pub fn data_set<C: DomConfiguration>(
     doc: &EngineDocument<C>,
     form: NodeId,
     submitter: Option<NodeId>,
 ) -> Vec<(String, String)> {
     let mut out = Vec::new();
-    let mut stack: Vec<NodeId> = doc.children(form).iter().rev().copied().collect();
-    while let Some(id) = stack.pop() {
-        stack.extend(doc.children(id).iter().rev());
+    for id in owned_elements(doc, form) {
         let (Some(tag), Some(name)) = (doc.tag_name(id), doc.attribute(id, "name")) else {
             continue;
         };
-        if name.is_empty() || doc.attribute(id, "disabled").is_some() {
+        if name.is_empty() || edit::is_disabled(doc, id) {
             continue;
         }
         let value = match tag {
@@ -113,28 +191,60 @@ pub fn data_set<C: RenderConfiguration>(
     out
 }
 
-fn live_value<C: RenderConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
+/// What a control currently holds: what the user typed, else its markup value.
+pub fn live_value<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId) -> String {
     doc.control_edit_state(id)
         .map(|s| s.value)
         .unwrap_or_else(|| edit::initial_value(doc, id))
 }
 
-/// An option's submission value: its `value` attribute, else its text.
-fn option_value<C: RenderConfiguration>(doc: &EngineDocument<C>, opt: NodeId) -> String {
-    if let Some(v) = doc.attribute(opt, "value") {
-        return v.to_string();
+/// An `<option>`'s text: the text of every descendant, stripped and collapsed. Descendant,
+/// not child - `<option>a<b>x</b></option>` reads as `"ax"` - and inner whitespace runs
+/// collapse to one space, so `" a  b "` reads as `"a b"`.
+pub fn option_text<C: DomConfiguration>(doc: &EngineDocument<C>, opt: NodeId) -> String {
+    let mut raw = String::new();
+    collect_text(doc, opt, &mut raw);
+    strip_and_collapse(&raw)
+}
+
+fn collect_text<C: DomConfiguration>(doc: &EngineDocument<C>, id: NodeId, out: &mut String) {
+    if let Some(text) = doc.text_value(id) {
+        out.push_str(text);
     }
-    doc.children(opt)
-        .iter()
-        .filter_map(|&c| doc.text_value(c))
-        .collect::<String>()
-        .trim()
-        .to_string()
+    for &child in doc.children(id) {
+        collect_text(doc, child, out);
+    }
+}
+
+/// Infra's "strip and collapse ASCII whitespace".
+fn strip_and_collapse(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut pending_space = false;
+    for ch in input.chars() {
+        if ch.is_ascii_whitespace() {
+            pending_space = !out.is_empty();
+            continue;
+        }
+        if pending_space {
+            out.push(' ');
+            pending_space = false;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// An option's submission value: its `value` attribute, else its text.
+pub fn option_value<C: DomConfiguration>(doc: &EngineDocument<C>, opt: NodeId) -> String {
+    match doc.attribute(opt, "value") {
+        Some(value) => value.to_string(),
+        None => option_text(doc, opt),
+    }
 }
 
 /// The request for submitting `form` via `submitter`, resolved against `base`. Only
 /// urlencoded GET/POST; other methods/enctypes fall back to that.
-pub fn submission<C: RenderConfiguration>(
+pub fn submission<C: DomConfiguration>(
     doc: &EngineDocument<C>,
     form: NodeId,
     submitter: Option<NodeId>,
@@ -176,26 +286,29 @@ pub fn submission<C: RenderConfiguration>(
     })
 }
 
-/// The controls of `form` whose live state a reset should forget.
-pub fn controls<C: RenderConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Vec<NodeId> {
-    let mut out = Vec::new();
-    let mut stack: Vec<NodeId> = doc.children(form).iter().rev().copied().collect();
-    while let Some(id) = stack.pop() {
-        stack.extend(doc.children(id).iter().rev());
-        if matches!(doc.tag_name(id), Some("input" | "textarea" | "select")) {
-            out.push(id);
-        }
+/// Reset `form`: forget everything typed, toggled or picked in it, so every control falls
+/// back to its markup value again.
+pub fn reset<C: DomConfiguration>(doc: &EngineDocument<C>, form: NodeId) {
+    for id in controls(doc, form) {
+        doc.set_control_edit_state(id, None);
+        doc.set_checked(id, None);
+        doc.set_selected_option(id, None);
     }
-    out
+}
+
+/// The controls of `form` whose live state a reset should forget.
+pub fn controls<C: DomConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Vec<NodeId> {
+    owned_elements(doc, form)
+        .into_iter()
+        .filter(|&id| matches!(doc.tag_name(id), Some("input" | "textarea" | "select")))
+        .collect()
 }
 
 /// The button an Enter key in a text field submits through: the form's first submit button.
 /// Without one, implicit submission still happens when the form has a single text field.
-pub fn default_submitter<C: RenderConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Option<Option<NodeId>> {
+pub fn default_submitter<C: DomConfiguration>(doc: &EngineDocument<C>, form: NodeId) -> Option<Option<NodeId>> {
     let mut text_fields = 0;
-    let mut stack: Vec<NodeId> = doc.children(form).iter().rev().copied().collect();
-    while let Some(id) = stack.pop() {
-        stack.extend(doc.children(id).iter().rev());
+    for id in owned_elements(doc, form) {
         if button_kind(doc, id) == Some(false) {
             return Some(Some(id));
         }

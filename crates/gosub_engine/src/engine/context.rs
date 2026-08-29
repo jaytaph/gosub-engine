@@ -1164,11 +1164,7 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
         let Some(form) = form::form_owner(&doc, button) else {
             return false;
         };
-        for id in form::controls(&doc, form) {
-            doc.set_control_edit_state(id, None);
-            doc.set_checked(id, None);
-            doc.set_selected_option(id, None);
-        }
+        form::reset(&doc, form);
         self.invalidate_render();
         true
     }
