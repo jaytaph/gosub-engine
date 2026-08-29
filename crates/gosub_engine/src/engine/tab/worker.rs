@@ -1451,7 +1451,6 @@ impl<C: RenderConfiguration> TabWorker<C> {
         let zone_id = self.zone_id;
         let io_tx = self.zone_context.io_tx.clone();
         let event_tx = self.zone_context.event_tx.clone();
-        let accept_language = self.services.accept_language.clone();
         let max_document_bytes = self.zone_context.config_store.get_uint("net.document.max_bytes");
         // Capture the document source only when a renderer process may need it
         // (it re-parses there); otherwise skip the copy.
@@ -1520,14 +1519,8 @@ impl<C: RenderConfiguration> TabWorker<C> {
                 allow_download_without_user_activation: false,
             };
 
-            let mut hooks = ResourcePipelines::<C>::new(
-                zone_id,
-                tab_id,
-                io_tx.clone(),
-                accept_language.clone(),
-                max_document_bytes,
-                capture_source,
-            );
+            let mut hooks =
+                ResourcePipelines::<C>::new(zone_id, tab_id, io_tx.clone(), max_document_bytes, capture_source);
 
             // The URL a source-only document lands on: the response's, after redirects.
             let document_final_url = fetch_result
@@ -1698,7 +1691,6 @@ impl<C: RenderConfiguration> TabWorker<C> {
         let tab_id = self.tab_id;
         let zone_id = self.zone_id;
         let io_tx = self.zone_context.io_tx.clone();
-        let accept_language = self.services.accept_language.clone();
         let max_document_bytes = self.zone_context.config_store.get_uint("net.document.max_bytes");
         // Same rule as navigate(): keep the source only when a renderer process may re-parse it.
         let capture_source = self.remote_render_available();
@@ -1732,14 +1724,8 @@ impl<C: RenderConfiguration> TabWorker<C> {
         spawn_named("tab-load-html", async move {
             let _enter = span.enter();
 
-            let mut hooks = ResourcePipelines::<C>::new(
-                zone_id,
-                tab_id,
-                io_tx.clone(),
-                accept_language.clone(),
-                max_document_bytes,
-                capture_source,
-            );
+            let mut hooks =
+                ResourcePipelines::<C>::new(zone_id, tab_id, io_tx.clone(), max_document_bytes, capture_source);
 
             match hooks.html.parse_bytes(req, handle, meta, html.as_bytes()).await {
                 Ok(parsed) => {

@@ -1,42 +1,14 @@
 use std::io;
 
 use crate::html::{EngineDocument, RenderConfiguration};
-use crate::net::types::{Priority, ResourceKind};
-use crate::net::RequestDestination;
-use cow_utils::CowUtils;
 use gosub_html5::document::builder::DocumentBuilderImpl;
 use gosub_html5::parser::Html5Parser;
 use gosub_interface::css3::CssSystem;
 use gosub_interface::document::Document as _;
 use gosub_shared::byte_stream::{ByteStream, Encoding};
-use once_cell::sync::Lazy;
-use regex::Regex;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio_util::sync::CancellationToken;
 use url::Url;
-
-/// A hint to the engine/IO layer that a subresource should be fetched.
-#[derive(Debug, Clone)]
-pub struct ResourceHint {
-    /// Absolute URL of the resource to fetch.
-    pub url: Url,
-    /// The destination type (affects request headers, etc).
-    pub dest: RequestDestination,
-    /// The kind of resource (affects priority, etc).
-    pub kind: ResourceKind,
-    /// The `rel` attribute value if applicable.
-    pub rel: Option<String>, // e.g. "stylesheet"
-    /// The attribute we discovered this from.
-    pub from_attr: &'static str, // e.g. "href" or "src"
-    /// The referrer URL if applicable.
-    pub referrer: Option<Url>,
-    /// Whether this is a cross-origin request.
-    pub cross_origin: bool,
-    /// The integrity attribute value if applicable.
-    pub integrity: Option<String>,
-    /// Suggested fetch priority.
-    pub priority: Priority,
-}
 
 /// Errors from buffering and parsing a main document stream.
 #[derive(thiserror::Error, Debug)]
@@ -82,8 +54,6 @@ impl Default for HtmlParseConfig {
     }
 }
 
-/// Main entry point: buffer the HTML stream, parse it into a real DOM document,
-/// and report discovered sub-resources via `on_discover`.
 /// Read a document's bytes as source text, without parsing it: what a tab
 /// keeps when a renderer process does the parsing. Same size cap and lossy
 /// UTF-8 as the captured source of a parsed document.
@@ -124,17 +94,19 @@ where
     Ok(std::sync::Arc::<str>::from(String::from_utf8_lossy(&buf).as_ref()))
 }
 
-pub async fn parse_main_document_stream<C, R, F>(
+/// Main entry point: buffer the HTML stream and parse it into a real DOM
+/// document. Subresources are fetched by whoever consumes them (the parser's
+/// loader for stylesheets, the media store for images) - nothing is
+/// prefetched here, since nothing could use a prefetch.
+pub async fn parse_main_document_stream<C, R>(
     base_url: Url,
     mut reader: R,
     cancel: CancellationToken,
     cfg: HtmlParseConfig,
-    mut on_discover: F,
 ) -> Result<(EngineDocument<C>, Option<std::sync::Arc<str>>), DocumentError>
 where
     C: RenderConfiguration,
     R: AsyncRead + Unpin + Send + 'static,
-    F: FnMut(ResourceHint) + Send,
 {
     let mut buf = Vec::with_capacity(32 * 1024);
     let mut tmp = [0u8; 16 * 1024];
@@ -170,18 +142,10 @@ where
         }
     }
 
-    // Use lossy UTF-8 only for the fast resource-discovery regex scan (and,
-    // when asked, the captured source).
-    let html_lossy = String::from_utf8_lossy(&buf);
+    // The captured source is lossy UTF-8; the parse below decodes properly.
     let source = cfg
         .capture_source
-        .then(|| std::sync::Arc::<str>::from(html_lossy.as_ref()));
-
-    // Fire sub-resource callbacks using the fast regex-based scanner so that
-    // image/CSS/script fetches are submitted before the full parse completes.
-    for hint in discover_resources(&html_lossy, &base_url) {
-        on_discover(hint);
-    }
+        .then(|| std::sync::Arc::<str>::from(String::from_utf8_lossy(&buf).as_ref()));
 
     // Detect encoding from the raw bytes (BOM check + chardetng), then build a
     // properly-decoded stream.  We cannot call set_encoding() on an Unknown-
@@ -208,121 +172,6 @@ where
     Ok((doc, source))
 }
 
-// ======== Forgiving resource discovery (regex-based) ========
-fn unquote(s: &str) -> &str {
-    let b = s.as_bytes();
-    if b.len() >= 2 && ((b[0] == b'"' && b[b.len() - 1] == b'"') || (b[0] == b'\'' && b[b.len() - 1] == b'\'')) {
-        &s[1..s.len() - 1]
-    } else {
-        s
-    }
-}
-
-/// Compile a literal regex pattern.
-fn re(pattern: &str) -> Regex {
-    #[allow(clippy::unwrap_used)] // PANIC-SAFE: all callers pass literal patterns, exercised by tests
-    Regex::new(pattern).unwrap()
-}
-
-static RE_LINK_STYLESHEET: Lazy<Regex> = Lazy::new(|| {
-    // allow "..." or '...' or unquoted; capture into the *same* group `href`
-    re(
-        r#"(?is)<\s*link\b[^>]*\brel\s*=\s*(?:"stylesheet"|'stylesheet')[^>]*\bhref\s*=\s*(?P<href>"[^"]*"|'[^']*'|[^\s>]+)[^>]*>"#,
-    )
-});
-
-static RE_SCRIPT_SRC: Lazy<Regex> =
-    Lazy::new(|| re(r#"(?is)<\s*script\b[^>]*\bsrc\s*=\s*(?P<src>"[^"]*"|'[^']*'|[^\s>]+)[^>]*>"#));
-
-static RE_ASYNC_ATTR: Lazy<Regex> = Lazy::new(|| re(r#"\basync\b"#));
-
-static RE_DEFER_ATTR: Lazy<Regex> = Lazy::new(|| re(r#"\bdefer\b"#));
-
-static RE_IMG_SRC: Lazy<Regex> =
-    Lazy::new(|| re(r#"(?is)<\s*img\b[^>]*\bsrc\s*=\s*(?P<src>"[^"]*"|'[^']*'|[^\s>]+)[^>]*>"#));
-
-fn discover_resources(html: &str, base: &Url) -> Vec<ResourceHint> {
-    let mut out = Vec::new();
-
-    // Stylesheets
-    for cap in RE_LINK_STYLESHEET.captures_iter(html) {
-        let Some(m) = cap.name("href") else {
-            continue;
-        };
-        let Ok(u) = resolve(base, unquote(m.as_str())) else {
-            continue;
-        };
-        out.push(ResourceHint {
-            url: u,
-            dest: RequestDestination::Document,
-            referrer: None,
-            cross_origin: false,
-            integrity: None,
-            kind: ResourceKind::Stylesheet,
-            rel: Some("stylesheet".to_string()),
-            from_attr: "href",
-            priority: Priority::High,
-        });
-    }
-
-    // Scripts
-    for cap in RE_SCRIPT_SRC.captures_iter(html) {
-        let tag = cap.get(0).map_or("", |m| m.as_str());
-        let tag_lower = tag.cow_to_ascii_lowercase();
-        // A script is blocking unless it has async or defer attributes
-        let blocking = !RE_ASYNC_ATTR.is_match(tag_lower.as_ref()) && !RE_DEFER_ATTR.is_match(tag_lower.as_ref());
-        let Some(m) = cap.name("src") else {
-            continue;
-        };
-        let Ok(u) = resolve(base, unquote(m.as_str())) else {
-            continue;
-        };
-        out.push(ResourceHint {
-            url: u,
-            kind: ResourceKind::Script { blocking },
-            rel: None,
-            from_attr: "src",
-            dest: RequestDestination::Script,
-            referrer: None,
-            cross_origin: false,
-            integrity: None,
-            priority: Priority::Normal,
-        });
-    }
-
-    // Images
-    for cap in RE_IMG_SRC.captures_iter(html) {
-        let Some(m) = cap.name("src") else {
-            continue;
-        };
-        let Ok(u) = resolve(base, unquote(m.as_str())) else {
-            continue;
-        };
-        out.push(ResourceHint {
-            url: u,
-            kind: ResourceKind::Image,
-            rel: None,
-            from_attr: "src",
-            dest: RequestDestination::Image,
-            referrer: None,
-            cross_origin: false,
-            integrity: None,
-            priority: Priority::Low,
-        });
-    }
-
-    out
-}
-
-fn resolve(base: &Url, candidate: &str) -> Result<Url, url::ParseError> {
-    // Tolerate whitespace, no-op fragments, etc.
-    let trimmed = candidate.trim();
-    if trimmed.is_empty() {
-        return Err(url::ParseError::EmptyHost);
-    }
-    base.join(trimmed)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -338,7 +187,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn parses_title_and_discovers_resources() {
+    async fn parses_the_title() {
         let html = r#"
             <html>
               <head>
@@ -354,27 +203,16 @@ mod tests {
 
         let base = Url::parse("https://example.com/path/index.html").unwrap();
         let cancel = CancellationToken::new();
-        let mut hints = Vec::new();
 
-        parse_main_document_stream::<DefaultRenderConfig, _, _>(
+        let (doc, _) = parse_main_document_stream::<DefaultRenderConfig, _>(
             base.clone(),
             reader_from_str(html),
             cancel,
             HtmlParseConfig::default(),
-            |h| hints.push(h),
         )
         .await
         .unwrap();
-
-        assert_eq!(hints.len(), 3);
-        assert!(hints
-            .iter()
-            .any(|h| h.kind == ResourceKind::Stylesheet && h.url.as_str() == "https://example.com/style.css"));
-        assert!(hints.iter().any(|h| h.kind == ResourceKind::Script { blocking: true }
-            && h.url.as_str() == "https://example.com/path/app.js"));
-        assert!(hints
-            .iter()
-            .any(|h| h.kind == ResourceKind::Image && h.url.as_str() == "https://example.com/path/images/logo.png"));
+        assert_eq!(crate::html::document_title(&doc).as_deref(), Some("Hello World"));
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -389,14 +227,9 @@ mod tests {
         let cancel = CancellationToken::new();
         cancel.cancel(); // cancel immediately
 
-        let res = parse_main_document_stream::<DefaultRenderConfig, _, _>(
-            base,
-            reader,
-            cancel,
-            HtmlParseConfig::default(),
-            |_h| {},
-        )
-        .await;
+        let res =
+            parse_main_document_stream::<DefaultRenderConfig, _>(base, reader, cancel, HtmlParseConfig::default())
+                .await;
 
         match res {
             Err(DocumentError::Cancelled) => {}
@@ -414,12 +247,11 @@ mod tests {
         };
 
         // Just verify truncated input still produces a valid document (no panic).
-        parse_main_document_stream::<DefaultRenderConfig, _, _>(
+        parse_main_document_stream::<DefaultRenderConfig, _>(
             base,
             reader_from_str(&big),
             CancellationToken::new(),
             cfg,
-            |_h| {},
         )
         .await
         .unwrap();

@@ -54,8 +54,7 @@ descriptions say what they should cover so we can decide what to write next.
 - [Zones and tabs](zones-and-tabs.md) — the engine's runtime model: zones as isolated
   profiles, tabs as independent worker tasks, and the command/event flow between them.
 - [Resource pipelines](resource-pipeline.md) — how fetched bytes become typed assets
-  (HTML/CSS/JS/images/fonts), including parser-driven sub-resource discovery and
-  hierarchical fetch cancellation.
+  (HTML/CSS/JS/fonts), who fetches sub-resources, and hierarchical fetch cancellation.
 - [Cookies](cookies.md) — the cookie subsystem inside `gosub_engine`.
 - [Storage](datastores.md) — localStorage / sessionStorage architecture.
 

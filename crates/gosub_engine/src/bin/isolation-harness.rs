@@ -3996,6 +3996,9 @@ fn engine_cookie_vault() -> i32 {
         if !wait_for(2).await {
             return 1;
         }
+        // The favicon follows the page; give it time to be *sent* before
+        // shutdown removes the tab's identity, so the request log is stable.
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
         if respawn {
             // Let the first navigation's trailing requests (favicon, a
