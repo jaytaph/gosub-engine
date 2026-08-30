@@ -1133,6 +1133,9 @@ impl<C: RenderConfiguration> TabWorker<C> {
                     && !self.zone_context.render_backend.gpu_tile_compositing()
                 {
                     let dpr = self.zone_context.render_backend.device_pixel_ratio();
+                    // Same DPR guard as the render path: cached tiles rasterized at a different
+                    // DPR are the wrong physical size for this frame.
+                    self.context.invalidate_raster_if_dpr_changed(dpr);
                     if let Some(handle) = self.context.take_scroll_handle(dpr) {
                         self.runtime.committed_scene_epoch = self.context.scene_epoch();
                         self.submit_frame(handle);
@@ -2178,6 +2181,11 @@ impl<C: RenderConfiguration> TabWorker<C> {
             let dpr = render_backend.device_pixel_ratio();
             let frame_started = std::time::Instant::now();
 
+            // The host can change the DPR behind our back (page zoom writes the global atomic),
+            // which invalidates every cached tile's pixel size. Do this before the scroll fast
+            // path, which would otherwise hand back old tiles stamped with the new DPR.
+            self.context.invalidate_raster_if_dpr_changed(dpr);
+
             // Scroll-only fast path: tiles are still valid, only the offset changed.
             if let Some(handle) = self.context.take_scroll_handle(dpr) {
                 self.runtime.committed_scene_epoch = self.context.scene_epoch();
@@ -2365,7 +2373,16 @@ impl<C: RenderConfiguration> TabWorker<C> {
     }
 
     /// Set a new viewport and schedule a re-render by transitioning to [`TabState::PendingRendering`].
+    ///
+    /// Zero-sized viewports are ignored rather than applied: they are never a state worth
+    /// rendering (a minimized or not-yet-allocated host window reports one), and applying one
+    /// would drop the whole tile cache and re-layout the page at `MAX_CONTENT`. Keeping the last
+    /// good viewport means the tab still holds a valid frame when the host comes back.
     pub fn set_viewport(&mut self, vp: Viewport) {
+        if vp.width == 0 || vp.height == 0 {
+            log::debug!("[render] ignoring zero-sized viewport {vp:?} for tab {:?}", self.tab_id);
+            return;
+        }
         // Already at the viewport we want, then we can skip
         if vp == self.desired_viewport {
             return;
