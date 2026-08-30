@@ -130,6 +130,25 @@ impl Config {
         Ok(())
     }
 
+    /// Sets a setting for this run only: validated and subscribers notified like [`set`](Self::set),
+    /// but never written to storage. For values the engine resolves per process/platform, which
+    /// must not become the user's persisted choice.
+    pub fn set_transient(&self, key: &str, value: Setting) -> Result<()> {
+        let fire = {
+            let store = self.0.write();
+            store.set_transient(key, value)?.map(|value| {
+                let callbacks = store.matching_callbacks(key);
+                (value, callbacks)
+            })
+        };
+        if let Some((value, callbacks)) = fire {
+            for callback in callbacks {
+                callback(key, &value);
+            }
+        }
+        Ok(())
+    }
+
     /// Removes the override for a key, reverting to its default and notifying matching subscribers
     /// when the value changes.
     pub fn remove(&self, key: &str) -> Result<()> {
@@ -355,6 +374,18 @@ impl ConfigStore {
     /// Returns `Ok(Some(value))` when the value actually changed (so the caller should notify
     /// subscribers), or `Ok(None)` when the value was already set to `value`.
     pub fn set(&self, key: &str, value: Setting) -> Result<Option<Setting>> {
+        let changed = self.set_in_memory(key, value.clone())?;
+        self.storage.set(key, value)?;
+        Ok(changed)
+    }
+
+    /// [`set`](Self::set) without the write to storage: the value holds until the process exits
+    /// or the key is set again.
+    pub fn set_transient(&self, key: &str, value: Setting) -> Result<Option<Setting>> {
+        self.set_in_memory(key, value)
+    }
+
+    fn set_in_memory(&self, key: &str, value: Setting) -> Result<Option<Setting>> {
         let info = if let Some(info) = self.settings_info.get(key) {
             info
         } else {
@@ -384,7 +415,6 @@ impl ConfigStore {
             settings.insert(key.to_owned(), value.clone());
             changed
         };
-        self.storage.set(key, value.clone())?;
 
         Ok(changed.then_some(value))
     }
@@ -530,6 +560,47 @@ mod test {
             info("useragent.tab.max_opened", "i:-1", Some("-1,0-9999")),
             info("renderer.opengl.enabled", "b:true", None),
         ])
+    }
+
+    /// A transient value is live for this process and notifies subscribers, but a store
+    /// attached to the same storage afterwards must not see it: it was never persisted.
+    #[test]
+    fn set_transient_does_not_reach_storage() {
+        let storage = Arc::new(MemoryStorageAdapter::new());
+        let cfg = Config::with_storage(
+            [info("dns.local.enabled", "b:true", None)],
+            Box::new(SharedStorage(storage.clone())),
+        );
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let seen_cb = seen.clone();
+        cfg.subscribe("dns.*", move |key, value| {
+            seen_cb.lock().push((key.to_string(), value.clone()))
+        });
+
+        cfg.set_transient("dns.local.enabled", Setting::Bool(false)).unwrap();
+        assert_eq!(cfg.get("dns.local.enabled").unwrap().unwrap(), Setting::Bool(false));
+        assert_eq!(seen.lock().len(), 1);
+        assert!(storage.get("dns.local.enabled").unwrap().is_none(), "must not persist");
+
+        // Still validated like a real set.
+        assert!(cfg.set_transient("dns.local.enabled", Setting::UInt(1)).is_err());
+    }
+
+    /// Forwards to a shared adapter so a test can inspect what a store persisted.
+    struct SharedStorage(Arc<MemoryStorageAdapter>);
+    impl StorageAdapter for SharedStorage {
+        fn get(&self, key: &str) -> Result<Option<Setting>> {
+            self.0.get(key)
+        }
+        fn set(&self, key: &str, value: Setting) -> Result<()> {
+            self.0.set(key, value)
+        }
+        fn remove(&self, key: &str) -> Result<()> {
+            self.0.remove(key)
+        }
+        fn all(&self) -> Result<HashMap<String, Setting>> {
+            self.0.all()
+        }
     }
 
     #[test]
