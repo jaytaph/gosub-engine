@@ -57,6 +57,8 @@ pub trait HtmlPipeline<C: RenderConfiguration> {
 pub struct HtmlPipelineImpl {
     io_tx: IoChannel,
     zone_id: ZoneId,
+    /// `Accept-Language` header value sent with discovered subresource requests.
+    accept_language: Option<String>,
     /// The tab these subresources belong to, so the I/O side can attach its
     /// cookies. Subresources previously carried none at all.
     tab_id: TabId,
@@ -82,6 +84,7 @@ impl HtmlPipelineImpl {
         zone_id: ZoneId,
         tab_id: TabId,
         io_tx: IoChannel,
+        accept_language: Option<String>,
         max_document_bytes: usize,
         capture_source: bool,
     ) -> Self {
@@ -90,6 +93,7 @@ impl HtmlPipelineImpl {
             io_tx,
             zone_id,
             tab_id,
+            accept_language,
             max_document_bytes,
             capture_source,
         }
@@ -130,6 +134,7 @@ impl HtmlPipelineImpl {
             resource_loader: Some(
                 BrokeredLoader::new(self.zone_id, Some(self.tab_id), self.io_tx.clone())
                     .with_cancel(&parent_cancel)
+                    .with_accept_language(self.accept_language.clone())
                     .shared(),
             ),
         };
@@ -179,8 +184,8 @@ impl<C: RenderConfiguration> HtmlPipeline<C> for HtmlPipelineImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::events::IoCommand;
     use crate::engine::types::RequestId;
-    use crate::events::IoCommand;
     use crate::html::DefaultRenderConfig;
     use crate::net::req_ref_tracker::{RequestReference, REF_REGISTRY};
     use crate::net::types::{Initiator, Priority, ResourceKind};
@@ -259,7 +264,6 @@ mod tests {
                         // drop the sender to unblock the pipeline's `rx.await` without crafting a FetchResult
                         drop(reply_tx);
                     }
-                    IoCommand::Decision { .. } => { /* not used here */ }
                     IoCommand::ShutdownZone { reply_tx, .. } => {
                         let _ = reply_tx.send(());
                     }
@@ -283,7 +287,7 @@ mod tests {
         // Arrange
         let (io_tx, seen_children) = start_dummy_io();
         let zone_id = ZoneId::new();
-        let mut pipeline = HtmlPipelineImpl::new(zone_id, TabId::new(), io_tx, 10 * 1024 * 1024, false);
+        let mut pipeline = HtmlPipelineImpl::new(zone_id, TabId::new(), io_tx, None, 10 * 1024 * 1024, false);
 
         let (req, handle) = test_request("https://example.com/path/index.html");
         let meta = test_meta("https://example.com/path/index.html");
@@ -314,7 +318,7 @@ mod tests {
         // Arrange
         let (io_tx, seen_children) = start_dummy_io();
         let zone_id = ZoneId::new();
-        let mut pipeline = HtmlPipelineImpl::new(zone_id, TabId::new(), io_tx, 10 * 1024 * 1024, false);
+        let mut pipeline = HtmlPipelineImpl::new(zone_id, TabId::new(), io_tx, None, 10 * 1024 * 1024, false);
 
         let (req, handle) = test_request("https://example.com/");
         let meta = test_meta("https://example.com/");

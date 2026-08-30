@@ -28,25 +28,38 @@ pub struct ResourcePipelines<C: RenderConfiguration> {
     pub css: Box<dyn CssPipeline + Send>,
     pub js: Box<dyn JsPipeline + Send>,
     pub fonts: Box<dyn FontPipeline + Send>,
+    /// `net.download.max_spool_bytes`: cap on a download body spooled before the embedder
+    /// accepts it. 0 = unlimited.
+    pub(crate) max_download_spool_bytes: u64,
     // pub viewer: &'a mut dyn ViewerPipeline,
     // pub download: &'a mut dyn DownloadManager,
     // pub external: &'a mut dyn ExternalOpener,
 }
 
 impl<C: RenderConfiguration> ResourcePipelines<C> {
-    pub fn new(
+    pub(crate) fn new(
         zone_id: ZoneId,
         tab_id: TabId,
         io_tx: IoChannel,
+        accept_language: Option<String>,
         max_document_bytes: usize,
+        max_download_spool_bytes: u64,
         capture_source: bool,
     ) -> Self {
         // A renderer process that will re-parse the document is also the only
         // process that should parse it: keep just the source here.
         Self {
+            max_download_spool_bytes,
             html: Box::new(
-                HtmlPipelineImpl::new(zone_id, tab_id, io_tx, max_document_bytes, capture_source)
-                    .source_only(capture_source),
+                HtmlPipelineImpl::new(
+                    zone_id,
+                    tab_id,
+                    io_tx,
+                    accept_language,
+                    max_document_bytes,
+                    capture_source,
+                )
+                .source_only(capture_source),
             ),
             css: Box::new(CssPipelineImpl {}),
             js: Box::new(JsPipelineImpl {}),

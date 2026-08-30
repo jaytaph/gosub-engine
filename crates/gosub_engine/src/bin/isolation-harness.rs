@@ -694,11 +694,11 @@ fn engine_renderer_process<F: FontSystem + Default>() -> i32 {
                     partition_policy: PartitionPolicy::None,
                     places: None,
                 };
-                let Ok(mut zone) = engine.create_zone(None, services, None) else {
+                let Ok(mut zone) = engine.zone_builder().services(services).create() else {
                     eprintln!("could not create a zone");
                     return 1;
                 };
-                let Ok(tab) = zone.create_tab(Default::default(), None).await else {
+                let Ok(tab) = zone.tab_builder().create().await else {
                     eprintln!("could not create a tab");
                     return 1;
                 };
@@ -1917,11 +1917,11 @@ fn engine_renderer_crash<F: FontSystem + Default>() -> i32 {
                 partition_policy: PartitionPolicy::None,
                 places: None,
             };
-            let Ok(mut zone) = engine.create_zone(None, services, None) else {
+            let Ok(mut zone) = engine.zone_builder().services(services).create() else {
                 eprintln!("could not create a zone");
                 return 1;
             };
-            let Ok(tab) = zone.create_tab(Default::default(), None).await else {
+            let Ok(tab) = zone.tab_builder().create().await else {
                 eprintln!("could not create a tab");
                 return 1;
             };
@@ -2106,11 +2106,11 @@ fn engine_renderer_slow_image<F: FontSystem + Default>() -> i32 {
                 partition_policy: PartitionPolicy::None,
                 places: None,
             };
-            let Ok(mut zone) = engine.create_zone(None, services, None) else {
+            let Ok(mut zone) = engine.zone_builder().services(services).create() else {
                 eprintln!("could not create a zone");
                 return 1;
             };
-            let Ok(tab) = zone.create_tab(Default::default(), None).await else {
+            let Ok(tab) = zone.tab_builder().create().await else {
                 eprintln!("could not create a tab");
                 return 1;
             };
@@ -2530,11 +2530,11 @@ fn escape_audit<F: FontSystem + Default>() -> i32 {
                 partition_policy: PartitionPolicy::None,
                 places: None,
             };
-            let Ok(mut zone) = engine.create_zone(None, services, None) else {
+            let Ok(mut zone) = engine.zone_builder().services(services).create() else {
                 eprintln!("could not create a zone");
                 return 1;
             };
-            let Ok(tab) = zone.create_tab(Default::default(), None).await else {
+            let Ok(tab) = zone.tab_builder().create().await else {
                 eprintln!("could not create a tab");
                 return 1;
             };
@@ -2720,11 +2720,11 @@ fn engine_soak<F: FontSystem + Default>() -> i32 {
                 partition_policy: PartitionPolicy::None,
                 places: None,
             };
-            let Ok(mut zone) = engine.create_zone(None, services, None) else {
+            let Ok(mut zone) = engine.zone_builder().services(services).create() else {
                 eprintln!("could not create a zone");
                 return 1;
             };
-            let Ok(tab) = zone.create_tab(Default::default(), None).await else {
+            let Ok(tab) = zone.tab_builder().create().await else {
                 eprintln!("could not create a tab");
                 return 1;
             };
@@ -3015,7 +3015,7 @@ fn engine_stress<F: FontSystem + Default>() -> i32 {
                 partition_policy: PartitionPolicy::None,
                 places: None,
             };
-            let Ok(mut zone) = engine.create_zone(None, services, None) else {
+            let Ok(mut zone) = engine.zone_builder().services(services).create() else {
                 eprintln!("could not create a zone");
                 return 1;
             };
@@ -3025,7 +3025,7 @@ fn engine_stress<F: FontSystem + Default>() -> i32 {
             let mut names: HashMap<TabId, usize> = HashMap::new();
             let mut next_slot = 1usize;
             for _ in 0..tabs_wanted {
-                let Ok(handle) = zone.create_tab(Default::default(), None).await else {
+                let Ok(handle) = zone.tab_builder().create().await else {
                     eprintln!("could not create a tab");
                     return 1;
                 };
@@ -3085,7 +3085,7 @@ fn engine_stress<F: FontSystem + Default>() -> i32 {
                         zone.close_tab(id).await;
                         names.remove(&id);
                         tabs.remove(pick);
-                        if let Ok(handle) = zone.create_tab(Default::default(), None).await {
+                        if let Ok(handle) = zone.tab_builder().create().await {
                             let slot = next_slot;
                             next_slot += 1;
                             let _ = handle
@@ -3651,7 +3651,7 @@ fn engine_storage_service() -> i32 {
                 partition_policy: PartitionPolicy::None,
                 places: None,
             };
-            let zone = match engine.create_zone(None, services, None) {
+            let zone = match engine.zone_builder().services(services).create() {
                 Ok(zone) => zone,
                 Err(e) => {
                     eprintln!("could not create a zone: {e}");
@@ -4140,14 +4140,14 @@ fn engine_cookie_vault() -> i32 {
             partition_policy: PartitionPolicy::None,
             places: None,
         };
-        let mut zone = match engine.create_zone(None, services, None) {
+        let mut zone = match engine.zone_builder().services(services).create() {
             Ok(zone) => zone,
             Err(e) => {
                 eprintln!("could not create a zone: {e}");
                 return 1;
             }
         };
-        let Ok(tab) = zone.create_tab(Default::default(), None).await else {
+        let Ok(tab) = zone.tab_builder().create().await else {
             eprintln!("could not create a tab");
             return 1;
         };
@@ -4596,11 +4596,11 @@ fn engine() -> i32 {
             partition_policy: PartitionPolicy::None,
             places: None,
         };
-        let Ok(mut zone) = engine.create_zone(None, services, None) else {
+        let Ok(mut zone) = engine.zone_builder().services(services).create() else {
             eprintln!("could not create a zone");
             return 1;
         };
-        let Ok(tab) = zone.create_tab(Default::default(), None).await else {
+        let Ok(tab) = zone.tab_builder().create().await else {
             eprintln!("could not create a tab");
             return 1;
         };

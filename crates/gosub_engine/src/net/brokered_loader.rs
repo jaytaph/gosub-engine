@@ -1,9 +1,9 @@
 //! The engine's [`ResourceLoader`]: a blocking fetch that goes through the I/O
 //! runtime instead of opening a socket where it is called.
 
+use crate::engine::events::IoCommand;
 use crate::engine::types::IoChannel;
 use crate::engine::types::RequestId;
-use crate::events::IoCommand;
 use crate::net::types::{FetchHandle, FetchRequest, FetchResult};
 use crate::tab::TabId;
 use crate::zone::ZoneId;
@@ -34,17 +34,25 @@ pub struct BrokeredLoader {
     /// Loads are issued from plain threads too (the media store's fetch
     /// threads), where `Handle::try_current` finds nothing to spawn on.
     runtime: Option<tokio::runtime::Handle>,
+    /// `Accept-Language` for the page's subresources, from the tab's settings.
+    accept_language: Option<String>,
 }
 
 impl BrokeredLoader {
-    pub fn new(zone_id: ZoneId, tab_id: Option<TabId>, io_tx: IoChannel) -> Self {
+    pub(crate) fn new(zone_id: ZoneId, tab_id: Option<TabId>, io_tx: IoChannel) -> Self {
         Self {
             zone_id,
             tab_id,
             io_tx,
             cancel: CancellationToken::new(),
             runtime: tokio::runtime::Handle::try_current().ok(),
+            accept_language: None,
         }
+    }
+
+    pub fn with_accept_language(mut self, langs: Option<String>) -> Self {
+        self.accept_language = langs;
+        self
     }
 
     /// Tie these loads to `parent`, so cancelling the work that wanted them
@@ -98,10 +106,15 @@ impl BrokeredLoader {
 
         // A subresource on a page's behalf: the I/O side applies the
         // private-network and opaque-response policies to it.
+        let mut headers = http::HeaderMap::new();
+        if let Some(val) = self.accept_language.as_deref().and_then(|l| l.parse().ok()) {
+            headers.insert(http::header::ACCEPT_LANGUAGE, val);
+        }
         let req = FetchRequest::builder(Method::GET, url.clone())
             .with_req_id(RequestId::new())
             .with_kind(gosub_sonar::net::types::ResourceKind::Asset)
             .with_initiator(gosub_sonar::net::types::Initiator::Application)
+            .with_headers(headers)
             .with_streaming(false)
             .with_auto_decode(true)
             .build();
