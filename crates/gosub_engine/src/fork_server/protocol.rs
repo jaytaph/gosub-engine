@@ -49,6 +49,9 @@ pub enum ToForkServer {
         tab: String,
         viewport_width: f64,
         viewport_height: f64,
+        /// The broker's device-pixel ratio. Tile pixels are physical; the
+        /// renderer is another process, so the host's global does not reach it.
+        dpr: u32,
         /// Content hashes of tiles the broker still holds from a previous
         /// render of this tab. A tile whose hash is in here is neither
         /// rasterized nor shipped - the renderer answers
@@ -111,6 +114,9 @@ pub enum ToRenderer {
         url: String,
         viewport_width: f64,
         viewport_height: f64,
+        /// See [`ToForkServer::RenderPage::dpr`]; a retained page keeps it
+        /// until the next navigate.
+        dpr: u32,
         /// Where the viewport is: only the raster window around it is
         /// rasterized and shipped (see [`ToRenderer::Scroll`]).
         scroll_y: f64,

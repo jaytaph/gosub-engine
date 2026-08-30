@@ -162,6 +162,7 @@ fn serve_warmed<C: RenderConfiguration>(mut link: Endpoint) -> i32 {
                 tab,
                 viewport_width,
                 viewport_height,
+                dpr,
                 known_tiles,
                 hovered_node,
             } => match &tier {
@@ -184,6 +185,7 @@ fn serve_warmed<C: RenderConfiguration>(mut link: Endpoint) -> i32 {
                         &tab,
                         viewport_width,
                         viewport_height,
+                        dpr,
                         &known_tiles.iter().copied().collect(),
                         hovered_node,
                     );
@@ -398,6 +400,7 @@ fn fork_and_render<C: RenderConfiguration>(
     tab: &str,
     viewport_width: f64,
     viewport_height: f64,
+    dpr: u32,
     known_tiles: &std::collections::HashSet<u64>,
     hovered_node: Option<u64>,
 ) -> Result<(), String> {
@@ -429,6 +432,7 @@ fn fork_and_render<C: RenderConfiguration>(
                 gosub_sandbox::exit_now(1);
             };
             let shared: Arc<Mutex<dyn FontSystem>> = Arc::new(Mutex::new(owned));
+            gosub_render_pipeline::render::DEVICE_PIXEL_RATIO.store(dpr, std::sync::atomic::Ordering::Relaxed);
             let (summary, tiles, hit_regions) = renderer::render_page::<C>(
                 renderer::PageRequest {
                     html,

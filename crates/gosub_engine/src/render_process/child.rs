@@ -118,6 +118,7 @@ pub fn serve<C: RenderConfiguration>(link: Endpoint) -> i32 {
         tab,
         viewport_width,
         viewport_height,
+        dpr,
         known_tiles,
         hovered_node,
     } = request
@@ -138,6 +139,7 @@ pub fn serve<C: RenderConfiguration>(link: Endpoint) -> i32 {
     gosub_sandbox::set_process_title(&comm, &format!("gosub: {comm}"));
 
     let shared: Arc<Mutex<dyn FontSystem>> = Arc::new(Mutex::new(fonts));
+    gosub_render_pipeline::render::DEVICE_PIXEL_RATIO.store(dpr, std::sync::atomic::Ordering::Relaxed);
     let (summary, tiles, hit_regions) = renderer::render_page::<C>(
         renderer::PageRequest {
             html: &html,
