@@ -126,6 +126,16 @@ where
     }
 }
 
+/// A configuration that only needs a DOM.
+///
+/// The form, editing and focus algorithms are pure walks over the document, so they do not
+/// need the render components [`RenderConfiguration`] names. Bounding them on this instead
+/// lets a parse-only config - a test harness, a fuzz target, the WPT DOM bindings - call the
+/// same code the engine does, rather than growing a second implementation of it.
+pub trait DomConfiguration: ModuleConfiguration<Document = DocumentImpl<Self>> {}
+
+impl<C: ModuleConfiguration<Document = DocumentImpl<C>>> DomConfiguration for C {}
+
 /// The parsed document type used by the engine for a given config (defaults to [`DefaultRenderConfig`]).
 pub type EngineDocument<C = DefaultRenderConfig> = DocumentImpl<C>;
 

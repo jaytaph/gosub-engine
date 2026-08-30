@@ -261,6 +261,22 @@ pub use gosub_config::storage as config_storage;
 pub use gosub_config::Config;
 pub use gosub_config::StorageAdapter;
 
+/// The pure-DOM form algorithms: form association, the form data set, and submission.
+#[doc(inline)]
+pub use engine::form;
+
+/// Control editing: value modes, the live value, typing and toggling.
+#[doc(inline)]
+pub use engine::edit;
+
+/// Focusability and tab order.
+#[doc(inline)]
+pub use engine::focus;
+
+/// Constraint validation: candidacy, the validity flags and their messages.
+#[doc(inline)]
+pub use engine::validity;
+
 pub use engine::types::NavigationId;
 
 #[doc(inline)]

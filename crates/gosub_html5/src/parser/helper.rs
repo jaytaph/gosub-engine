@@ -6,6 +6,20 @@ use gosub_interface::config::HasDocument;
 use gosub_interface::document::Document;
 use gosub_shared::node::NodeId;
 
+/// The elements the parser hands a form owner to when it creates them inside a `<form>`.
+const FORM_ASSOCIATED_ELEMENTS: [&str; 9] = [
+    "button", "fieldset", "input", "img", "label", "object", "output", "select", "textarea",
+];
+
+/// The root the node hangs off - the document for anything in the tree, the detached
+/// subtree's own root otherwise.
+fn tree_root<C: HasDocument>(document: &C::Document, mut node: NodeId) -> NodeId {
+    while let Some(parent) = document.parent(node) {
+        node = parent;
+    }
+    node
+}
+
 const ADOPTION_AGENCY_OUTER_LOOP_DEPTH: usize = 8;
 const ADOPTION_AGENCY_INNER_LOOP_DEPTH: usize = 3;
 
@@ -197,12 +211,36 @@ impl<C: HasDocument> Html5Parser<'_, C> {
     pub(crate) fn insert_element(&mut self, node_id: NodeId, override_node: Option<NodeId>) -> NodeId {
         let insert_position = self.appropriate_place_insert(override_node);
         self.insert_element_helper(node_id, insert_position);
+        self.associate_with_form(node_id);
 
         //     if parser not created as part of html fragment parsing algorithm
         //       pop the top element queue from the relevant agent custom element reactions stack (???)
 
         self.open_elements.push(node_id);
         node_id
+    }
+
+    /// Give a freshly parsed form-associated element the form element pointer as its owner,
+    /// the way the tree construction stages do. An element carrying its own `form` attribute
+    /// is left alone - that attribute decides, not the parser. The form has to be in the same
+    /// tree, so a form that script removed mid-parse adopts nothing afterwards.
+    fn associate_with_form(&mut self, node_id: NodeId) {
+        let Some(form) = self.form_element else {
+            return;
+        };
+        let Some(tag) = self.document.tag_name(node_id) else {
+            return;
+        };
+        if !FORM_ASSOCIATED_ELEMENTS.contains(&tag) {
+            return;
+        }
+        if self.document.attribute(node_id, "form").is_some() {
+            return;
+        }
+        if tree_root::<C>(self.document, form) != tree_root::<C>(self.document, node_id) {
+            return;
+        }
+        self.document.set_parser_form_owner(node_id, form);
     }
 
     pub(crate) fn insert_doctype_element(&mut self, token: &Token) {

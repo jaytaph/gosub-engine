@@ -142,9 +142,133 @@ pub trait Document<C: HasCssSystem>: Sized + Display + Debug + PartialEq + 'stat
         false
     }
 
-    /// Whether `id` is the currently focused element (drives `:focus` matching).
-    /// Implementations use interior mutability, like hover.
+    // Interaction state read by the `:focus`/`:checked` selectors and the painter.
+
     fn is_focused(&self, _id: NodeId) -> bool {
         false
+    }
+    /// Focused and the ring should show (keyboard focus, or a text-entry control).
+    fn is_focus_visible(&self, _id: NodeId) -> bool {
+        false
+    }
+    /// The focused element or one of its ancestors.
+    fn is_focus_within(&self, _id: NodeId) -> bool {
+        false
+    }
+    fn focused_node(&self) -> Option<NodeId> {
+        None
+    }
+    /// Live checkedness; the `checked` attribute is only the default.
+    fn is_checked(&self, id: NodeId) -> bool {
+        self.attribute(id, "checked").is_some()
+    }
+    /// What has been typed into a text control; `None` = untouched (shows its markup value).
+    fn control_edit_state(&self, _id: NodeId) -> Option<ControlEditState> {
+        None
+    }
+    /// The form the parser associated `id` with. This survives tree moves that carry the
+    /// element along with its form, and is dropped the moment the element itself is moved -
+    /// `None` means "work the owner out from the tree".
+    fn parser_form_owner(&self, _id: NodeId) -> Option<NodeId> {
+        None
+    }
+    /// Record the association the parser made. The default does nothing, for documents that
+    /// do not track form ownership.
+    fn set_parser_form_owner(&mut self, _id: NodeId, _form: NodeId) {}
+    /// The message `setCustomValidity()` put on a control; empty/absent = no custom error.
+    fn custom_validity(&self, _id: NodeId) -> Option<String> {
+        None
+    }
+    /// The chosen `<option>` of a `<select>` (the `selected` attribute or the first option until
+    /// the user picks another). `None` = not tracked, use the markup.
+    fn selected_option(&self, _select: NodeId) -> Option<NodeId> {
+        None
+    }
+    /// Border-box size the user dragged a resizable control (`<textarea>`) to.
+    fn control_size(&self, _id: NodeId) -> Option<(f64, f64)> {
+        None
+    }
+    /// The open `<select>` dropdown, if any.
+    fn open_select(&self) -> Option<OpenSelect> {
+        None
+    }
+}
+
+/// An open `<select>` dropdown. Row indices count every popup row (options and group labels).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OpenSelect {
+    pub select: NodeId,
+    /// Row under the pointer (light highlight).
+    pub hover: Option<usize>,
+    /// Row the keyboard moved to (strong highlight); committed by Enter/Space.
+    pub active: Option<usize>,
+    /// First row shown when the list is taller than the popup.
+    pub first_row: usize,
+    /// Viewport `(top, height)` in page px when the dropdown opened: decides whether the popup
+    /// opens below or above, and how tall it may be.
+    pub viewport: (f64, f64),
+}
+
+/// Which way a text selection was made, as `selectionDirection` reports it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SelectionDirection {
+    #[default]
+    None,
+    Forward,
+    Backward,
+}
+
+impl SelectionDirection {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SelectionDirection::None => "none",
+            SelectionDirection::Forward => "forward",
+            SelectionDirection::Backward => "backward",
+        }
+    }
+
+    /// Anything that is not a direction keyword is treated as "none", per the IDL.
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "forward" => SelectionDirection::Forward,
+            "backward" => SelectionDirection::Backward,
+            _ => SelectionDirection::None,
+        }
+    }
+}
+
+/// The DOM value of a text control (as opposed to its `value` attribute) plus its editing state.
+/// Indices are char indices into `value`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControlEditState {
+    pub value: String,
+    pub caret: usize,
+    /// Other end of the selection; `None` (or equal to `caret`) = nothing selected.
+    pub anchor: Option<usize>,
+    /// First visual row a `<textarea>` shows (the engine keeps the caret inside the view).
+    pub scroll: usize,
+    /// Which end of the selection is the moving one. Kept explicitly rather than derived
+    /// from `anchor` vs `caret`, because a collapsed selection still has a direction.
+    pub direction: SelectionDirection,
+}
+
+impl ControlEditState {
+    pub fn new(value: String, caret: usize) -> Self {
+        ControlEditState {
+            value,
+            caret,
+            anchor: None,
+            scroll: 0,
+            direction: SelectionDirection::None,
+        }
+    }
+
+    /// The selected char range `[start, end)`, if anything is selected.
+    pub fn selection(&self) -> Option<(usize, usize)> {
+        let a = self.anchor?;
+        if a == self.caret {
+            return None;
+        }
+        Some((a.min(self.caret), a.max(self.caret)))
     }
 }

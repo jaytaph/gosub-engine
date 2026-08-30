@@ -44,6 +44,8 @@ pub enum CursorShape {
     Pointer,
     /// I-beam: over selectable text or an editable field.
     Text,
+    /// Diagonal resize arrows: over a textarea's resize grip.
+    Resize,
 }
 
 /// Correlates a [`TabCommand::QueryHitTest`] with its [`EngineEvent::HitTestResult`]. Chosen
@@ -302,11 +304,8 @@ pub enum TabCommand {
         code: String,
         modifiers: Modifiers,
     },
-    #[cfg(feature = "unstable-api")]
-    /// Committed text for the focused control: IME output, or clipboard contents on paste.
-    /// This is the only text-input path - there is no per-character command.
-    ///
-    /// Not yet handled (logged and dropped); behind `unstable-api`.
+    /// Committed text for the focused control: IME output, or the clipboard contents in answer
+    /// to [`EngineEvent::PasteRequested`].
     TextInput {
         text: String,
     },
@@ -657,6 +656,16 @@ pub enum EngineEvent {
         tab_id: TabId,
         id: DownloadId,
         error: String,
+    },
+    /// The page copied/cut `text` (Ctrl+C / Ctrl+X in a text control): put it on the clipboard.
+    ClipboardWrite {
+        tab_id: TabId,
+        text: String,
+    },
+    /// The page wants to paste (Ctrl+V): read the clipboard and send it as
+    /// [`TabCommand::TextInput`].
+    PasteRequested {
+        tab_id: TabId,
     },
     /// A page rendered in a renderer process reported its title; the same value is
     /// readable through [`TabHandle::title`](crate::tab::TabHandle::title).
