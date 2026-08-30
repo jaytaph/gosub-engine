@@ -64,12 +64,73 @@ pub enum ToForkServer {
         /// whose painted content actually changed.
         hovered_node: Option<u64>,
     },
+    /// Fork a *resident* renderer - one that stays alive and serves
+    /// [`ToRenderer`] requests until told to stop - confine it to the announced
+    /// tier, and hand its end of a private link to the broker: the reply is
+    /// [`FromForkServer::RendererSpawned`] followed immediately by the link's
+    /// file descriptor. From then on the broker and that renderer talk
+    /// directly; the fork server is out of the loop.
+    SpawnRenderer {
+        /// Names the process in `ps`/`pstree` (`render-<first 8 chars>`).
+        /// Display only.
+        label: String,
+    },
+    /// Collect any resident renderers that have exited (they are this
+    /// process's children, so only it can reap them). The broker sends this
+    /// after it observed a renderer's link close.
+    ReapExited,
     /// Exit cleanly.
     Shutdown,
     /// The broker's answer to [`FromForkServer::NeedResource`], relayed on to
     /// the renderer that is blocked waiting for it. Only ever sent while a
     /// [`RenderPage`](ToForkServer::RenderPage) exchange is in flight.
     Resource(ResourceReply),
+}
+
+/// Broker → resident renderer, over the private link
+/// [`ToForkServer::SpawnRenderer`] handed over. One renderer hosts every tab
+/// of one (zone, site), so requests name their tab.
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ToRenderer {
+    /// A tab now lives in this renderer.
+    OpenTab { tab: String },
+    /// The tab left (closed, or moved to another site's renderer).
+    CloseTab { tab: String },
+    /// Render this tab's page: the same one-shot pipeline as
+    /// [`ToForkServer::RenderPage`], answered with the same streamed
+    /// [`FromRenderer`] sequence ending in [`FromRenderer::Rendered`]. A
+    /// [`FromRenderer::NeedResource`] mid-render is answered with a bare
+    /// [`ResourceReply`] frame (the renderer's loader reads exactly that),
+    /// so the link strictly alternates for the whole exchange.
+    Navigate {
+        tab: String,
+        html: String,
+        url: String,
+        viewport_width: f64,
+        viewport_height: f64,
+        /// Where the viewport is: only the raster window around it is
+        /// rasterized and shipped (see [`ToRenderer::Scroll`]).
+        scroll_y: f64,
+        known_tiles: Vec<u64>,
+        hovered_node: Option<u64>,
+    },
+    /// The viewport moved on a page this renderer retains: rasterize what
+    /// came into the raster window and ship it, and announce
+    /// ([`FromRenderer::Evict`]) tiles that drifted too far to keep. Answered
+    /// with the same streamed sequence as `Navigate`; the summary's tile
+    /// counts cover this pass only.
+    Scroll { tab: String, scroll_y: f64 },
+    /// The pointer moved to `node` (a DOM node id the broker hit-tested, or
+    /// nothing) on a page this renderer retains: restyle the hover chains and
+    /// repaint just the tiles they cover. Same streamed answer as `Scroll`.
+    Hover { tab: String, node: Option<u64> },
+    /// Die without replying, the way a crashing renderer would. For tests
+    /// of the broker's recovery; a renderer that obeys it was going to be
+    /// trusted with nothing anyway.
+    CrashForTest,
+    /// Exit cleanly. The broker sends this when the renderer's last tab
+    /// closes; a closed link means the same.
+    Shutdown,
 }
 
 /// Fork server → broker.
@@ -102,6 +163,10 @@ pub enum FromForkServer {
         summary: PageSummary,
         hit_regions: Vec<HitRegion>,
     },
+    /// A resident renderer was forked; the broker's end of its link follows
+    /// immediately as a file descriptor. `pid` is the number the fork
+    /// server's own namespace - and so the broker's - sees.
+    RendererSpawned { pid: i32 },
     /// The request could not be served; the string says why (e.g. forking is
     /// refused under `Unsupported`, or the forked child died).
     Refused(String),
@@ -110,7 +175,7 @@ pub enum FromForkServer {
     /// wants, the broker performs the fetch where identity and cookies live,
     /// and only bytes come back. Sent mid-[`RenderPage`](ToForkServer::RenderPage);
     /// the broker answers with [`ToForkServer::Resource`] before anything else.
-    NeedResource { url: String },
+    NeedResource { url: String, deferred: bool },
 }
 
 /// What a forked renderer sends its parent over their private pair before
@@ -127,13 +192,21 @@ pub struct ProofReply {
 /// sealed memfds - but enough on their own for the broker to assert the
 /// pipeline really ran (a dead font system collapses heights to zero; a dead
 /// painter produces no commands).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PageSummary {
     pub page_width: f64,
     pub page_height: f64,
     pub layer_count: u64,
     pub painted_tiles: u64,
     pub paint_commands: u64,
+    /// Layer ids back to front. A broker holding tiles from several passes
+    /// (a retained page scrolled about) composites them in this order; the
+    /// renderer's tile list is the only thing that knows it.
+    pub layer_order: Vec<u64>,
+    /// What the renderer spent on this pass, per stage, in microseconds. It
+    /// has no way to report anywhere itself; the broker relays these to the
+    /// telemetry firehose on its behalf.
+    pub timings_us: Vec<(String, u64)>,
 }
 
 /// One hit-testable box of the page, in page space, in hit-test order:
@@ -284,18 +357,29 @@ impl From<TileWireAnchor> for gosub_interface::render::backend::TileAnchor {
     }
 }
 
-/// Everything a renderer can say to its parent over their private pair.
+/// Everything a renderer can say over its private link - to the fork server
+/// (one-shot renderers) or straight to the broker (resident ones).
 #[derive(Debug, Serialize, Deserialize)]
 pub enum FromRenderer {
     /// Mid-render: fetch this for me. The parent relays it to the broker and
     /// sends the [`ResourceReply`] back; the renderer is blocked until then.
-    NeedResource { url: String },
+    /// With `deferred`, the renderer can do without it for now: the broker
+    /// answers at once - the bytes if it has them, [`ResourceReply::Pending`]
+    /// otherwise - and fetches in the background, re-rendering the tab when
+    /// they land. Images ask this way; stylesheets and fonts, which layout
+    /// cannot proceed without, do not.
+    NeedResource { url: String, deferred: bool },
     /// One rasterized tile; its sealed memfd follows immediately. The
     /// renderer seals, sends, and drops each before baking the next into a
     /// memfd, so it never holds more than one tile fd itself.
     Tile(TileHeader),
     /// A tile the broker already holds - no fd, no rasterization.
     TileUnchanged(TileHeader),
+    /// Tiles the broker holds that the renderer will no longer account for:
+    /// they drifted too far from the viewport of a retained page. The broker
+    /// drops them; scrolling back there ships them afresh. Only a resident
+    /// renderer sends this.
+    Evict { hashes: Vec<u64> },
     /// The final message: the render is complete, with the page's hit-test
     /// geometry.
     Rendered {
@@ -315,4 +399,6 @@ pub enum ResourceReply {
         body: Vec<u8>,
     },
     Failed(String),
+    /// A deferred request the broker is still fetching; render without it.
+    Pending,
 }

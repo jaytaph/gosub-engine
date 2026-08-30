@@ -239,13 +239,60 @@ pub struct BrowsingContext<C: RenderConfiguration = crate::html::DefaultRenderCo
     /// `ps`/`pstree`. Empty until a remote renderer is installed.
     #[cfg(all(feature = "process-isolation", target_os = "linux"))]
     remote_tab: String,
+    /// The remote page's layers back to front, from its last summary: what
+    /// orders tiles gathered over several passes for the compositor.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    remote_layer_order: Vec<u64>,
+    /// An incremental exchange (scroll, hover) running on its own thread, so
+    /// frames keep compositing the tiles already held; merged by
+    /// [`Self::poll_remote_passes`].
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    remote_inflight: Option<InflightPass>,
+    /// Bumped per remote page render; a pass finishing for an older page is
+    /// dropped rather than merged into the new one.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    remote_generation: u64,
+    /// The hover changed while a pass was in flight; re-raise it once done.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    remote_hover_pending: bool,
+    /// Why the last out-of-process render could not happen at all - page
+    /// content is never rendered in-process instead; the tab worker takes
+    /// this and tells the embedder.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    remote_failure: Option<String>,
+    /// Images fetched for the resident renderer in the background; a render
+    /// proceeds without them and runs again when they land.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    remote_media: std::sync::Arc<crate::fork_server::client::RemoteMediaCache>,
+}
+
+/// A scroll or hover exchange the tab is waiting on.
+#[cfg(all(feature = "process-isolation", target_os = "linux"))]
+struct InflightPass {
+    what: RemotePass,
+    generation: u64,
+    /// The scroll position the pass was asked for: what its window covers.
+    scroll_y: f64,
+    page_url: String,
+    rx: std::sync::mpsc::Receiver<(
+        anyhow::Result<crate::fork_server::client::RenderedPage>,
+        std::time::Duration,
+    )>,
 }
 
 /// The two ways a tab's renders leave this process - which one applies is the
 /// configured font system's confinement tier, decided statically.
 #[cfg(all(feature = "process-isolation", target_os = "linux"))]
 pub enum RemoteRenderer {
-    /// Fork from the engine's warmed fork server (tier `Full`).
+    /// A resident renderer from the engine's pool, one per (zone, site),
+    /// forked from the warmed fork server (tier `Full`).
+    Resident {
+        pool: std::sync::Arc<crate::fork_server::pool::RendererPool>,
+        zone: crate::zone::ZoneId,
+        tab: crate::tab::TabId,
+    },
+    /// Fork a throwaway renderer per render from the engine's warmed fork
+    /// server (tier `Full`, no pool).
     ForkServer(std::sync::Arc<parking_lot::Mutex<crate::fork_server::client::ForkServer>>),
     /// Spawn a throwaway exec'd renderer per render (tier `FontPathsReadable`:
     /// warming buys nothing when font files stay reachable, and the stack may
@@ -305,6 +352,18 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
             remote_renderer: None,
             #[cfg(all(feature = "process-isolation", target_os = "linux"))]
             remote_tab: String::new(),
+            #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+            remote_layer_order: Vec::new(),
+            #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+            remote_inflight: None,
+            #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+            remote_generation: 0,
+            #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+            remote_hover_pending: false,
+            #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+            remote_failure: None,
+            #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+            remote_media: Default::default(),
         }
     }
 
@@ -314,6 +373,14 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
     pub fn set_remote_renderer(&mut self, renderer: RemoteRenderer, tab: String) {
         self.remote_renderer = Some(renderer);
         self.remote_tab = tab;
+    }
+
+    /// This tab is closing: let go of whatever renderer process hosts it.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    pub fn release_remote_renderer(&mut self) {
+        if let Some(RemoteRenderer::Resident { pool, tab, .. }) = self.remote_renderer.take() {
+            pool.release(tab);
+        }
     }
 
     /// Whether full renders go out-of-process: a remote renderer is installed
@@ -355,7 +422,22 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
 
     /// `source` is the text the document was parsed from, kept when an
     /// out-of-process renderer will need to re-parse it.
+    /// Say on the firehose why a full render is about to happen.
+    fn note_invalidate(&self, reason: &str) {
+        if !crate::telemetry::enabled() {
+            return;
+        }
+        #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+        let tab = self.remote_tab.as_str();
+        #[cfg(not(all(feature = "process-isolation", target_os = "linux")))]
+        let tab = "";
+        crate::telemetry::emit("tab.invalidate", serde_json::json!({ "tab": tab, "reason": reason }));
+    }
+
     pub fn set_document(&mut self, doc: Arc<EngineDocument<C>>, source: Option<std::sync::Arc<str>>) {
+        #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+        self.remote_media.clear();
+        self.note_invalidate("document");
         self.document = Some(doc);
         self.document_source = source;
         self.dom_dirty = true;
@@ -385,6 +467,7 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
         self.viewport.width = vp.width;
         self.viewport.height = vp.height;
         self.layout_dirty = true;
+        self.note_invalidate("viewport");
         self.invalidate_render();
         self.pipeline_cache = None;
         self.scene_cache = None;
@@ -444,6 +527,7 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
     /// is consumed (cleared) by this call.
     pub fn poll_media_completed(&mut self) -> bool {
         if self.media_store.take_completed() {
+            self.note_invalidate("media");
             self.render_dirty = true;
             true
         } else {
@@ -457,17 +541,43 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
     /// [`Self::rebuild_render_list_if_needed`].
     fn rebuild_full_pipeline(&mut self) {
         #[cfg(all(feature = "process-isolation", target_os = "linux"))]
-        if self.remote_render_active() && self.try_remote_pipeline() {
-            // Every tile is live again; an earlier in-process render may have evicted some.
-            // Remote pages are otherwise unbudgeted: their pixels are shared with the
-            // tile memory that makes re-renders incremental, so evicting here frees nothing.
-            self.tile_budget.note_full_raster();
-            self.render_dirty = false;
-            self.hover_dirty = false;
-            self.dom_dirty = false;
-            self.style_dirty = false;
-            self.layout_dirty = false;
-            return;
+        if self.remote_render_active() {
+            match self.try_remote_pipeline() {
+                Ok(()) => {
+                    // Every tile is live again; an earlier in-process render may have evicted some.
+                    // Remote pages are otherwise unbudgeted: their pixels are shared with the
+                    // tile memory that makes re-renders incremental, so evicting here frees nothing.
+                    self.tile_budget.note_full_raster();
+                    // A resident renderer rasterized only the window around the
+                    // viewport; scrolling past it asks for more (`try_remote_scroll`).
+                    self.note_rastered_window();
+                    self.render_dirty = false;
+                    self.hover_dirty = false;
+                    self.dom_dirty = false;
+                    self.style_dirty = false;
+                    self.layout_dirty = false;
+                    return;
+                }
+                // Isolation is on: page content does not get to run in this
+                // process just because the process meant for it is gone. The
+                // tab shows nothing until a render succeeds again; the worker
+                // reports the failure. Internal pages are the engine's own and
+                // may still render here.
+                Err(error) if !self.is_internal_page() => {
+                    log::error!("out-of-process render failed ({error}); not rendering this page in-process");
+                    self.pipeline_cache = None;
+                    self.remote_failure = Some(error);
+                    self.render_dirty = false;
+                    self.hover_dirty = false;
+                    self.dom_dirty = false;
+                    self.style_dirty = false;
+                    self.layout_dirty = false;
+                    return;
+                }
+                Err(error) => {
+                    log::warn!("out-of-process render of an internal page failed ({error}); rendering it in-process");
+                }
+            }
         }
         if let Some(doc) = &self.document {
             let prev_tile_cache = self
@@ -512,9 +622,10 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
             hit_regions,
         } = old_cache;
 
-        // A remotely rendered page has no local layer list to re-tile from, and its tiles
-        // already cover the page, so there is no window to extend (see
-        // `PipelineCache::layer_list`). Put the cache back untouched.
+        // A remotely rendered page has no local layer list to re-tile from.
+        // A resident renderer retains the page and extends the window on
+        // request; any other remote render already covers the whole page, so
+        // there is nothing to extend. Either way the cache goes back first.
         let Some(layer_list) = layer_list else {
             self.pipeline_cache = Some(PipelineCache {
                 tiles,
@@ -524,6 +635,9 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
                 hit_regions,
                 tile_pixel_cache,
             });
+            // The window is noted when the pass lands (`poll_remote_passes`).
+            #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+            self.try_remote_scroll();
             self.raster_dirty = false;
             return;
         };
@@ -581,15 +695,30 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
         }
     }
 
-    /// Render the current document in a forked renderer process and adopt the
-    /// result as this tab's pipeline cache.
+    /// Whether the current document is one of the engine's own pages.
     #[cfg(all(feature = "process-isolation", target_os = "linux"))]
-    fn try_remote_pipeline(&mut self) -> bool {
-        use gosub_render_pipeline::common::texture::TilePixels;
-        use gosub_render_pipeline::rasterizer::BakedTile;
+    fn is_internal_page(&self) -> bool {
+        use gosub_interface::document::Document as _;
+        self.document
+            .as_ref()
+            .and_then(|doc| doc.url())
+            .is_some_and(|url| matches!(url.scheme(), "gosub" | "about"))
+    }
 
+    /// The reason the last out-of-process render could not happen, once.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    pub fn take_remote_failure(&mut self) -> Option<String> {
+        self.remote_failure.take()
+    }
+
+    /// Render the current document in a renderer process and adopt the result
+    /// as this tab's pipeline cache. A resident renderer that turns out to be
+    /// dead is replaced and the render tried once more; the error is what
+    /// stopped the last attempt.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    fn try_remote_pipeline(&mut self) -> Result<(), String> {
         let (Some(remote), Some(source)) = (&self.remote_renderer, &self.document_source) else {
-            return false;
+            return Err("no remote renderer or no document source".into());
         };
 
         // The document's own URL is the renderer's base for relative
@@ -603,18 +732,40 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
                 .unwrap_or_else(|| "about:blank".to_string())
         };
         let viewport = (self.viewport.width as f64, self.viewport.height as f64);
+        let started = std::time::Instant::now();
+        let resources = crate::fork_server::client::TabResources {
+            loader: Arc::clone(&self.loader),
+            media: Arc::clone(&self.remote_media),
+        };
         // The whole exchange blocks on the renderer's socket (and, relaying its
         // subresource requests, on the I/O runtime). Blocking a runtime worker
         // while holding its scheduler core can trap tasks woken into this
         // worker's unstealable LIFO slot - the brokered loader's reply path
         // among them - so hand the core to another thread for the duration.
         let run = || match remote {
+            RemoteRenderer::Resident { pool, zone, tab } => {
+                let site = url::Url::parse(&page_url)
+                    .map(|u| crate::fork_server::site::site_of(&u))
+                    .unwrap_or_else(|_| "about:".to_string());
+                let renderer = pool.renderer_for(*zone, &site, *tab)?;
+                let mut renderer = renderer.lock();
+                renderer.navigate(
+                    source,
+                    &page_url,
+                    &self.remote_tab,
+                    viewport,
+                    self.scroll_y,
+                    &resources,
+                    &self.remote_tile_memory,
+                    self.hover_leaf.map(|id| id.into()),
+                )
+            }
             RemoteRenderer::ForkServer(server) => server.lock().render_page(
                 source,
                 &page_url,
                 &self.remote_tab,
                 viewport,
-                self.loader.as_ref(),
+                &resources,
                 &self.remote_tile_memory,
                 self.hover_leaf.map(|id| id.into()),
             ),
@@ -623,57 +774,45 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
                 &page_url,
                 &self.remote_tab,
                 viewport,
-                self.loader.as_ref(),
+                &resources,
                 &self.remote_tile_memory,
                 self.hover_leaf.map(|id| id.into()),
             ),
         };
-        let result = match tokio::runtime::Handle::try_current() {
-            Ok(h) if h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
-                tokio::task::block_in_place(run)
+        let blocking = |f: &dyn Fn() -> anyhow::Result<crate::fork_server::client::RenderedPage>| {
+            match tokio::runtime::Handle::try_current() {
+                Ok(h) if h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+                    tokio::task::block_in_place(f)
+                }
+                _ => f(),
             }
-            _ => run(),
         };
+        let mut result = blocking(&run);
+        if let (Err(e), RemoteRenderer::Resident { .. }) = (&result, remote) {
+            // The pool replaces a renderer it finds dead on the next request.
+            log::warn!("out-of-process render failed ({e}); retrying in a fresh renderer");
+            result = blocking(&run);
+        }
         match result {
             Ok(page) => {
-                use crate::fork_server::client::{KeptTile, PageTile};
-
-                // Fresh tiles bring their pixels (mapped, zero-copy); reused
-                // ones were never re-rendered, so their pixels - and the
-                // physical dimensions the renderer did not produce - come
-                // from what this tab kept.
-                let mut memory: Vec<(u64, KeptTile)> = Vec::with_capacity(page.tiles.len());
-                let baked: Vec<BakedTile> = page
-                    .tiles
-                    .into_iter()
-                    .map(|tile| {
-                        let (header, kept) = match tile {
-                            PageTile::Fresh { header, mapping } => {
-                                let kept = KeptTile {
-                                    width: header.width,
-                                    height: header.height,
-                                    format: header.format,
-                                    pixels: bytes::Bytes::from_owner(mapping),
-                                };
-                                (header, kept)
-                            }
-                            PageTile::Reused { header, kept } => (header, kept),
-                        };
-                        memory.push((header.content_hash, kept.clone()));
-                        BakedTile {
-                            page_x: header.page_x,
-                            page_y: header.page_y,
-                            layer_id: header.layer_id,
-                            width: kept.width,
-                            height: kept.height,
-                            format: kept.format.into(),
-                            opacity: header.opacity,
-                            anchor: header.anchor.into(),
-                            pixels: TilePixels::Cpu(kept.pixels),
-                        }
-                    })
-                    .collect();
-                self.remote_tile_memory.replace_with(memory);
+                report_remote_pass(
+                    "remote.navigate",
+                    &self.remote_tab,
+                    &page_url,
+                    self.scroll_y,
+                    &page,
+                    started.elapsed(),
+                );
+                // A pass still in flight belongs to the page this replaces.
+                self.remote_generation = self.remote_generation.wrapping_add(1);
+                self.remote_inflight = None;
+                self.remote_hover_pending = false;
+                // This page's tiles are exactly what came back: what an
+                // earlier page of this tab kept cannot help it.
+                self.remote_tile_memory
+                    .replace_with(page.tiles.into_iter().map(kept_tile));
+                self.remote_layer_order = page.summary.layer_order.clone();
+                let baked = self.remote_tile_memory.baked_tiles(&self.remote_layer_order);
                 let cached_tiles = Arc::new(gosub_render_pipeline::rasterizer::cpu_cached_tiles(&baked));
                 self.pipeline_cache = Some(PipelineCache {
                     tiles: baked,
@@ -683,13 +822,203 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
                     hit_regions: page.hit_regions,
                     tile_pixel_cache: Default::default(),
                 });
-                true
+                Ok(())
             }
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// The viewport moved on a page a resident renderer retains: fetch what
+    /// came into its raster window and merge it into this tab's tiles.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    fn try_remote_scroll(&mut self) -> bool {
+        self.try_remote_pass(RemotePass::Scroll)
+    }
+
+    /// The pointer moved on a page a resident renderer retains: fetch the
+    /// tiles it repainted and merge them.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    fn try_remote_hover(&mut self) -> bool {
+        self.try_remote_pass(RemotePass::Hover)
+    }
+
+    /// Start one incremental exchange with the resident renderer on its own
+    /// thread, so this tab keeps compositing what it holds meanwhile; the
+    /// result is merged by [`Self::poll_remote_passes`]. One pass at a time:
+    /// a hover arriving mid-flight is remembered and issued afterwards, a
+    /// scroll is re-checked against the window the pass delivers. False when
+    /// this tab has no resident renderer.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    fn try_remote_pass(&mut self, what: RemotePass) -> bool {
+        let Some(RemoteRenderer::Resident { pool, zone, tab }) = &self.remote_renderer else {
+            return false;
+        };
+        if self.remote_inflight.is_some() {
+            if matches!(what, RemotePass::Hover) {
+                self.remote_hover_pending = true;
+            }
+            return true;
+        }
+        let Some(page_url) = self.document.as_ref().and_then(|doc| {
+            use gosub_interface::document::Document as _;
+            doc.url().map(|url| url.to_string())
+        }) else {
+            return false;
+        };
+
+        let (pool, zone, tab) = (Arc::clone(pool), *zone, *tab);
+        let remote_tab = self.remote_tab.clone();
+        let resources = crate::fork_server::client::TabResources {
+            loader: Arc::clone(&self.loader),
+            media: Arc::clone(&self.remote_media),
+        };
+        let scroll_y = self.scroll_y;
+        let hovered = self.hover_leaf.map(|id| id.into());
+        let url = page_url.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let spawned = std::thread::Builder::new()
+            .name("gosub-remote-pass".into())
+            .spawn(move || {
+                let started = std::time::Instant::now();
+                let result = (|| {
+                    let site = url::Url::parse(&url)
+                        .map(|u| crate::fork_server::site::site_of(&u))
+                        .unwrap_or_else(|_| "about:".to_string());
+                    let renderer = pool.renderer_for(zone, &site, tab)?;
+                    let mut renderer = renderer.lock();
+                    // Incremental passes never answer `TileUnchanged`, so
+                    // there is nothing for the exchange to look up.
+                    let known = crate::fork_server::client::TileMemory::default();
+                    match what {
+                        RemotePass::Scroll => renderer.scroll(&remote_tab, scroll_y, &resources, &known),
+                        RemotePass::Hover => renderer.hover(&remote_tab, hovered, &resources, &known),
+                    }
+                })();
+                let _ = tx.send((result, started.elapsed()));
+            });
+        if let Err(e) = spawned {
+            log::warn!("could not start a remote {} pass: {e}", what.event_kind());
+            return false;
+        }
+        self.remote_inflight = Some(InflightPass {
+            what,
+            generation: self.remote_generation,
+            scroll_y,
+            page_url,
+            rx,
+        });
+        true
+    }
+
+    /// Take in whatever out-of-process work landed: an image the renderer
+    /// went without, a finished scroll or hover pass. Called every tick by
+    /// the tab worker (cheap when nothing is pending); true when a frame
+    /// should follow.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    pub fn poll_remote_passes(&mut self) -> bool {
+        use std::sync::mpsc::TryRecvError;
+
+        let mut changed = false;
+        // An image the renderer went without has arrived: render again.
+        if self.remote_media.take_completed() {
+            self.note_invalidate("remote-media");
+            self.render_dirty = true;
+            changed = true;
+        }
+
+        let Some(inflight) = self.remote_inflight.as_ref() else {
+            return changed;
+        };
+        let (result, exchange) = match inflight.rx.try_recv() {
+            Ok(landed) => landed,
+            Err(TryRecvError::Empty) => return changed,
+            // The thread died without answering: treat it as a failed pass.
+            Err(TryRecvError::Disconnected) => (
+                Err(anyhow::anyhow!("the remote pass thread ended silently")),
+                std::time::Duration::ZERO,
+            ),
+        };
+        let Some(inflight) = self.remote_inflight.take() else {
+            return changed;
+        };
+        let stale = inflight.generation != self.remote_generation;
+
+        match result {
+            Ok(page) if !stale => {
+                // A scroll answered with nothing at all means the renderer no
+                // longer has this page (it was replaced after a crash): only
+                // a full render gets the tiles back.
+                if matches!(inflight.what, RemotePass::Scroll)
+                    && page.summary.page_height <= 0.0
+                    && page.tiles.is_empty()
+                    && page.evicted.is_empty()
+                {
+                    log::warn!("resident renderer has no retained page for this tab; rendering it again");
+                    self.render_dirty = true;
+                } else {
+                    report_remote_pass(
+                        inflight.what.event_kind(),
+                        &self.remote_tab,
+                        &inflight.page_url,
+                        inflight.scroll_y,
+                        &page,
+                        exchange,
+                    );
+                    self.merge_remote_pass(page);
+                    if matches!(inflight.what, RemotePass::Scroll) {
+                        if let Some(cache) = self.pipeline_cache.as_ref() {
+                            self.tile_budget.note_rastered_window(
+                                inflight.scroll_y,
+                                self.viewport.height as f64,
+                                cache.page_height,
+                            );
+                        }
+                        self.tile_budget.note_full_raster();
+                        // The viewport may have moved on while this pass ran.
+                        let page_height = self.active_page_height().unwrap_or(0.0);
+                        if self
+                            .tile_budget
+                            .needs_rerender(self.scroll_y, self.viewport.height as f64, page_height)
+                        {
+                            self.raster_dirty = true;
+                        }
+                    }
+                    // A frame with the merged tiles, even if the view is still.
+                    self.scroll_dirty = true;
+                }
+            }
+            Ok(_) => {}
             Err(e) => {
-                log::warn!("out-of-process render failed ({e}); rendering this page in-process");
-                false
+                log::warn!(
+                    "out-of-process {} render failed ({e}); rendering this page again",
+                    inflight.what.event_kind()
+                );
+                if !stale {
+                    self.render_dirty = true;
+                }
             }
         }
+        if self.remote_hover_pending {
+            self.remote_hover_pending = false;
+            self.hover_dirty = true;
+        }
+        true
+    }
+
+    /// Fold one pass's tiles and evictions into this tab's remote tile set.
+    #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+    fn merge_remote_pass(&mut self, page: crate::fork_server::client::RenderedPage) {
+        self.remote_tile_memory
+            .apply_pass(&page.evicted, page.tiles.into_iter().map(kept_tile));
+        if !page.summary.layer_order.is_empty() {
+            self.remote_layer_order = page.summary.layer_order;
+        }
+        let baked = self.remote_tile_memory.baked_tiles(&self.remote_layer_order);
+        let Some(cache) = self.pipeline_cache.as_mut() else {
+            return;
+        };
+        cache.cached_tiles = Arc::new(gosub_render_pipeline::rasterizer::cpu_cached_tiles(&baked));
+        cache.tiles = baked;
     }
 
     /// Rebuild stages 1-6 (pipeline cache) if content has changed, without building a display
@@ -718,6 +1047,9 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
                 .as_ref()
                 .is_some_and(|cache| cache.layer_list.is_some());
             if !has_layer_list && self.pipeline_cache.is_some() {
+                // A resident renderer retains the page and repaints for us.
+                #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+                self.try_remote_hover();
                 self.hover_dirty = false;
                 self.scroll_dirty = false;
                 return;
@@ -1022,6 +1354,7 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
         }
         // Style-only change; the pipeline recomputes styles, layout and paint.
         self.style_dirty = true;
+        self.note_invalidate("focus");
         self.invalidate_render();
         true
     }
@@ -1288,11 +1621,15 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
             #[cfg(not(all(feature = "process-isolation", target_os = "linux")))]
             let remote = false;
 
+            // Hover-only changes are paint-only (color, background, box-shadow).
+            // Use the cheap hover-dirty path which skips render-tree + layout -
+            // in-process, or in the resident renderer that retains the page.
+            // Only a one-shot remote renderer has nothing to repaint from.
+            #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+            let remote = remote && !matches!(self.remote_renderer, Some(RemoteRenderer::Resident { .. }));
             if remote {
                 self.render_dirty = true;
             } else {
-                // Hover-only changes are paint-only (color, background, box-shadow).
-                // Use the cheap hover-dirty path which skips render-tree + layout.
                 self.hover_dirty = true;
             }
         }
@@ -1605,6 +1942,90 @@ fn pipeline_extend_raster(
         layer_list: Some(layer_list),
         hit_regions: Vec::new(),
         tile_pixel_cache: merged_tile_cache,
+    }
+}
+
+/// The incremental exchanges a resident renderer answers from its retained page.
+#[cfg(all(feature = "process-isolation", target_os = "linux"))]
+#[derive(Clone, Copy)]
+enum RemotePass {
+    Scroll,
+    Hover,
+}
+
+#[cfg(all(feature = "process-isolation", target_os = "linux"))]
+impl RemotePass {
+    fn event_kind(self) -> &'static str {
+        match self {
+            RemotePass::Scroll => "remote.scroll",
+            RemotePass::Hover => "remote.hover",
+        }
+    }
+}
+
+/// One remote render pass, onto the telemetry firehose: the exchange as the
+/// broker saw it, plus the stage costs the renderer reported.
+#[cfg(all(feature = "process-isolation", target_os = "linux"))]
+fn report_remote_pass(
+    kind: &str,
+    tab: &str,
+    url: &str,
+    scroll_y: f64,
+    page: &crate::fork_server::client::RenderedPage,
+    exchange: std::time::Duration,
+) {
+    use crate::fork_server::client::PageTile;
+    if !crate::telemetry::enabled() {
+        return;
+    }
+    let fresh = page
+        .tiles
+        .iter()
+        .filter(|t| matches!(t, PageTile::Fresh { .. }))
+        .count();
+    let bytes: usize = page
+        .tiles
+        .iter()
+        .map(|t| match t {
+            PageTile::Fresh { mapping, .. } => mapping.as_slice().len(),
+            PageTile::Reused { .. } => 0,
+        })
+        .sum();
+    let renderer: serde_json::Map<String, serde_json::Value> = page
+        .summary
+        .timings_us
+        .iter()
+        .map(|(name, us)| (name.clone(), serde_json::json!(us)))
+        .collect();
+    crate::telemetry::emit(
+        kind,
+        serde_json::json!({
+            "tab": tab,
+            "url": url,
+            "scroll_y": scroll_y,
+            "exchange_us": exchange.as_micros() as u64,
+            "tiles_fresh": fresh,
+            "tiles_reused": page.tiles.len() - fresh,
+            "tiles_evicted": page.evicted.len(),
+            "bytes_shipped": bytes,
+            "page_height": page.summary.page_height,
+            "painted_tiles": page.summary.painted_tiles,
+            "renderer_us": renderer,
+        }),
+    );
+}
+
+/// A received tile as this tab keeps it: fresh pixels are the renderer's
+/// mapped pages (zero-copy), reused ones are what was kept before.
+#[cfg(all(feature = "process-isolation", target_os = "linux"))]
+fn kept_tile(tile: crate::fork_server::client::PageTile) -> (u64, crate::fork_server::client::KeptTile) {
+    use crate::fork_server::client::{KeptTile, PageTile};
+    match tile {
+        PageTile::Fresh { header, mapping } => (
+            header.content_hash,
+            KeptTile::from_header(&header, bytes::Bytes::from_owner(mapping)),
+        ),
+        PageTile::Reused { header, kept } => (header.content_hash, kept),
     }
 }
 

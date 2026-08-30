@@ -23,7 +23,7 @@ pub fn render_page(
     url: &str,
     tab: &str,
     viewport: (f64, f64),
-    loader: &dyn gosub_interface::resource_loader::ResourceLoader,
+    loader: &dyn crate::fork_server::client::RenderResources,
     known_tiles: &TileMemory,
     hovered_node: Option<u64>,
 ) -> anyhow::Result<RenderedPage> {
@@ -51,6 +51,7 @@ pub fn render_page(
             name: "gosub-renderer",
             internet: false,
             fs_grant: None,
+            data_limit: None,
         },
     )?;
     if let Err(e) = gosub_sandbox::confine_spawned_child(&child) {
@@ -70,7 +71,7 @@ pub fn render_page(
             known_tiles: known_tiles.hashes(),
             hovered_node,
         })?;
-        drive_render_exchange(&mut link, loader, known_tiles)
+        drive_render_exchange::<crate::fork_server::protocol::FromForkServer>(&mut link, loader, known_tiles)
     })();
 
     // Kill before reaping, on every path: a renderer that will not exit -

@@ -49,7 +49,16 @@ pub fn deny_debugger_attach() {
 /// child cannot undo them.
 #[cfg(feature = "multi-process")]
 pub fn apply_child_rlimits() -> std::io::Result<()> {
-    imp::apply_child_rlimits()
+    imp::apply_child_rlimits_with(DEFAULT_CHILD_DATA_LIMIT)
+}
+
+/// Committed-memory ceiling a child gets unless its profile says otherwise.
+pub const DEFAULT_CHILD_DATA_LIMIT: u64 = 512 * 1024 * 1024;
+
+/// [`apply_child_rlimits`] with a role-specific committed-memory ceiling.
+#[cfg(feature = "multi-process")]
+pub fn apply_child_rlimits_with(data_limit: u64) -> std::io::Result<()> {
+    imp::apply_child_rlimits_with(data_limit)
 }
 
 /// Which namespaces a child is dropped into at spawn.
@@ -334,6 +343,14 @@ pub fn fork_process() -> std::io::Result<Forked> {
 #[cfg(all(feature = "multi-process", target_os = "linux"))]
 pub fn reap_child(pid: i32) -> std::io::Result<i32> {
     imp::reap_child(pid)
+}
+
+/// Reap every forked child that has already exited, without blocking. For a
+/// parent whose children live indefinitely (resident renderers) and die on
+/// their own schedule. Linux only.
+#[cfg(all(feature = "multi-process", target_os = "linux"))]
+pub fn reap_exited_children() -> Vec<(i32, i32)> {
+    imp::reap_exited_children()
 }
 
 /// Exit immediately without running destructors or `atexit` handlers - the only

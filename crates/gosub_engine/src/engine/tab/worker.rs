@@ -301,7 +301,16 @@ impl<C: RenderConfiguration> TabWorker<C> {
             use gosub_interface::font_system::{Confinement, FontSystem as _};
             match C::FontSystem::confinement() {
                 Confinement::Full => {
-                    if let Some(server) = zone_context.engine_context.renderer_process.get() {
+                    if let Some(pool) = zone_context.engine_context.renderer_pool.get() {
+                        context.set_remote_renderer(
+                            RemoteRenderer::Resident {
+                                pool: Arc::clone(pool),
+                                zone: zone_id,
+                                tab: tab_id,
+                            },
+                            tab_id.to_string(),
+                        );
+                    } else if let Some(server) = zone_context.engine_context.renderer_process.get() {
                         context.set_remote_renderer(RemoteRenderer::ForkServer(Arc::clone(server)), tab_id.to_string());
                     }
                 }
@@ -379,6 +388,23 @@ impl<C: RenderConfiguration> TabWorker<C> {
         });
 
         Ok(join_handle)
+    }
+
+    /// One frame onto the telemetry firehose: how it was produced and what it
+    /// cost, so a viewer can see stalls as they happen.
+    fn report_frame(&self, path: &str, started: std::time::Instant) {
+        if !crate::telemetry::enabled() {
+            return;
+        }
+        crate::telemetry::emit(
+            "tab.frame",
+            serde_json::json!({
+                "tab": self.tab_id.to_string(),
+                "path": path,
+                "frame_us": started.elapsed().as_micros() as u64,
+                "scroll_y": self.context.scroll_xy().1,
+            }),
+        );
     }
 
     // Main loop of the tab worker
@@ -461,6 +487,8 @@ impl<C: RenderConfiguration> TabWorker<C> {
         // Drop the jar reference before announcing closure: a fetch that outlives
         // the tab then goes out without cookies rather than against a stale jar.
         self.zone_context.tab_identities.remove(self.tab_id);
+        #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+        self.context.release_remote_renderer();
 
         // Receiver may already be gone at shutdown; that is expected.
         let _ = self.zone_context.event_tx.send(EngineEvent::TabClosed {
@@ -1769,10 +1797,29 @@ impl<C: RenderConfiguration> TabWorker<C> {
         }
 
         // Likewise a web font registered by the background font task: text was
-        // measured and painted with a fallback, so layout must run again.
-        if self.web_fonts_fresh.swap(false, std::sync::atomic::Ordering::AcqRel) {
+        // measured and painted with a fallback, so layout must run again. Not
+        // for a remotely rendered page: its renderer registered the fonts
+        // itself before laying out, so nothing here was painted with a fallback.
+        if self.web_fonts_fresh.swap(false, std::sync::atomic::Ordering::AcqRel) && !self.context.remote_render_active()
+        {
+            crate::telemetry::emit(
+                "tab.invalidate",
+                serde_json::json!({ "tab": self.tab_id.to_string(), "reason": "web-fonts" }),
+            );
             self.context.invalidate_render();
             self.runtime.dirty = true;
+        }
+
+        // Out-of-process work landing - an image the renderer went without, a
+        // scroll or hover pass, a renderer that died - must wake the loop too.
+        #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+        {
+            if let Some(pool) = self.zone_context.engine_context.renderer_pool.get() {
+                pool.sweep_dead();
+            }
+            if self.context.poll_remote_passes() {
+                self.runtime.dirty = true;
+            }
         }
 
         // Skip rendering when nothing has changed to avoid burning CPU at the tick rate.
@@ -1813,23 +1860,40 @@ impl<C: RenderConfiguration> TabWorker<C> {
             || (render_backend.raster_strategy() != RasterStrategy::None && !render_backend.renders_to_gpu_texture())
         {
             let dpr = render_backend.device_pixel_ratio();
+            let frame_started = std::time::Instant::now();
 
             // Scroll-only fast path: tiles are still valid, only the offset changed.
             if let Some(handle) = self.context.take_scroll_handle(dpr) {
                 self.runtime.committed_scene_epoch = self.context.scene_epoch();
                 self.zone_context.compositor.submit_frame(self.tab_id, handle);
+                self.report_frame("scroll", frame_started);
                 return Ok(());
             }
 
             // Full render: rebuild stages 1-6 only (no display list), then submit TileCache.
             self.context.set_viewport(self.desired_viewport);
             self.context.rebuild_pipeline_cache_if_needed();
+            #[cfg(all(feature = "process-isolation", target_os = "linux"))]
+            if let Some(error) = self.context.take_remote_failure() {
+                let site = self
+                    .current_url
+                    .as_ref()
+                    .map(crate::fork_server::site::site_of)
+                    .unwrap_or_default();
+                self.send_event(EngineEvent::RendererCrashed {
+                    zone_id: self.zone_id,
+                    site,
+                    tabs: vec![self.tab_id],
+                    error,
+                });
+            }
             let scene_epoch = self.context.scene_epoch();
             if let Some(handle) = self.context.tile_cache_handle(dpr) {
                 self.runtime.committed_scene_epoch = scene_epoch;
                 self.zone_context.compositor.submit_frame(self.tab_id, handle);
             }
             self.sink.inc_frame();
+            self.report_frame("rebuild", frame_started);
             return Ok(());
         }
 
