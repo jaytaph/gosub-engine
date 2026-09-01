@@ -1,6 +1,6 @@
 //! Browser window: Skia CPU rasterizer + GTK4 GLArea (GPU compositing).
 //!
-//! Usage: cargo run --example gtk4-skia-gpu -- https://example.com
+//! Usage: cargo run -p example-gtk4-skia-gpu -- https://example.com
 //!
 //! Architecture:
 //!   1. `SkiaBackend` rasterizes pages into CPU tile buffers (BGRA premul).
@@ -70,6 +70,12 @@ fn get_bound_fbo() -> u32 {
 // ── Application ───────────────────────────────────────────────────────────────
 
 fn main() {
+    eprintln!(
+        "{} v{} — GTK4 browser window, Skia GPU (OpenGL) rendering",
+        env!("CARGO_BIN_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .env()
@@ -112,6 +118,7 @@ fn main() {
             cookie_store: Some(cookie_store),
             cookie_jar: None,
             partition_policy: PartitionPolicy::None,
+            places: None,
         };
 
         let zone = Rc::new(RefCell::new(

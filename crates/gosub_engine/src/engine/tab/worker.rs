@@ -1,16 +1,21 @@
 use crate::cookies::SameSiteContext;
 use crate::engine::errors::NavigationError;
-use crate::engine::events::{EngineEvent, NavigationEvent};
+use crate::engine::events::Modifiers;
+use crate::engine::events::{CursorShape, EngineEvent, NavigationEvent};
+use crate::engine::internal_pages::{InternalPages, TabView};
 use crate::engine::resource_pipeline::ResourcePipelines;
 use crate::engine::types::{NavigationId, RequestId};
 use crate::engine::{BrowsingContext, UaPolicy};
 use crate::events::{IoCommand, TabCommand};
 use crate::html::RenderConfiguration;
 use crate::net::req_ref_tracker::{RequestReference, REF_REGISTRY};
-use crate::net::types::{FetchRequest, FetchResult, Initiator, NetError, Priority, ResourceKind};
+use crate::net::types::{
+    FetchHandle, FetchRequest, FetchResult, FetchResultMeta, Initiator, NetError, Priority, ResourceKind,
+};
 use crate::net::{route_response_for, submit_to_io, RequestDestination, RoutedOutcome};
 use crate::storage::types::compute_partition_key;
 use crate::storage::StorageHandles;
+use crate::tab::history::{History, HistoryEntryId};
 use crate::tab::scroll::{default_text_scroll, ScrollState};
 use crate::tab::services::EffectiveTabServices;
 use crate::tab::state::{TabRuntime, TabState};
@@ -31,6 +36,105 @@ use tokio::time::MissedTickBehavior;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
+/// Filename to suggest for downloading `meta`'s resource: the `Content-Disposition`
+/// `filename` parameter when present, else the final URL's last path segment, else
+/// "download". Path separators are stripped so a hostile header cannot escape the
+/// directory the embedder picks.
+fn suggested_filename(meta: &FetchResultMeta) -> String {
+    let from_disposition = meta
+        .headers
+        .get(http::header::CONTENT_DISPOSITION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| {
+            v.split(';').find_map(|part| {
+                let part = part.trim();
+                part.strip_prefix("filename=")
+                    .map(|f| f.trim_matches('"').to_string())
+                    .filter(|f| !f.is_empty())
+            })
+        });
+    let name = from_disposition.or_else(|| {
+        meta.final_url
+            .path_segments()
+            .and_then(|mut segments| segments.next_back())
+            .filter(|segment| !segment.is_empty())
+            .map(|segment| {
+                percent_encoding::percent_decode_str(segment)
+                    .decode_utf8_lossy()
+                    .into_owned()
+            })
+    });
+    let name = name.unwrap_or_default();
+    let name = name.rsplit(['/', '\\']).next().unwrap_or("").trim().to_string();
+    if name.is_empty() {
+        "download".to_string()
+    } else {
+        name
+    }
+}
+
+/// Stream a response body to `path`, emitting `DownloadProgress` roughly every 256 KiB
+/// and `DownloadFinished` once the file is fully written.
+async fn stream_to_file(
+    id: crate::engine::events::DownloadId,
+    tab_id: TabId,
+    event_tx: &crate::engine::types::EventChannel,
+    total_bytes: Option<u64>,
+    peek_buf: crate::engine::types::PeekBuf,
+    shared: Arc<crate::net::SharedBody>,
+    path: &std::path::Path,
+) -> anyhow::Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    const REPORT_EVERY: u64 = 256 * 1024;
+    let mut reader = crate::net::SharedBody::combined_reader(peek_buf, shared);
+    let mut file = tokio::fs::File::create(path)
+        .await
+        .with_context(|| format!("create {}", path.display()))?;
+    let mut received: u64 = 0;
+    let mut last_reported: u64 = 0;
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        let n = reader.read(&mut buf).await.context("read body")?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buf[..n])
+            .await
+            .with_context(|| format!("write {}", path.display()))?;
+        received += n as u64;
+        if received - last_reported >= REPORT_EVERY {
+            last_reported = received;
+            let _ = event_tx.send(EngineEvent::DownloadProgress {
+                tab_id,
+                id,
+                received_bytes: received,
+                total_bytes,
+            });
+        }
+    }
+    file.flush().await.context("flush")?;
+    let _ = event_tx.send(EngineEvent::DownloadFinished {
+        tab_id,
+        id,
+        path: path.to_path_buf(),
+        received_bytes: received,
+    });
+    Ok(())
+}
+
+/// Minimal scope guard: runs `f` on drop. Used where a task must clean up on every exit
+/// path without pulling in a dependency.
+fn scopeguard<F: FnMut()>(f: F) -> impl Drop {
+    struct Guard<F: FnMut()>(F);
+    impl<F: FnMut()> Drop for Guard<F> {
+        fn drop(&mut self) {
+            (self.0)();
+        }
+    }
+    Guard(f)
+}
+
 /// Fallback URL used when a navigation has no usable URL.
 fn about_blank() -> Url {
     #[allow(clippy::unwrap_used)] // PANIC-SAFE: literal URL
@@ -49,6 +153,12 @@ pub enum NavigationResult<C: RenderConfiguration> {
         nav_id: NavigationId,
         error: NavigationError,
     },
+    /// The response is non-renderable content: the navigation ends (page stays) and the
+    /// metadata becomes a `DownloadRequested` offer to the embedder.
+    Download {
+        nav_id: NavigationId,
+        meta: FetchResultMeta,
+    },
 }
 
 // Current active navigation
@@ -56,6 +166,21 @@ struct ActiveNav {
     pub nav_id: NavigationId,
     pub cancel: CancellationToken,
     pub url: Url,
+    /// How this navigation relates to session history, decided when it starts and applied
+    /// when it commits (see `on_nav_result`).
+    pub history: HistoryIntent,
+}
+
+/// What a navigation does to the tab's session history once it commits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HistoryIntent {
+    /// A fresh navigation (URL bar, link click, LoadHtml): push a new entry.
+    Push,
+    /// Reload: keep the current entry, refresh its URL, restore its scroll offset.
+    Reload,
+    /// Back/forward/jump: the cursor already moved to `entry` when the navigation started;
+    /// on commit only the entry's saved scroll offset is restored.
+    Traverse(HistoryEntryId),
 }
 
 struct NavJoin<C: RenderConfiguration> {
@@ -123,6 +248,28 @@ pub struct TabWorker<C: RenderConfiguration> {
     load: Option<NavJoin<C>>,
     /// Current active navigation (if any)
     active_nav: Option<ActiveNav>,
+    /// Timing scope for the navigation currently being loaded or displayed.
+    timing_scope: Option<gosub_shared::timing::ScopeId>,
+    /// Whether `page.first_paint` has been marked for `timing_scope` yet. First paint is
+    /// once per navigation, and `tick_draw` runs on every frame.
+    first_paint_marked: bool,
+    /// Session history (tree). Fresh navigations push, back/forward move the cursor.
+    history: History,
+    /// Last cursor shape reported to the embedder (CursorChanged is emitted on change only).
+    reported_cursor: CursorShape,
+    /// Scroll to apply once the just-committed document has laid out (positions and page
+    /// height are only known then, and `set_scroll` clamps against the latter). Set by
+    /// `on_nav_result`, consumed by `tick_draw`.
+    pending_scroll: Option<PendingScroll>,
+}
+
+/// Deferred scroll for a freshly committed document.
+#[derive(Debug, Clone, PartialEq)]
+enum PendingScroll {
+    /// Restore a saved history offset (reload, back/forward).
+    Offset(i32, i32),
+    /// Scroll to the element the URL fragment indicates (fresh load of `…#anchor`).
+    Fragment(String),
 }
 
 /// Whether a CSS `unicode-range` descriptor (e.g. `"U+0000-00FF, U+0131"`) includes the
@@ -319,13 +466,43 @@ impl<C: RenderConfiguration> TabWorker<C> {
             runtime,
             load: None,
             active_nav: None,
+            timing_scope: None,
+            first_paint_marked: false,
+            history: History::default(),
+            reported_cursor: CursorShape::Default,
+            pending_scroll: None,
         }
     }
 
     /// Spawns the tab worker into a new task and returns the join handle
     pub fn spawn_worker(self) -> anyhow::Result<JoinHandle<()>> {
         let name = format!("Tab Worker {}", self.tab_id);
-        let join_handle = spawn_named(&name, self.run_worker());
+        let tab_id = self.tab_id;
+        let zone_id = self.zone_id;
+        let event_tx = self.zone_context.event_tx.clone();
+        let worker = spawn_named(&name, self.run_worker());
+
+        // Crash containment (in-process): a panic anywhere in the worker kills only its
+        // task. This watchdog turns that into a `TabCrashed` event so the shell can show
+        // a crashed-tab page and recreate the tab, instead of a silently dead handle.
+        let join_handle = spawn_named(&format!("{name} watchdog"), async move {
+            let Err(join_err) = worker.await else {
+                return; // clean exit: TabClosed was emitted by the run loop
+            };
+            let error = if join_err.is_panic() {
+                match join_err.into_panic().downcast::<String>() {
+                    Ok(msg) => *msg,
+                    Err(payload) => payload
+                        .downcast::<&'static str>()
+                        .map(|msg| msg.to_string())
+                        .unwrap_or_else(|_| "panic with non-string payload".into()),
+                }
+            } else {
+                "worker task was cancelled".into()
+            };
+            log::error!("Tab[{tab_id:?}] worker crashed: {error}");
+            let _ = event_tx.send(EngineEvent::TabCrashed { tab_id, zone_id, error });
+        });
 
         Ok(join_handle)
     }
@@ -409,6 +586,107 @@ impl<C: RenderConfiguration> TabWorker<C> {
         self.services.storage.drop_tab(self.zone_id, self.tab_id);
     }
 
+    /// Resolve the document's icon URL: the first `<link>` whose `rel` contains `icon`
+    /// (covers `icon`, `shortcut icon`, `apple-touch-icon`) with an `href`, resolved against
+    /// the document URL; else the well-known `/favicon.ico` for http(s) documents.
+    fn favicon_url(doc: &C::Document, base_url: &Url) -> Option<Url> {
+        use gosub_interface::document::Document as _;
+
+        fn walk<C: RenderConfiguration>(
+            doc: &C::Document,
+            node: gosub_shared::node::NodeId,
+            base: &Url,
+        ) -> Option<Url> {
+            for &child in doc.children(node) {
+                if doc.tag_name(child).is_some_and(|t| t.eq_ignore_ascii_case("link")) {
+                    // `icon`, `shortcut icon` (space-separated tokens) and the hyphenated
+                    // `apple-touch-icon` / `apple-touch-icon-precomposed`.
+                    let is_icon = doc.attribute(child, "rel").is_some_and(|rel| {
+                        rel.split_ascii_whitespace().any(|t| {
+                            t.eq_ignore_ascii_case("icon")
+                                || t.len() >= 16 && t[..16].eq_ignore_ascii_case("apple-touch-icon")
+                        })
+                    });
+                    if is_icon {
+                        if let Some(url) = doc.attribute(child, "href").and_then(|h| base.join(h).ok()) {
+                            return Some(url);
+                        }
+                    }
+                }
+                if let Some(found) = walk::<C>(doc, child, base) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+
+        walk::<C>(doc, doc.root(), base_url).or_else(|| {
+            matches!(base_url.scheme(), "http" | "https")
+                .then(|| base_url.join("/favicon.ico").ok())
+                .flatten()
+        })
+    }
+
+    /// Fetch the document's icon through the zone fetcher (so it carries the UA, cookies and
+    /// shows up in resource events) and emit `FavIconChanged` with its bytes on success.
+    /// Fire-and-forget: runs on its own task, cancelled with the navigation.
+    fn fetch_favicon(&self, doc: &C::Document, base_url: &Url, nav_cancel: &CancellationToken) {
+        let Some(icon_url) = Self::favicon_url(doc, base_url) else {
+            return;
+        };
+        let req_id = RequestId::new();
+        REF_REGISTRY.register_request(req_id, ResourceKind::Image, Initiator::Other);
+        let mut headers = HeaderMap::new();
+        if let Ok(val) = ResourceKind::Image.accept_header().parse() {
+            headers.insert(http::header::ACCEPT, val);
+        }
+        // The referrer marks the requesting document; it lets file:// pages load their
+        // own icons (the file loader gates subresources on it).
+        let req = FetchRequest::builder(Method::GET, icon_url.clone())
+            .with_req_id(req_id)
+            .with_headers(headers)
+            .with_priority(Priority::Low)
+            .with_kind(ResourceKind::Image.to_net())
+            .with_initiator(Initiator::Other.to_net())
+            .with_referrer(base_url.clone())
+            .with_streaming(false)
+            .with_auto_decode(true)
+            .build();
+
+        let tab_id = self.tab_id;
+        let zone_id = self.zone_id;
+        let io_tx = self.zone_context.io_tx.clone();
+        let event_tx = self.zone_context.event_tx.clone();
+        let cancel = nav_cancel.child_token();
+        spawn_named("tab-favicon", async move {
+            let Ok((handle, rx)) = submit_to_io(zone_id, req, io_tx, Some(cancel.clone())).await else {
+                return;
+            };
+            let result = tokio::select! {
+                _ = cancel.cancelled() => {
+                    handle.cancel.cancel();
+                    return;
+                }
+                r = rx => r,
+            };
+            let Ok(FetchResult::Buffered { meta, body }) = result else {
+                return;
+            };
+            if meta.status != 200 || body.is_empty() {
+                log::debug!(
+                    "favicon {icon_url}: status {} ({} bytes), ignored",
+                    meta.status,
+                    body.len()
+                );
+                return;
+            }
+            let _ = event_tx.send(EngineEvent::FavIconChanged {
+                tab_id,
+                favicon: body.to_vec(),
+            });
+        });
+    }
+
     /// Fetch and register any `@font-face` web fonts declared in the document's stylesheets
     /// so the first layout/paint can use them. Runs once per navigation, before the first
     /// render, and deduplicates by resolved font URL. Fetches are synchronous (blocking this
@@ -443,6 +721,10 @@ impl<C: RenderConfiguration> TabWorker<C> {
                     if !fetched.insert(font_url.to_string()) {
                         break; // this exact font file is already registered
                     }
+                    // Blocking fetch outside the observed Fetcher, so the net observer
+                    // never sees it; the guard is the only record of the wait. Dropped
+                    // at the end of this iteration, after the body has been read.
+                    let _t = gosub_shared::timing_guard!("net.fetch.font", font_url.as_str());
                     match gosub_sonar::net::simple::sync_fetch(&font_url) {
                         Ok(resp) if resp.status == 200 && !resp.body.is_empty() => {
                             // Web fonts are commonly served as WOFF2 (e.g. Google Fonts content-
@@ -479,10 +761,33 @@ impl<C: RenderConfiguration> TabWorker<C> {
                 title,
                 doc,
             } => {
+                // Everything the pipeline records from here belongs to this navigation.
+                // Set before the document so the first rebuild is already attributed.
+                let scope = gosub_shared::timing::ScopeId(nav_id.0);
+                self.context.set_timing_scope(Some(scope));
+                self.timing_scope = Some(scope);
+                // Explicit scope rather than the thread-local one: this is the worker's
+                // async loop, where a thread-local scope is not reliable.
+                gosub_shared::timing::mark_in(scope, "page.dom_complete", Some(final_url.to_string()));
                 self.context.set_document(Arc::clone(&doc));
-                self.load_web_fonts(&doc, &final_url);
+
+                // `load_web_fonts` fetches each @font-face synchronously, and it is the last
+                // fetch path that was still recording unattributed. The call is sync and no
+                // await intervenes, so a thread-local scope holds across it.
+                {
+                    let _scope = gosub_shared::timing::enter_scope(scope);
+                    self.load_web_fonts(&doc, &final_url);
+                }
+                if let Some(cancel) = self
+                    .active_nav
+                    .as_ref()
+                    .filter(|a| a.nav_id == nav_id)
+                    .map(|a| a.cancel.clone())
+                {
+                    self.fetch_favicon(&doc, &final_url, &cancel);
+                }
                 self.current_url = Some(final_url.clone());
-                if let Some(t) = title {
+                if let Some(t) = title.clone() {
                     self.title = t;
                 }
                 self.is_loading = false;
@@ -490,9 +795,77 @@ impl<C: RenderConfiguration> TabWorker<C> {
                 self.state = TabState::Idle;
                 self.runtime.dirty = true;
 
+                // Commit to session history. The final URL is used so server redirects
+                // collapse into one entry.
+                let intent = self
+                    .active_nav
+                    .as_ref()
+                    .filter(|a| a.nav_id == nav_id)
+                    .map(|a| a.history)
+                    .unwrap_or(HistoryIntent::Push);
+                let restore_scroll = match intent {
+                    HistoryIntent::Push => {
+                        self.history.push(final_url.clone(), title);
+                        None
+                    }
+                    HistoryIntent::Reload => {
+                        self.history.replace_current_url(final_url.clone());
+                        self.history.set_current_title(title);
+                        self.history.current_entry().map(|e| e.scroll)
+                    }
+                    HistoryIntent::Traverse(entry) => {
+                        self.history.replace_current_url(final_url.clone());
+                        self.history.set_current_title(title);
+                        self.history.entry(entry).map(|e| e.scroll)
+                    }
+                };
+                // Where to land once layout exists: a saved offset wins (returning to an entry
+                // the user scrolled), otherwise the URL's fragment, otherwise the top.
+                self.pending_scroll = match restore_scroll {
+                    Some(offset) if offset != (0, 0) => Some(PendingScroll::Offset(offset.0, offset.1)),
+                    _ => final_url
+                        .fragment()
+                        .filter(|f| !f.is_empty())
+                        .map(|f| PendingScroll::Fragment(f.to_string())),
+                };
+
+                // Global visited history (URL-bar completion, gosub://history). Only real
+                // web pages: internal pages and LoadHtml stand-ins are not "places".
+                if let Some(places) = &self.services.places {
+                    if matches!(final_url.scheme(), "http" | "https") {
+                        places.record_visit(final_url.as_str(), &self.title);
+                    }
+                }
+
                 self.send_event(EngineEvent::Navigation {
                     tab_id: self.tab_id,
                     event: NavigationEvent::Finished { nav_id, url: final_url },
+                });
+                self.emit_history_changed();
+                // set_document cleared hover state; the next mouse move re-derives it.
+                self.report_cursor(CursorShape::Default);
+            }
+            NavigationResult::Download { nav_id, meta } => {
+                // Not an error and not a page change: the tab stays on its current document
+                // and the shell gets a download offer. The Cancelled event stops spinners.
+                self.is_loading = false;
+                self.is_error = false;
+                self.state = TabState::Idle;
+                self.pending_url = None;
+                self.send_event(EngineEvent::Navigation {
+                    tab_id: self.tab_id,
+                    event: NavigationEvent::Cancelled {
+                        nav_id,
+                        url: meta.final_url.clone(),
+                        reason: crate::engine::events::CancelReason::Custom("download".into()),
+                    },
+                });
+                self.send_event(EngineEvent::DownloadRequested {
+                    tab_id: self.tab_id,
+                    suggested_filename: suggested_filename(&meta),
+                    content_type: meta.content_type.clone(),
+                    total_bytes: meta.content_length,
+                    url: meta.final_url,
                 });
             }
             NavigationResult::Err { nav_id, error } => {
@@ -520,6 +893,235 @@ impl<C: RenderConfiguration> TabWorker<C> {
         }
     }
 
+    /// Handle a key press. Keys act on the page (focus traversal, link activation,
+    /// scrolling); the shell has already consumed its own shortcuts before forwarding.
+    /// Text editing is not here yet - that arrives with the editing slice of M1.
+    fn handle_key_down(&mut self, key: &str, modifiers: Modifiers) -> ControlFlow {
+        match key {
+            // Focus traversal.
+            "Tab" => {
+                self.context.focus_step(modifiers.contains(Modifiers::SHIFT));
+                self.runtime.dirty = true;
+                self.runtime.render_now = true;
+                self.emit_focus_changed();
+                ControlFlow::Continue
+            }
+            "Escape" => {
+                if self.context.set_focus(None) {
+                    self.runtime.dirty = true;
+                    self.runtime.render_now = true;
+                    self.emit_focus_changed();
+                }
+                ControlFlow::Continue
+            }
+            // Activate a focused link.
+            "Enter" => {
+                if let Some(href) = self.context.focused_link() {
+                    let resolved = self
+                        .current_url
+                        .as_ref()
+                        .and_then(|base| base.join(&href).ok())
+                        .map(|u| u.to_string())
+                        .unwrap_or(href);
+                    self.navigate_to(resolved, false, HistoryIntent::Push);
+                }
+                ControlFlow::Continue
+            }
+            // Page scrolling - only while no text-editable element is focused (an editable
+            // will own these keys once editing lands).
+            _ if !self.context.focused_editable() => {
+                /// One arrow-key step, matching a wheel notch.
+                const LINE: f32 = 40.0;
+                /// "Almost to the end of the page" - clamped to the real maximum by the
+                /// scroll state, so it means "top"/"bottom" for Home/End.
+                const FAR: f32 = 1.0e9;
+                let page = (self.desired_viewport.height as f32 - LINE).max(LINE);
+                let shift = modifiers.contains(Modifiers::SHIFT);
+                match key {
+                    "ArrowDown" => self.scroll_page_by(0.0, LINE),
+                    "ArrowUp" => self.scroll_page_by(0.0, -LINE),
+                    "ArrowRight" => self.scroll_page_by(LINE, 0.0),
+                    "ArrowLeft" => self.scroll_page_by(-LINE, 0.0),
+                    "PageDown" => self.scroll_page_by(0.0, page),
+                    "PageUp" => self.scroll_page_by(0.0, -page),
+                    " " if shift => self.scroll_page_by(0.0, -page),
+                    " " => self.scroll_page_by(0.0, page),
+                    "Home" => self.scroll_page_by(0.0, -FAR),
+                    "End" => self.scroll_page_by(0.0, FAR),
+                    _ => ControlFlow::Continue,
+                }
+            }
+            _ => ControlFlow::Continue,
+        }
+    }
+
+    /// Save `url` to `target_path` through the zone fetcher, with progress/finished/failed
+    /// events carrying `id`. Runs on its own task; tab shutdown does not cancel it (a
+    /// deliberate v1 simplification - there is no cancel command yet).
+    ///
+    /// V1 fetches in **buffered** mode (whole body in memory before writing): sonar's
+    /// `SharedBody` replays nothing to late subscribers, so a streaming consumer that
+    /// attaches after the fetch result arrives misses early chunks. True streaming-to-disk
+    /// needs replay support in gosub-sonar (see the board).
+    fn start_download(&self, id: crate::engine::events::DownloadId, url: String, target_path: std::path::PathBuf) {
+        let Ok(url) = Url::parse(&url) else {
+            self.send_event(EngineEvent::DownloadFailed {
+                tab_id: self.tab_id,
+                id,
+                error: format!("invalid URL: {url}"),
+            });
+            return;
+        };
+
+        let req_id = RequestId::new();
+        REF_REGISTRY.register_request(req_id, ResourceKind::Other, Initiator::Other);
+        // A Download reference routes the transport's per-chunk progress to the shell as
+        // DownloadProgress events while the (buffered) fetch is still receiving.
+        let reference = RequestReference::Download(id.0);
+        self.zone_context
+            .request_reference_map
+            .write()
+            .insert(reference, self.tab_id);
+        let req = FetchRequest::builder(Method::GET, url.clone())
+            .with_req_id(req_id)
+            .with_reference(REF_REGISTRY.to_net(reference))
+            .with_priority(Priority::Low)
+            .with_kind(ResourceKind::Other.to_net())
+            .with_initiator(Initiator::Other.to_net())
+            .with_streaming(false)
+            .with_auto_decode(true)
+            .build();
+
+        let tab_id = self.tab_id;
+        let zone_id = self.zone_id;
+        let io_tx = self.zone_context.io_tx.clone();
+        let event_tx = self.zone_context.event_tx.clone();
+        let reference_map = self.zone_context.request_reference_map.clone();
+        spawn_named("tab-download", async move {
+            // Remove the routing entry however the download ends.
+            let _cleanup = scopeguard(move || {
+                reference_map.write().remove(&reference);
+            });
+
+            let fail = |error: String| {
+                let _ = event_tx.send(EngineEvent::DownloadFailed { tab_id, id, error });
+            };
+
+            let result = match submit_to_io(zone_id, req, io_tx, None).await {
+                Ok((_handle, rx)) => match rx.await {
+                    Ok(result) => result,
+                    Err(_) => return fail("fetch channel closed".into()),
+                },
+                Err(e) => return fail(format!("submit failed: {e}")),
+            };
+
+            match result {
+                FetchResult::Stream { meta, peek_buf, shared } => {
+                    if meta.status != 200 {
+                        return fail(format!("HTTP {} {}", meta.status, meta.status_text));
+                    }
+                    if let Err(e) = stream_to_file(
+                        id,
+                        tab_id,
+                        &event_tx,
+                        meta.content_length,
+                        peek_buf,
+                        shared,
+                        &target_path,
+                    )
+                    .await
+                    {
+                        fail(e.to_string());
+                    }
+                }
+                FetchResult::Buffered { meta, body } => {
+                    if meta.status != 200 {
+                        return fail(format!("HTTP {} {}", meta.status, meta.status_text));
+                    }
+                    // Buffered mode: the body is complete, so progress is a single report
+                    // (keeps the shell's event sequence uniform with a streaming future).
+                    let _ = event_tx.send(EngineEvent::DownloadProgress {
+                        tab_id,
+                        id,
+                        received_bytes: body.len() as u64,
+                        total_bytes: Some(body.len() as u64),
+                    });
+                    if let Err(e) = tokio::fs::write(&target_path, &body).await {
+                        return fail(format!("write {}: {e}", target_path.display()));
+                    }
+                    let _ = event_tx.send(EngineEvent::DownloadFinished {
+                        tab_id,
+                        id,
+                        path: target_path,
+                        received_bytes: body.len() as u64,
+                    });
+                }
+                FetchResult::Error(e) => fail(e.to_string()),
+            }
+        });
+    }
+
+    /// Tell the shell where keyboard focus went (e.g. to drive IME/on-screen keyboards).
+    fn emit_focus_changed(&self) {
+        self.send_event(EngineEvent::FocusChanged {
+            tab_id: self.tab_id,
+            focused: self.context.focused_node().is_some(),
+            editable: self.context.focused_editable(),
+        });
+    }
+
+    /// Scroll the page by a CSS-px delta - shared by wheel scrolling and keyboard
+    /// scrolling. Uses the zero-copy TileCache fast path when only the offset changed.
+    fn scroll_page_by(&mut self, delta_x: f32, delta_y: f32) -> ControlFlow {
+        // When page height is known, clamp to the real maximum so worker and context
+        // stay in sync. When the page hasn't rendered yet, allow free scrolling (the
+        // context will clamp to the actual page height on its own).
+        let max_y = {
+            let ph = self.context.page_height();
+            if ph > 0.0 {
+                (ph - self.desired_viewport.height as f64).max(0.0)
+            } else {
+                f64::MAX
+            }
+        };
+
+        match self.scroll.scroll_by(delta_x as f64, delta_y as f64, f64::MAX, max_y) {
+            // Instant behavior: apply the new offset now and keep the immediate-submit fast
+            // path (avoids up to 1/fps of latency per scroll event).
+            Some((x, y)) => {
+                let moved = x != self.scroll_x || y != self.scroll_y;
+                self.scroll_x = x;
+                self.scroll_y = y;
+                self.context.set_scroll(x as f64, y as f64);
+
+                // GPU-tile-compositing backends skip this CPU TileCache fast path (their
+                // tiles have no CPU pixels); they re-composite on the next tick.
+                if self.zone_context.render_backend.raster_strategy() != RasterStrategy::None
+                    && !self.zone_context.render_backend.gpu_tile_compositing()
+                {
+                    let dpr = self.zone_context.render_backend.device_pixel_ratio();
+                    if let Some(handle) = self.context.take_scroll_handle(dpr) {
+                        self.runtime.committed_scene_epoch = self.context.scene_epoch();
+                        self.zone_context.compositor.submit_frame(self.tab_id, handle);
+                        return ControlFlow::Continue;
+                    }
+                }
+
+                // TileCache not ready yet; fall back to the timer path. Only mark dirty if
+                // the integer offset actually moved (sub-pixel deltas are no-ops).
+                if moved {
+                    self.runtime.dirty = true;
+                }
+            }
+            // Animated behavior: tick_draw advances the ease toward the new target. Request
+            // an immediate tick so the first frame lands without waiting up to 1/fps.
+            None => {
+                self.runtime.render_now = true;
+            }
+        }
+        ControlFlow::Continue
+    }
+
     fn handle_tab_command(&mut self, cmd: TabCommand) -> ControlFlow {
         match cmd {
             TabCommand::CloseTab => ControlFlow::Break,
@@ -528,7 +1130,11 @@ impl<C: RenderConfiguration> TabWorker<C> {
                 ControlFlow::Continue
             }
             TabCommand::Navigate { url } => {
-                self.navigate_to(&url, false);
+                self.navigate_to(&url, false, HistoryIntent::Push);
+                ControlFlow::Continue
+            }
+            TabCommand::LoadHtml { html, base_url } => {
+                self.load_html(html, base_url);
                 ControlFlow::Continue
             }
             TabCommand::Reload { ignore_cache } => {
@@ -538,7 +1144,45 @@ impl<C: RenderConfiguration> TabWorker<C> {
                     .map(|u| u.as_str())
                     .unwrap_or("about:blank")
                     .to_string();
-                self.navigate_to(url.as_str(), ignore_cache);
+                self.navigate_to(url.as_str(), ignore_cache, HistoryIntent::Reload);
+                ControlFlow::Continue
+            }
+            TabCommand::GoBack => {
+                self.history.set_current_scroll(self.scroll_x, self.scroll_y);
+                if let Some(entry) = self.history.go_back() {
+                    self.traverse_history(entry);
+                }
+                ControlFlow::Continue
+            }
+            TabCommand::GoForward { entry } => {
+                self.history.set_current_scroll(self.scroll_x, self.scroll_y);
+                if let Some(entry) = self.history.go_forward(entry) {
+                    self.traverse_history(entry);
+                }
+                ControlFlow::Continue
+            }
+            TabCommand::GoToHistoryEntry { entry } => {
+                if Some(entry) != self.history.current() {
+                    self.history.set_current_scroll(self.scroll_x, self.scroll_y);
+                    if let Some(entry) = self.history.go_to(entry) {
+                        self.traverse_history(entry);
+                    }
+                }
+                ControlFlow::Continue
+            }
+            TabCommand::StartDownload { id, url, target_path } => {
+                self.start_download(id, url, target_path);
+                ControlFlow::Continue
+            }
+            #[cfg(test)]
+            TabCommand::CrashForTest => panic!("deliberate test crash"),
+            TabCommand::QueryHitTest { x, y, token } => {
+                let hit = self.context.hit_test(x as f64, y as f64, self.current_url.as_ref());
+                self.send_event(EngineEvent::HitTestResult {
+                    tab_id: self.tab_id,
+                    token,
+                    hit,
+                });
                 ControlFlow::Continue
             }
             TabCommand::SetViewport {
@@ -551,55 +1195,7 @@ impl<C: RenderConfiguration> TabWorker<C> {
                 self.runtime.dirty = true;
                 ControlFlow::Continue
             }
-            TabCommand::MouseScroll { delta_x, delta_y } => {
-                // When page height is known, clamp to the real maximum so worker and context
-                // stay in sync. When the page hasn't rendered yet, allow free scrolling (the
-                // context will clamp to the actual page height on its own).
-                let max_y = {
-                    let ph = self.context.page_height();
-                    if ph > 0.0 {
-                        (ph - self.desired_viewport.height as f64).max(0.0)
-                    } else {
-                        f64::MAX
-                    }
-                };
-
-                match self.scroll.scroll_by(delta_x as f64, delta_y as f64, f64::MAX, max_y) {
-                    // Instant behavior: apply the new offset now and keep the immediate-submit fast
-                    // path (avoids up to 1/fps of latency per scroll event).
-                    Some((x, y)) => {
-                        let moved = x != self.scroll_x || y != self.scroll_y;
-                        self.scroll_x = x;
-                        self.scroll_y = y;
-                        self.context.set_scroll(x as f64, y as f64);
-
-                        // GPU-tile-compositing backends skip this CPU TileCache fast path (their
-                        // tiles have no CPU pixels); they re-composite on the next tick.
-                        if self.zone_context.render_backend.raster_strategy() != RasterStrategy::None
-                            && !self.zone_context.render_backend.gpu_tile_compositing()
-                        {
-                            let dpr = self.zone_context.render_backend.device_pixel_ratio();
-                            if let Some(handle) = self.context.take_scroll_handle(dpr) {
-                                self.runtime.committed_scene_epoch = self.context.scene_epoch();
-                                self.zone_context.compositor.submit_frame(self.tab_id, handle);
-                                return ControlFlow::Continue;
-                            }
-                        }
-
-                        // TileCache not ready yet; fall back to the timer path. Only mark dirty if
-                        // the integer offset actually moved (sub-pixel deltas are no-ops).
-                        if moved {
-                            self.runtime.dirty = true;
-                        }
-                    }
-                    // Animated behavior: tick_draw advances the ease toward the new target. Request
-                    // an immediate tick so the first frame lands without waiting up to 1/fps.
-                    None => {
-                        self.runtime.render_now = true;
-                    }
-                }
-                ControlFlow::Continue
-            }
+            TabCommand::MouseScroll { delta_x, delta_y } => self.scroll_page_by(delta_x, delta_y),
             TabCommand::MouseMove { x, y } => {
                 // Process the hit-test immediately so hover doesn't wait for the next tick.
                 let (visual_dirty, url_changed, link_url) = self.context.update_hover(x as f64, y as f64);
@@ -609,14 +1205,21 @@ impl<C: RenderConfiguration> TabWorker<C> {
                         url: link_url,
                     });
                 }
+                self.report_cursor(self.context.hover_cursor());
                 if visual_dirty {
                     self.runtime.dirty = true;
                     self.runtime.render_now = true;
                 }
                 ControlFlow::Continue
             }
-            TabCommand::MouseDown { button, .. } => {
+            TabCommand::MouseDown { button, x, y } => {
                 if matches!(button, crate::events::MouseButton::Left) {
+                    // Click-to-focus: focus the nearest focusable ancestor of the hit element
+                    // (or blur), before any link activation.
+                    if self.context.focus_at(x as f64, y as f64) {
+                        self.runtime.dirty = true;
+                        self.emit_focus_changed();
+                    }
                     if let Some(href) = self.context.hover_link_url.clone() {
                         let resolved = self
                             .current_url
@@ -624,17 +1227,18 @@ impl<C: RenderConfiguration> TabWorker<C> {
                             .and_then(|base| base.join(&href).ok())
                             .map(|u| u.to_string())
                             .unwrap_or(href);
-                        self.navigate_to(resolved, false);
+                        self.navigate_to(resolved, false, HistoryIntent::Push);
                         return ControlFlow::Continue;
                     }
                 }
                 self.runtime.dirty = true;
                 ControlFlow::Continue
             }
-            TabCommand::MouseUp { .. }
-            | TabCommand::KeyDown { .. }
-            | TabCommand::KeyUp { .. }
-            | TabCommand::CharInput { .. } => {
+            TabCommand::KeyDown { key, modifiers, .. } => self.handle_key_down(&key, modifiers),
+            // Key releases and legacy char events need no handling yet; text input arrives
+            // with the editing slice of M1.
+            TabCommand::KeyUp { .. } | TabCommand::CharInput { .. } => ControlFlow::Continue,
+            TabCommand::MouseUp { .. } => {
                 self.runtime.dirty = true;
                 ControlFlow::Continue
             }
@@ -689,20 +1293,160 @@ impl<C: RenderConfiguration> TabWorker<C> {
         }
     }
 
-    /// Navigate to a new URL, cancelling any in-flight navigation.
-    fn navigate_to(&mut self, url: impl Into<String>, _ignore_cache: bool) {
-        self.scroll_x = 0;
-        self.scroll_y = 0;
-        self.scroll.reset(0.0, 0.0);
-        self.scroll_anim_last = None;
-        self.context.reset_scroll();
-        // Cancel any previous running navigation in this tab
-        self.cancel_current_nav();
+    /// Load the history entry the cursor was just moved to (back/forward/jump). The entry's URL
+    /// is refetched; its saved scroll offset is restored once the load commits.
+    fn traverse_history(&mut self, entry: HistoryEntryId) {
+        let Some(url) = self.history.entry(entry).map(|e| e.url.to_string()) else {
+            return;
+        };
+        self.navigate_to(url, false, HistoryIntent::Traverse(entry));
+        // The cursor moved even though the load is still in flight: tell the shell now so
+        // back/forward buttons track the traversal, not the eventual load.
+        self.emit_history_changed();
+    }
 
+    /// Emit `CursorChanged` if the shape differs from the last one reported.
+    fn report_cursor(&mut self, cursor: CursorShape) {
+        if cursor != self.reported_cursor {
+            self.reported_cursor = cursor;
+            self.send_event(EngineEvent::CursorChanged {
+                tab_id: self.tab_id,
+                cursor,
+            });
+        }
+    }
+
+    /// Broadcast the current history snapshot to the embedder.
+    fn emit_history_changed(&self) {
+        self.send_event(EngineEvent::Navigation {
+            tab_id: self.tab_id,
+            event: NavigationEvent::HistoryChanged {
+                history: self.history.snapshot(),
+            },
+        });
+    }
+
+    /// Whether `url` differs from the loaded document's URL only in its fragment - a
+    /// "navigate to a fragment" per HTML, which must not refetch the document.
+    fn is_same_document(&self, url: &Url) -> bool {
+        match (&self.current_url, self.is_loading) {
+            (Some(cur), false) => {
+                let mut a = cur.clone();
+                let mut b = url.clone();
+                a.set_fragment(None);
+                b.set_fragment(None);
+                a == b
+            }
+            _ => false,
+        }
+    }
+
+    /// Same-document (fragment) navigation: no fetch. Updates the current URL, records
+    /// history like a real navigation would (fresh navigations push, traversals just moved
+    /// the cursor), scrolls to the indicated part, and reports the navigation as finished so
+    /// the shell updates its address bar.
+    fn navigate_same_document(&mut self, url: Url, history: HistoryIntent) {
+        let nav_id = NavigationId::new();
+        self.send_event(EngineEvent::Navigation {
+            tab_id: self.tab_id,
+            event: NavigationEvent::Started {
+                nav_id,
+                url: url.clone(),
+            },
+        });
+
+        match history {
+            HistoryIntent::Push => {
+                self.history.set_current_scroll(self.scroll_x, self.scroll_y);
+                self.history.push(url.clone(), Some(self.title.clone()));
+            }
+            HistoryIntent::Reload | HistoryIntent::Traverse(_) => {}
+        }
+        self.current_url = Some(url.clone());
+
+        // Layout already exists, so the target can be scrolled to right away. A traversal to
+        // an entry restores its saved offset instead (the user may have scrolled after
+        // arriving at the fragment).
+        let target = match history {
+            HistoryIntent::Traverse(entry) => self.history.entry(entry).map(|e| e.scroll),
+            _ => url
+                .fragment()
+                .and_then(|f| self.context.fragment_target_y(f))
+                .map(|y| (0, y.round() as i32)),
+        };
+        if let Some((x, y)) = target {
+            self.apply_scroll(x, y);
+        }
+
+        self.send_event(EngineEvent::Navigation {
+            tab_id: self.tab_id,
+            event: NavigationEvent::Finished { nav_id, url },
+        });
+        self.emit_history_changed();
+    }
+
+    /// Set the scroll offset immediately (clamped by the context) and re-render.
+    fn apply_scroll(&mut self, x: i32, y: i32) {
+        self.context.set_scroll(x as f64, y as f64);
+        let (cx, cy) = self.context.scroll_xy();
+        self.scroll_x = cx.round() as i32;
+        self.scroll_y = cy.round() as i32;
+        self.scroll.reset(cx, cy);
+        self.scroll_anim_last = None;
+        self.runtime.dirty = true;
+        self.runtime.render_now = true;
+    }
+
+    /// Navigate to a new URL, cancelling any in-flight navigation. `history` says what the
+    /// navigation does to session history once it commits.
+    fn navigate_to(&mut self, url: impl Into<String>, _ignore_cache: bool, history: HistoryIntent) {
         let url = match self.parse_url(url.into()) {
             Ok(u) => u,
             Err(_) => return,
         };
+
+        // A fragment-only change of the loaded document does not refetch it. Reloads always
+        // refetch (that is what reload means).
+        if history != HistoryIntent::Reload && self.is_same_document(&url) {
+            self.navigate_same_document(url, history);
+            return;
+        }
+
+        // Leaving the current entry: remember where the user was so back/forward can restore
+        // it. (Traversals already saved it before moving the cursor - see `traverse_history`.)
+        if !matches!(history, HistoryIntent::Traverse(_)) {
+            self.history.set_current_scroll(self.scroll_x, self.scroll_y);
+        }
+        self.pending_scroll = None;
+        self.reset_scroll_for_navigation();
+        // Cancel any previous running navigation in this tab
+        self.cancel_current_nav();
+
+        // gosub:// and about: pages are served by the engine's page registry, never fetched.
+        if InternalPages::handles(&url) {
+            let (tile_count, tile_bytes) = self.context.tile_stats();
+            let tab_view = TabView {
+                history: self.history.snapshot(),
+                render_backend: self.zone_context.render_backend.name(),
+                stats: crate::engine::internal_pages::TabStats {
+                    viewport_width: self.desired_viewport.width,
+                    viewport_height: self.desired_viewport.height,
+                    scroll_x: self.scroll_x as f64,
+                    scroll_y: self.scroll_y as f64,
+                    page_height: self.context.page_height(),
+                    tile_count,
+                    tile_bytes,
+                    scene_epoch: self.context.scene_epoch(),
+                    raster_dpr: self.zone_context.render_backend.device_pixel_ratio(),
+                },
+            };
+            let page = self
+                .zone_context
+                .internal_pages
+                .resolve(&url, &self.zone_context.config_store, &tab_view);
+            self.load_html_document(page.html, url, history);
+            return;
+        }
 
         if let Err(e) = self.bind_storage_for(url.clone()) {
             self.send_event(EngineEvent::Navigation {
@@ -717,11 +1461,20 @@ impl<C: RenderConfiguration> TabWorker<C> {
         }
 
         let nav_id = NavigationId::new();
+
+        // Start this navigation's clock. Every page.* mark is measured from here, so it
+        // must be stamped before any work, not when the document arrives.
+        let scope = gosub_shared::timing::ScopeId(nav_id.0);
+        gosub_shared::timing::begin_scope(scope);
+        self.timing_scope = Some(scope);
+        self.first_paint_marked = false;
+
         let parent_cancel = CancellationToken::new();
         self.active_nav = Some(ActiveNav {
             nav_id,
             cancel: parent_cancel.clone(),
             url: url.clone(),
+            history,
         });
 
         {
@@ -760,6 +1513,9 @@ impl<C: RenderConfiguration> TabWorker<C> {
             if let Ok(val) = langs.parse() {
                 fetch_headers.insert(http::header::ACCEPT_LANGUAGE, val);
             }
+        }
+        if let Ok(val) = ResourceKind::Document.accept_header().parse() {
+            fetch_headers.insert(http::header::ACCEPT, val);
         }
 
         let req_id = RequestId::new();
@@ -876,6 +1632,9 @@ impl<C: RenderConfiguration> TabWorker<C> {
                         doc,
                     });
                 }
+                Ok(RoutedOutcome::DownloadOffer(meta)) => {
+                    let _ = tx_done.send(NavigationResult::Download { nav_id, meta: *meta });
+                }
                 Ok(RoutedOutcome::ViewerRendered(_doc)) => {
                     log::warn!("Tab[{:?}] viewer rendering not supported yet", tab_id);
                     let _ = tx_done.send(NavigationResult::Err {
@@ -925,9 +1684,183 @@ impl<C: RenderConfiguration> TabWorker<C> {
         });
     }
 
+    /// Load caller-supplied HTML into the tab, bypassing the network. The document is
+    /// parsed through the regular HTML pipeline (so subresources like stylesheets and
+    /// images are still discovered and fetched, resolved against `base_url`) and
+    /// completes through the same navigation path as `navigate_to`.
+    /// `TabCommand::LoadHtml`: caller-supplied HTML as a fresh navigation to `base_url`.
+    fn load_html(&mut self, html: String, base_url: String) {
+        let url = match self.parse_url(base_url) {
+            Ok(u) => u,
+            Err(_) => return,
+        };
+        self.history.set_current_scroll(self.scroll_x, self.scroll_y);
+        self.pending_scroll = None;
+        self.reset_scroll_for_navigation();
+        self.cancel_current_nav();
+        self.load_html_document(html, url, HistoryIntent::Push);
+    }
+
+    /// Reset scroll state at the start of a navigation.
+    fn reset_scroll_for_navigation(&mut self) {
+        self.scroll_x = 0;
+        self.scroll_y = 0;
+        self.scroll.reset(0.0, 0.0);
+        self.scroll_anim_last = None;
+        self.context.reset_scroll();
+    }
+
+    /// Parse `html` as the document for `url` without touching the network, with `history`
+    /// deciding what the commit does to session history. Shared by `LoadHtml` (always a push)
+    /// and `gosub://` internal pages (push, reload or traversal like any navigation). The
+    /// caller has already reset scroll and cancelled the previous navigation.
+    fn load_html_document(&mut self, html: String, url: Url, history: HistoryIntent) {
+        if let Err(e) = self.bind_storage_for(url.clone()) {
+            self.send_event(EngineEvent::Navigation {
+                tab_id: self.tab_id,
+                event: NavigationEvent::Failed {
+                    nav_id: None,
+                    url: url.clone(),
+                    error: Arc::new(e),
+                },
+            });
+            return;
+        }
+
+        let nav_id = NavigationId::new();
+
+        // Start this navigation's clock. Every page.* mark is measured from here, so it
+        // must be stamped before any work, not when the document arrives.
+        let scope = gosub_shared::timing::ScopeId(nav_id.0);
+        gosub_shared::timing::begin_scope(scope);
+        self.timing_scope = Some(scope);
+        self.first_paint_marked = false;
+
+        let parent_cancel = CancellationToken::new();
+        self.active_nav = Some(ActiveNav {
+            nav_id,
+            cancel: parent_cancel.clone(),
+            url: url.clone(),
+            history,
+        });
+
+        {
+            let mut guard = self.zone_context.request_reference_map.write();
+            guard.insert(RequestReference::Navigation(nav_id), self.tab_id);
+        }
+
+        self.sink.set_nav(nav_id);
+        self.pending_url = Some(url.clone());
+        self.is_loading = true;
+        self.is_error = false;
+        self.state = TabState::Loading;
+        self.runtime.dirty = true;
+
+        self.send_event(EngineEvent::Navigation {
+            tab_id: self.tab_id,
+            event: NavigationEvent::Started {
+                nav_id,
+                url: url.clone(),
+            },
+        });
+
+        // Synthetic request/response pair so the HTML pipeline can attribute the parse
+        // and its discovered subresources to this navigation.
+        let req_id = RequestId::new();
+        REF_REGISTRY.register_request(req_id, ResourceKind::Document, Initiator::Navigation);
+        let req = FetchRequest::builder(Method::GET, url.clone())
+            .with_reference(REF_REGISTRY.to_net(RequestReference::Navigation(nav_id)))
+            .with_req_id(req_id)
+            .with_priority(Priority::High)
+            .with_kind(ResourceKind::Document.to_net())
+            .with_initiator(Initiator::Navigation.to_net())
+            .with_streaming(false)
+            .with_auto_decode(false)
+            .build();
+
+        let (tx_done, rx_done) = oneshot::channel::<NavigationResult<C>>();
+
+        let tab_id = self.tab_id;
+        let zone_id = self.zone_id;
+        let io_tx = self.zone_context.io_tx.clone();
+        let accept_language = self.services.accept_language.clone();
+        let max_document_bytes = self.zone_context.config_store.get_uint("net.document.max_bytes");
+
+        let span = tracing::info_span!(
+            "tab_load_html",
+            tab_id=%tab_id,
+            nav_id=%nav_id.0,
+            base_url=%url,
+        );
+
+        // The pipeline cancels the handle token after parsing to reap subresource
+        // children, so give it a child of the navigation token: CancelNavigation still
+        // aborts the parse, but the pipeline's post-parse cancel doesn't kill the
+        // navigation token itself.
+        let handle = FetchHandle {
+            req_id,
+            cancel: parent_cancel.child_token(),
+        };
+        let meta = {
+            let mut meta = FetchResultMeta::synthetic(url.clone());
+            meta.content_length = Some(html.len() as u64);
+            meta.content_type = Some("text/html".into());
+            meta.has_body = true;
+            meta
+        };
+
+        spawn_named("tab-load-html", async move {
+            let _enter = span.enter();
+
+            let mut hooks =
+                ResourcePipelines::<C>::new(zone_id, io_tx.clone(), accept_language.clone(), max_document_bytes);
+
+            match hooks.html.parse_bytes(req, handle, meta, html.as_bytes()).await {
+                Ok(doc) => {
+                    use gosub_interface::document::Document as _;
+                    let doc = Arc::new(doc);
+                    let final_url = doc.url().unwrap_or(url);
+                    let title = crate::html::document_title(&doc);
+                    let _ = tx_done.send(NavigationResult::Ok {
+                        nav_id,
+                        final_url,
+                        title,
+                        doc,
+                    });
+                }
+                Err(e) => {
+                    let _ = tx_done.send(NavigationResult::Err {
+                        nav_id,
+                        error: NavigationError::Other(anyhow!("Failed to parse HTML: {e}")),
+                    });
+                }
+            }
+        });
+
+        self.load = Some(NavJoin {
+            cancel: parent_cancel.clone(),
+            rx: Some(rx_done),
+        });
+    }
+
     /// Do a draw tick. This will be called based on the FPS that is requested
     #[allow(unreachable_code)] // cfg-conditional tile-cache returns make the display-list path unreachable for some feature combos
     async fn tick_draw(&mut self) -> anyhow::Result<()> {
+        // Deferred scroll for a freshly committed document (history restore or URL fragment),
+        // once it has laid out: page height and element positions are only known then. The
+        // first dirty tick after `set_document` runs layout; this applies on the tick after
+        // that and re-renders at the new offset.
+        if self.pending_scroll.is_some() && self.context.page_height() > 0.0 {
+            let target = match self.pending_scroll.take() {
+                Some(PendingScroll::Offset(x, y)) => Some((x, y)),
+                Some(PendingScroll::Fragment(f)) => self.context.fragment_target_y(&f).map(|y| (0, y.round() as i32)),
+                None => None,
+            };
+            if let Some((x, y)) = target {
+                self.apply_scroll(x, y);
+            }
+        }
+
         // Advance an in-flight smooth scroll: ease the engine scroll one step toward its target and
         // keep the frame loop alive (mark dirty) until it settles exactly on the target. Dormant
         // unless the scroll behavior is animated - `Instant` applies moves synchronously in the
@@ -1157,6 +2090,16 @@ impl<C: RenderConfiguration> TabWorker<C> {
 
         self.sink.inc_frame();
 
+        // First frame this navigation has actually produced. `tick_draw` runs every frame,
+        // so the flag is what makes this a mark ("when did the page first appear") rather
+        // than a per-frame sample; it is cleared when a navigation starts.
+        if !self.first_paint_marked {
+            if let Some(scope) = self.timing_scope {
+                gosub_shared::timing::mark_in(scope, "page.first_paint", None);
+                self.first_paint_marked = true;
+            }
+        }
+
         let now = std::time::Instant::now();
         let elapsed = now - self.runtime.last_tick_draw;
         self.runtime.last_tick_draw = now;
@@ -1304,6 +2247,55 @@ mod tests {
     use crate::net::SharedBody;
     use bytes::Bytes;
     use futures_util::TryStreamExt;
+
+    mod favicon_url {
+        use crate::html::DefaultRenderConfig;
+        use crate::tab::worker::TabWorker;
+        use url::Url;
+
+        fn resolve(html: &str, base: &str) -> Option<String> {
+            let doc = gosub_html5::html_compile::<DefaultRenderConfig>(html);
+            let base = Url::parse(base).unwrap();
+            TabWorker::<DefaultRenderConfig>::favicon_url(&doc, &base).map(|u| u.to_string())
+        }
+
+        #[test]
+        fn link_rel_icon_wins_and_resolves_relative() {
+            let html = r#"<html><head><link rel="icon" href="img/fav.png"></head><body></body></html>"#;
+            assert_eq!(
+                resolve(html, "https://example.com/dir/page.html").as_deref(),
+                Some("https://example.com/dir/img/fav.png")
+            );
+        }
+
+        #[test]
+        fn shortcut_icon_and_apple_touch_icon_count() {
+            let html = r#"<html><head><link rel="Shortcut Icon" href="/a.ico"></head></html>"#;
+            assert_eq!(
+                resolve(html, "https://example.com/").as_deref(),
+                Some("https://example.com/a.ico")
+            );
+            let html = r#"<html><head><link rel="apple-touch-icon" href="/t.png"></head></html>"#;
+            assert_eq!(
+                resolve(html, "https://example.com/").as_deref(),
+                Some("https://example.com/t.png")
+            );
+        }
+
+        #[test]
+        fn stylesheet_links_are_ignored_and_fallback_is_well_known() {
+            let html = r#"<html><head><link rel="stylesheet" href="/s.css"></head></html>"#;
+            assert_eq!(
+                resolve(html, "https://example.com/deep/path").as_deref(),
+                Some("https://example.com/favicon.ico")
+            );
+        }
+
+        #[test]
+        fn no_fallback_for_non_http_documents() {
+            assert_eq!(resolve("<html></html>", "gosub://home"), None);
+        }
+    }
 
     /// Verify `decode_web_font` turns a real WOFF2 payload into an SFNT the font stack can
     /// parse. Reads the fixture path from `GOSUB_WOFF2_FIXTURE` so we neither hit the network

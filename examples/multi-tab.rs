@@ -120,6 +120,7 @@ async fn main() -> Result<(), EngineError> {
         cookie_store: None,
         cookie_jar: Some(DefaultCookieJar::new().into()),
         partition_policy: PartitionPolicy::None,
+        places: None,
     };
 
     // Create the zone. Note that we can define our own zone ID to keep zones deterministic
@@ -306,6 +307,17 @@ fn handle_event(ev: EngineEvent) {
                     decision_token,
                 } => {
                     println!("nav: decision required: {} {:?} {:?}", nav_id, meta, decision_token);
+                }
+                NavigationEvent::HistoryChanged { history } => {
+                    ui.update(
+                        tab_id,
+                        format!(
+                            "nav: history {} entries, back={}, forward={}",
+                            history.entries.len(),
+                            history.can_go_back,
+                            history.forward.len()
+                        ),
+                    );
                 }
             }
         }

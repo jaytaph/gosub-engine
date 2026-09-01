@@ -1,6 +1,6 @@
 //! Minimal browser window: Skia (CPU) rasterizer + winit toolkit + softbuffer presentation.
 //!
-//! Usage: cargo run --example winit-skia -- https://example.com
+//! Usage: cargo run -p example-winit-skia -- https://example.com
 //!
 //! No GTK dependency - Skia has its own font system.
 //! Press Ctrl+L to focus the address bar.
@@ -427,6 +427,12 @@ fn draw_address_bar(buf: &mut softbuffer::Buffer<Arc<Window>, Arc<Window>>, win_
 }
 
 fn main() {
+    eprintln!(
+        "{} v{} — winit browser window, Skia (CPU) rendering via softbuffer",
+        env!("CARGO_BIN_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .env()
@@ -486,6 +492,7 @@ fn main() {
         cookie_store: None,
         cookie_jar: None,
         partition_policy: PartitionPolicy::None,
+        places: None,
     };
 
     let mut zone = engine

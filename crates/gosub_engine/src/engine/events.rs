@@ -7,6 +7,7 @@ use crate::net::req_ref_tracker::RequestReference;
 use crate::net::types::{FetchHandle, FetchRequest, FetchResult, FetchResultMeta, Initiator, Priority, ResourceKind};
 use crate::net::DecisionToken;
 use crate::storage::event::StorageScope;
+use crate::tab::history::{HistoryEntryId, HistorySnapshot};
 use crate::tab::TabId;
 use crate::zone::ZoneId;
 use crate::EngineError;
@@ -24,6 +25,48 @@ pub enum MouseButton {
     Left,
     Middle,
     Right,
+}
+
+/// The mouse cursor the page wants shown at the pointer's position. The engine reports it
+/// (see [`EngineEvent::CursorChanged`]); the shell maps it to the native cursor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CursorShape {
+    /// The platform's ordinary arrow.
+    #[default]
+    Default,
+    /// Hand: over a link (or anything else the page marks clickable).
+    Pointer,
+    /// I-beam: over selectable text or an editable field.
+    Text,
+}
+
+/// Correlates a [`TabCommand::QueryHitTest`] with its [`EngineEvent::HitTestResult`]. Chosen
+/// by the embedder; the engine echoes it back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct HitTestToken(pub u64);
+
+/// Identifies one download across its progress/finished/failed events. Minted by the
+/// embedder when it starts the download (like [`HitTestToken`]); the engine echoes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DownloadId(pub u64);
+
+/// What is under a point of the page - the input for a shell's native context menu.
+/// Fields are independent: a linked image yields both `link_url` and `image_url`. URLs are
+/// absolute (resolved against the document URL). Selection and editable-field details grow
+/// here as the engine gains focus/selection state (M1).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct HitTestResponse {
+    /// Nearest enclosing `<a href>`.
+    pub link_url: Option<String>,
+    /// `<img src>` at the point (or enclosing the point).
+    pub image_url: Option<String>,
+    /// Content of the text node at the point, trimmed (`None` when the point is not on text).
+    pub text: Option<String>,
+    /// The point is inside a text-editable control (input, textarea, contenteditable).
+    pub is_editable: bool,
+    /// The current text selection, when the point lies within it. Always `None` until text
+    /// selection lands in the engine.
+    pub selection: Option<String>,
 }
 
 impl Display for MouseButton {
@@ -96,13 +139,53 @@ pub enum IoCommand {
 pub enum TabCommand {
     // ****************************************
     // ** Navigation / lifecycle
+    /// Navigate to specific URL
     Navigate {
         url: String,
     },
+    /// Load caller-supplied HTML directly into the tab, bypassing the network.
+    /// `base_url` becomes the document URL and is used to resolve relative subresources.
+    LoadHtml {
+        html: String,
+        base_url: String,
+    },
+    /// Reload current URL (with or without cache)
     Reload {
         ignore_cache: bool,
     },
+    /// Cancel the current navigation
     CancelNavigation,
+    /// Session history: go to the previous entry (nearest navigable ancestor). No-op at the root.
+    GoBack,
+    /// Session history: go to a forward entry - `entry` must be one of the current entry's
+    /// forward children (see [`NavigationEvent::HistoryChanged`]); `None` takes the preferred
+    /// (most recently visited) one. No-op when there is no forward entry.
+    GoForward {
+        entry: Option<HistoryEntryId>,
+    },
+    /// Session history: jump to any entry in the tab's history tree.
+    GoToHistoryEntry {
+        entry: HistoryEntryId,
+    },
+    /// Save `url` to `target_path` through the zone's fetcher (cookies and UA apply).
+    /// Sent to accept an [`EngineEvent::DownloadRequested`] offer, or directly
+    /// (save-link-as). Progress arrives as `Download*` events carrying the same `id`.
+    StartDownload {
+        id: DownloadId,
+        url: String,
+        target_path: std::path::PathBuf,
+    },
+    /// Ask what is at viewport point `(x, y)` (CSS px), e.g. on right-click, to build a native
+    /// context menu. Answered with [`EngineEvent::HitTestResult`] carrying the same `token`.
+    QueryHitTest {
+        x: f32,
+        y: f32,
+        token: HitTestToken,
+    },
+    /// Test-only: panic the tab worker, to exercise crash containment. Not compiled into
+    /// release builds.
+    #[cfg(test)]
+    CrashForTest,
     /// Answer a pending [`NavigationEvent::DecisionRequired`].
     SubmitDecision {
         nav_id: NavigationId,
@@ -266,6 +349,12 @@ pub enum NavigationEvent {
         meta: FetchResultMeta,
         decision_token: DecisionToken,
     },
+    /// The tab's session history changed (entry added, back/forward moved, title learned).
+    /// Carries the full snapshot so shells can update back/forward buttons and menus without
+    /// querying. Emitted after the corresponding `Finished`.
+    HistoryChanged {
+        history: HistorySnapshot,
+    },
 }
 
 /// Events triggered by load resources for a main document. Note that resources can trigger other
@@ -413,12 +502,66 @@ pub enum EngineEvent {
         tab_id: TabId,
         url: Option<String>,
     },
+    /// The cursor shape for what is under the pointer changed (emitted on change only, from
+    /// mouse-move handling; resets to `Default` on navigation).
+    CursorChanged {
+        tab_id: TabId,
+        cursor: CursorShape,
+    },
+    /// Keyboard focus moved to another element (or cleared). `editable` says whether the
+    /// newly focused element accepts text input - the shell's cue for IME/OSK behaviour.
+    FocusChanged {
+        tab_id: TabId,
+        /// `true` while an element is focused; `false` after a blur.
+        focused: bool,
+        editable: bool,
+    },
+    /// Answer to [`TabCommand::QueryHitTest`].
+    HitTestResult {
+        tab_id: TabId,
+        token: HitTestToken,
+        hit: HitTestResponse,
+    },
+    /// A navigation turned out to be a download (binary content or an attachment). The
+    /// navigation itself was cancelled (the page stays); the shell decides where to save
+    /// and answers with [`TabCommand::StartDownload`] - or ignores the offer.
+    DownloadRequested {
+        tab_id: TabId,
+        url: Url,
+        /// From `Content-Disposition` when present, else the URL's last path segment.
+        suggested_filename: String,
+        content_type: Option<String>,
+        total_bytes: Option<u64>,
+    },
+    /// Bytes are flowing to disk for a [`TabCommand::StartDownload`].
+    DownloadProgress {
+        tab_id: TabId,
+        id: DownloadId,
+        received_bytes: u64,
+        total_bytes: Option<u64>,
+    },
+    /// The download completed and the file is fully written.
+    DownloadFinished {
+        tab_id: TabId,
+        id: DownloadId,
+        path: std::path::PathBuf,
+        received_bytes: u64,
+    },
+    /// The download failed; a partial file may remain at the target path.
+    DownloadFailed {
+        tab_id: TabId,
+        id: DownloadId,
+        error: String,
+    },
     /// Not yet emitted by the engine; emission arrives with the pending mac-app patches.
     TitleChanged {
         tab_id: TabId,
         title: String,
     },
-    /// Not yet emitted by the engine.
+    /// The page's icon was fetched: raw image bytes (ICO/PNG/SVG… as served) of the first
+    /// `<link rel="icon">` (or `shortcut icon` / `apple-touch-icon`) with an `href`, else
+    /// `/favicon.ico`. Emitted once per committed navigation when the fetch succeeds; a
+    /// navigation without a reachable icon emits nothing (the shell keeps its placeholder).
     FavIconChanged {
         tab_id: TabId,
         favicon: Vec<u8>,
@@ -521,10 +664,14 @@ pub enum EngineEvent {
         line: u32,
         column: u32,
     },
-    /// Not yet emitted by the engine.
+    /// The tab's worker task panicked. The tab is dead: its handle's commands will fail
+    /// from now on, and no further events arrive for it. The shell should show a
+    /// "tab crashed" page and offer reload-by-recreating the tab. `error` is the panic
+    /// message (best effort).
     TabCrashed {
         tab_id: TabId,
-        reason: String,
+        zone_id: ZoneId,
+        error: String,
     },
     // Uncategorized / generic
 }

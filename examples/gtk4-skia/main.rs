@@ -1,6 +1,6 @@
 //! Minimal browser window: Skia (CPU) rasterizer + GTK4 toolkit.
 //!
-//! Usage: cargo run --example gtk4-skia -- https://example.com
+//! Usage: cargo run -p example-gtk4-skia -- https://example.com
 //!
 //! GTK4 is used only for windowing; Skia handles all rasterization and fonts.
 //! No gtk4::init() needed for fonts - unlike the Cairo backend, Skia is self-contained.
@@ -55,6 +55,12 @@ struct TileDrawState {
 }
 
 fn main() {
+    eprintln!(
+        "{} v{} — GTK4 browser window, Skia (CPU) rendering",
+        env!("CARGO_BIN_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .env()
@@ -100,6 +106,7 @@ fn main() {
             cookie_store: Some(cookie_store),
             cookie_jar: None,
             partition_policy: PartitionPolicy::None,
+            places: None,
         };
 
         let zone = Rc::new(RefCell::new(

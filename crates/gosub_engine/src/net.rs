@@ -55,6 +55,7 @@ mod decision_hub;
 mod emitter;
 pub mod events;
 mod fetcher;
+mod file_loader;
 mod io_runtime;
 pub mod req_ref_tracker;
 mod router;
@@ -90,6 +91,9 @@ pub use fetcher::FetcherConfig;
 
 /// Build a [`FetcherConfig`] from the engine's settings store.
 pub use fetcher::fetcher_config_from;
+
+/// Compat-shaped `User-Agent` for this engine build, with an optional embedder product token.
+pub use fetcher::default_user_agent;
 
 /// Utility to **fully buffer a stream** into bytes (tests, small assets, diagnostics).
 pub use utils::stream_to_bytes;

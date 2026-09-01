@@ -1,6 +1,6 @@
 //! Minimal browser window: Vello (GPU) rasterizer + winit toolkit.
 //!
-//! Usage: cargo run --example winit-vello -- https://example.com
+//! Usage: cargo run -p example-winit-vello -- https://example.com
 //!
 //! Press Ctrl+L to focus the address bar (URL shown in window title while typing).
 //! No GTK/Cairo dependency - pure winit + wgpu.
@@ -9,6 +9,10 @@
 //! after the window exists, so the adapter can be selected for surface compatibility.
 //! On Wayland an incompatible adapter causes `get_current_texture()` to silently fail
 //! every frame, keeping the surface un-committed and the window invisible.
+
+// wgpu's deeply nested generic types push auto-trait (`Send`/`Sync`) solving past the default
+// limit of 128; nightly's `recursion_depth_exceeding_limit` lint makes that a hard error.
+#![recursion_limit = "256"]
 
 use gosub_engine::events::{EngineEvent, MouseButton, NavigationEvent, TabCommand};
 use gosub_engine::storage::{InMemorySessionStore, PartitionPolicy, SqliteLocalStore, StorageService};
@@ -258,6 +262,7 @@ impl ApplicationHandler<()> for BrowserApp {
             cookie_store: None,
             cookie_jar: None,
             partition_policy: PartitionPolicy::None,
+            places: None,
         };
         let mut zone = engine
             .create_zone(Some(zone_cfg), zone_services, Some(ZoneId::from(DEFAULT_ZONE)))
@@ -490,6 +495,12 @@ impl ApplicationHandler<()> for BrowserApp {
 // ── main ──────────────────────────────────────────────────────────────────────
 
 fn main() {
+    eprintln!(
+        "{} v{} — winit browser window, Vello/wgpu (GPU) rendering",
+        env!("CARGO_BIN_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .env()

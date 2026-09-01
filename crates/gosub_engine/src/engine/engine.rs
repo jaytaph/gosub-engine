@@ -3,6 +3,7 @@
 
 use crate::cookies::CookieStoreHandle;
 use crate::engine::events::{EngineCommand, EngineEvent};
+use crate::engine::internal_pages::InternalPages;
 use crate::engine::types::{EventChannel, IoChannel};
 use crate::engine::DEFAULT_CHANNEL_CAPACITY;
 use crate::html::RenderConfiguration;
@@ -67,6 +68,8 @@ pub struct EngineContext {
     pub io_tx: OnceLock<IoChannel>,
     /// Map for requests to tabs
     pub request_reference_map: Arc<RwLock<RequestReferenceMap>>,
+    /// `gosub://` page registry (built-ins + embedder overrides), shared with every tab.
+    pub internal_pages: InternalPages,
 }
 
 impl Default for EngineContext {
@@ -77,6 +80,7 @@ impl Default for EngineContext {
             config_store: crate::engine::settings_store::default_config(),
             io_tx: OnceLock::new(),
             request_reference_map: Arc::new(RwLock::new(RequestReferenceMap::new())),
+            internal_pages: InternalPages::with_builtins(),
         }
     }
 }
@@ -115,6 +119,7 @@ impl<C: RenderConfiguration> GosubEngine<C> {
                 config_store: crate::engine::settings_store::default_config(),
                 io_tx: OnceLock::new(),
                 request_reference_map: Arc::new(RwLock::new(RequestReferenceMap::new())),
+                internal_pages: InternalPages::with_builtins(),
             }),
             render_backend: backend,
             compositor,
@@ -160,6 +165,19 @@ impl<C: RenderConfiguration> GosubEngine<C> {
     /// Return a receiver for engine events.
     pub fn subscribe_events(&self) -> broadcast::Receiver<EngineEvent> {
         self.context.event_tx.subscribe()
+    }
+
+    /// The `gosub://` page registry. Register a provider to add an internal page or override
+    /// a built-in one (e.g. a branded `home`); see [`InternalPages`].
+    pub fn internal_pages(&self) -> &InternalPages {
+        &self.context.internal_pages
+    }
+
+    /// The engine's settings store, for reading or overriding settings (e.g.
+    /// `net.user_agent`). Network settings are read once when [`start`](Self::start)
+    /// builds the I/O runtime, so overrides must land before then.
+    pub fn settings(&self) -> &Config {
+        &self.context.config_store
     }
 
     pub fn backend(&self) -> Arc<C::RenderBackend> {
@@ -352,6 +370,7 @@ mod tests {
             cookie_store: None,
             cookie_jar: None,
             partition_policy: PartitionPolicy::None,
+            places: None,
         }
     }
 
@@ -451,6 +470,574 @@ mod tests {
                 .cow_to_ascii_lowercase()
                 .contains("accept-language: fr-ch, fr;q=0.9"),
             "expected Accept-Language header in request, got:\n{request}"
+        );
+
+        engine.close_zone(zone).await;
+        engine.shutdown().await.expect("shutdown");
+    }
+
+    /// Session history end to end: two navigations push two entries, GoBack moves the cursor
+    /// (announced immediately via HistoryChanged) and refetches the first page, GoForward
+    /// returns to the second. Verifies the tree from the embedder's point of view only.
+    /// Downloads end to end: navigating to binary content emits a DownloadRequested offer
+    /// (with the Content-Disposition filename) and cancels the navigation; StartDownload
+    /// streams the bytes to the chosen path and reports progress and completion.
+    #[tokio::test]
+    async fn navigation_download_offer_and_save() {
+        use crate::events::{DownloadId, TabCommand};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        // 700 KiB of deterministic bytes: enough for several progress reports.
+        let payload: Vec<u8> = (0..700 * 1024).map(|i| (i % 251) as u8).collect();
+        let payload_srv = payload.clone();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let payload = payload_srv.clone();
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 4096];
+                    let _ = stream.read(&mut buf).await;
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n\
+                         Content-Disposition: attachment; filename=\"pretty.bin\"\r\n\
+                         Content-Length: {}\r\nConnection: close\r\n\r\n",
+                        payload.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes()).await;
+                    let _ = stream.write_all(&payload).await;
+                });
+            }
+        });
+
+        let mut engine = engine_with_max_zones(1);
+        let mut event_rx = engine.subscribe_events();
+        let _join = tokio::spawn(engine.start().expect("start"));
+        let mut zone = engine.create_zone(None, services(), None).expect("zone");
+        let tab = zone.create_tab(Default::default(), None).await.expect("tab");
+
+        // Navigating to the binary produces an offer, not an error page.
+        tab.navigate(format!("http://127.0.0.1:{port}/data/raw.bin"))
+            .await
+            .expect("navigate");
+        let offer = tokio::time::timeout(Duration::from_secs(10), async {
+            let mut nav_progress = false;
+            loop {
+                match event_rx.recv().await {
+                    // The document fetch of the navigation reports load progress.
+                    Ok(EngineEvent::Navigation {
+                        event: crate::events::NavigationEvent::Progress { .. },
+                        ..
+                    }) => nav_progress = true,
+                    Ok(EngineEvent::DownloadRequested {
+                        url,
+                        suggested_filename,
+                        total_bytes,
+                        ..
+                    }) => return (url, suggested_filename, total_bytes, nav_progress),
+                    Ok(_) => continue,
+                    Err(e) => panic!("event stream closed: {e}"),
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for DownloadRequested");
+        assert!(offer.3, "expected NavigationEvent::Progress during the document fetch");
+        assert_eq!(offer.1, "pretty.bin", "Content-Disposition filename wins");
+        assert_eq!(offer.2, Some(payload.len() as u64));
+
+        // Accept the offer into a temp dir.
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("saved.bin");
+        tab.send(TabCommand::StartDownload {
+            id: DownloadId(7),
+            url: offer.0.to_string(),
+            target_path: target.clone(),
+        })
+        .await
+        .expect("start download");
+
+        let (progress_seen, partial_seen, received) = tokio::time::timeout(Duration::from_secs(10), async {
+            let mut progress_seen = false;
+            let mut partial_seen = false;
+            loop {
+                match event_rx.recv().await {
+                    Ok(EngineEvent::DownloadProgress {
+                        id: DownloadId(7),
+                        received_bytes,
+                        total_bytes,
+                        ..
+                    }) => {
+                        progress_seen = true;
+                        // Granular progress: at least one event mid-transfer, not only the
+                        // final full-size report.
+                        if total_bytes.is_some_and(|t| received_bytes < t) {
+                            partial_seen = true;
+                        }
+                    }
+                    Ok(EngineEvent::DownloadFinished {
+                        id: DownloadId(7),
+                        received_bytes,
+                        path,
+                        ..
+                    }) => {
+                        assert_eq!(path, target);
+                        return (progress_seen, partial_seen, received_bytes);
+                    }
+                    Ok(EngineEvent::DownloadFailed { error, .. }) => panic!("download failed: {error}"),
+                    Ok(_) => continue,
+                    Err(e) => panic!("event stream closed: {e}"),
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for DownloadFinished");
+        assert!(progress_seen, "expected at least one progress event");
+        assert!(
+            partial_seen,
+            "expected granular mid-transfer progress, not only the final report"
+        );
+        assert_eq!(received, payload.len() as u64);
+        assert_eq!(std::fs::read(&target).unwrap(), payload, "file content must match");
+
+        // The failed-fetch path reports too (connection refused port).
+        tab.send(TabCommand::StartDownload {
+            id: DownloadId(8),
+            url: "http://127.0.0.1:9/off".into(),
+            target_path: dir.path().join("nope.bin"),
+        })
+        .await
+        .expect("start failing download");
+        let failed = wait_for(&mut event_rx, |ev| {
+            matches!(ev, EngineEvent::DownloadFailed { id: DownloadId(8), .. })
+        })
+        .await;
+        assert!(failed, "expected DownloadFailed for unreachable server");
+
+        engine.close_zone(zone).await;
+        engine.shutdown().await.expect("shutdown");
+    }
+
+    /// Committed http navigations are recorded into the zone's places store (visited
+    /// history), with the page title; internal pages are not.
+    #[tokio::test]
+    async fn visits_are_recorded_in_places() {
+        use crate::places::{MemoryPlaces, Places};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 4096];
+                    let _ = stream.read(&mut buf).await;
+                    let body = "<html><title>A Page</title><body>hi</body></html>";
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes()).await;
+                    let _ = stream.write_all(body.as_bytes()).await;
+                });
+            }
+        });
+
+        let places = Arc::new(MemoryPlaces::new());
+        let mut engine = engine_with_max_zones(1);
+        let mut event_rx = engine.subscribe_events();
+        let _join = tokio::spawn(engine.start().expect("start"));
+        let mut zone_services = services();
+        zone_services.places = Some(places.clone());
+        let mut zone = engine.create_zone(None, zone_services, None).expect("zone");
+        let tab = zone.create_tab(Default::default(), None).await.expect("tab");
+
+        let url = format!("http://127.0.0.1:{port}/page");
+        tab.navigate(url.clone()).await.expect("navigate");
+        let finished = wait_for(&mut event_rx, |ev| {
+            matches!(
+                ev,
+                EngineEvent::Navigation {
+                    event: crate::events::NavigationEvent::Finished { .. },
+                    ..
+                }
+            )
+        })
+        .await;
+        assert!(finished);
+        let visited = places.query_visited("", 10);
+        assert_eq!(visited.len(), 1);
+        assert_eq!(visited[0].url, url);
+        assert_eq!(visited[0].title, "A Page");
+
+        // Internal pages leave no trace.
+        tab.navigate("gosub://version").await.expect("navigate internal");
+        let finished = wait_for(&mut event_rx, |ev| {
+            matches!(
+                ev,
+                EngineEvent::Navigation {
+                    event: crate::events::NavigationEvent::Finished { url, .. },
+                    ..
+                } if url.scheme() == "gosub"
+            )
+        })
+        .await;
+        assert!(finished);
+        assert_eq!(places.query_visited("", 10).len(), 1);
+
+        engine.close_zone(zone).await;
+        engine.shutdown().await.expect("shutdown");
+    }
+
+    /// Crash containment: a panicking tab worker produces a TabCrashed event (instead of
+    /// dying silently), and the tab's handle then reports closed on further commands.
+    #[tokio::test]
+    async fn worker_panic_emits_tab_crashed() {
+        use crate::events::TabCommand;
+
+        let mut engine = engine_with_max_zones(1);
+        let mut event_rx = engine.subscribe_events();
+        let _join = tokio::spawn(engine.start().expect("start"));
+        let mut zone = engine.create_zone(None, services(), None).expect("zone");
+        let tab = zone.create_tab(Default::default(), None).await.expect("tab");
+        let tab_id = tab.tab_id;
+
+        tab.send(TabCommand::CrashForTest).await.expect("send crash command");
+
+        let crashed = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                match event_rx.recv().await {
+                    Ok(EngineEvent::TabCrashed {
+                        tab_id: crashed_id,
+                        error,
+                        ..
+                    }) => return (crashed_id, error),
+                    Ok(_) => continue,
+                    Err(e) => panic!("event stream closed: {e}"),
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for TabCrashed");
+        assert_eq!(crashed.0, tab_id);
+        assert!(
+            crashed.1.contains("deliberate test crash"),
+            "panic message: {}",
+            crashed.1
+        );
+
+        // The dead tab's handle fails cleanly rather than hanging.
+        assert!(tab.send(TabCommand::Reload { ignore_cache: false }).await.is_err());
+
+        engine.close_zone(zone).await;
+        engine.shutdown().await.expect("shutdown");
+    }
+
+    /// Keyboard focus end to end: Tab focuses the first link (FocusChanged), Enter
+    /// activates it (a real navigation to its href).
+    #[tokio::test]
+    async fn keyboard_focus_and_link_activation() {
+        use crate::events::{NavigationEvent, TabCommand};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 4096];
+                    let _ = stream.read(&mut buf).await;
+                    let body = "<html><title>t</title><body><a href=\"/target\">go</a></body></html>";
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes()).await;
+                    let _ = stream.write_all(body.as_bytes()).await;
+                });
+            }
+        });
+
+        let mut engine = engine_with_max_zones(1);
+        let mut event_rx = engine.subscribe_events();
+        let _join = tokio::spawn(engine.start().expect("start"));
+        let mut zone = engine.create_zone(None, services(), None).expect("zone");
+        let tab = zone.create_tab(Default::default(), None).await.expect("tab");
+        tab.send(TabCommand::SetViewport {
+            x: 0,
+            y: 0,
+            width: 640,
+            height: 480,
+        })
+        .await
+        .expect("viewport");
+
+        tab.navigate(format!("http://127.0.0.1:{port}/"))
+            .await
+            .expect("navigate");
+        wait_for(&mut event_rx, |ev| {
+            matches!(
+                ev,
+                EngineEvent::Navigation {
+                    event: NavigationEvent::Finished { .. },
+                    ..
+                }
+            )
+        })
+        .await;
+
+        // Tab -> the link gets focus; the engine announces it (non-editable).
+        tab.send(TabCommand::KeyDown {
+            key: "Tab".into(),
+            code: "Tab".into(),
+            modifiers: crate::engine::events::Modifiers::empty(),
+        })
+        .await
+        .expect("tab key");
+        let matched = wait_for(&mut event_rx, |ev| {
+            matches!(
+                ev,
+                EngineEvent::FocusChanged {
+                    focused: true,
+                    editable: false,
+                    ..
+                }
+            )
+        })
+        .await;
+        assert!(matched, "expected FocusChanged after Tab");
+
+        // Enter -> activates the focused link: a navigation to /target starts.
+        tab.send(TabCommand::KeyDown {
+            key: "Enter".into(),
+            code: "Enter".into(),
+            modifiers: crate::engine::events::Modifiers::empty(),
+        })
+        .await
+        .expect("enter key");
+        let matched = wait_for(&mut event_rx, |ev| {
+            matches!(
+                ev,
+                EngineEvent::Navigation {
+                    event: NavigationEvent::Started { url, .. },
+                    ..
+                } if url.path() == "/target"
+            )
+        })
+        .await;
+        assert!(matched, "expected navigation to /target after Enter");
+
+        engine.close_zone(zone).await;
+        engine.shutdown().await.expect("shutdown");
+    }
+
+    /// Wait (with timeout) for an event matching `pred`; true when it arrived.
+    async fn wait_for(rx: &mut broadcast::Receiver<EngineEvent>, pred: impl Fn(&EngineEvent) -> bool) -> bool {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                match rx.recv().await {
+                    Ok(ev) if pred(&ev) => return true,
+                    Ok(_) => continue,
+                    Err(_) => return false,
+                }
+            }
+        })
+        .await
+        .unwrap_or(false)
+    }
+
+    #[tokio::test]
+    async fn session_history_back_and_forward() {
+        use crate::events::NavigationEvent;
+        use crate::tab::HistoryEntryId;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        // Tiny HTTP server answering every request; records the paths it served.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let served = Arc::new(Mutex::new(Vec::<String>::new()));
+        let served_srv = served.clone();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let served = served_srv.clone();
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 4096];
+                    let n = stream.read(&mut buf).await.unwrap_or(0);
+                    let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let path = req.split_whitespace().nth(1).unwrap_or("/").to_string();
+                    if path != "/icon.png" {
+                        served.lock().push(path.clone());
+                    }
+                    // Every page advertises the same icon; the icon itself is a fixed byte blob.
+                    let (ctype, body): (&str, Vec<u8>) = if path == "/icon.png" {
+                        ("image/png", b"PNGBYTES".to_vec())
+                    } else {
+                        (
+                            "text/html",
+                            format!(
+                                "<html><head><title>{path}</title><link rel=\"icon\" href=\"/icon.png\"></head><body>{path}</body></html>"
+                            )
+                            .into_bytes(),
+                        )
+                    };
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes()).await;
+                    let _ = stream.write_all(&body).await;
+                });
+            }
+        });
+
+        let mut engine = engine_with_max_zones(1);
+        let mut event_rx = engine.subscribe_events();
+        let _join = tokio::spawn(engine.start().expect("start"));
+        let mut zone = engine.create_zone(None, services(), None).expect("zone");
+        let tab = zone.create_tab(Default::default(), None).await.expect("tab");
+
+        // Collect HistoryChanged snapshots until `pred` holds (or time out).
+        async fn next_history(
+            rx: &mut tokio::sync::broadcast::Receiver<EngineEvent>,
+            pred: impl Fn(&crate::tab::HistorySnapshot) -> bool,
+        ) -> crate::tab::HistorySnapshot {
+            tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    if let Ok(EngineEvent::Navigation {
+                        event: NavigationEvent::HistoryChanged { history },
+                        ..
+                    }) = rx.recv().await
+                    {
+                        if pred(&history) {
+                            return history;
+                        }
+                    }
+                }
+            })
+            .await
+            .expect("timed out waiting for HistoryChanged")
+        }
+
+        let a = format!("http://127.0.0.1:{port}/a");
+        let b = format!("http://127.0.0.1:{port}/b");
+
+        tab.navigate(a.clone()).await.expect("navigate a");
+        let h = next_history(&mut event_rx, |h| h.entries.len() == 1).await;
+        assert_eq!(h.current, Some(HistoryEntryId(0)));
+        assert!(!h.can_go_back);
+        assert!(h.forward.is_empty());
+        assert_eq!(h.entries[0].url.as_str(), a);
+        assert_eq!(h.entries[0].title.as_deref(), Some("/a"));
+
+        // The page's <link rel=icon> is fetched through the zone fetcher and delivered as bytes.
+        let favicon = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                if let Ok(EngineEvent::FavIconChanged { favicon, .. }) = event_rx.recv().await {
+                    return favicon;
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for FavIconChanged");
+        assert_eq!(favicon, b"PNGBYTES");
+
+        tab.navigate(b.clone()).await.expect("navigate b");
+        let h = next_history(&mut event_rx, |h| h.entries.len() == 2).await;
+        assert_eq!(h.current, Some(HistoryEntryId(1)));
+        assert!(h.can_go_back);
+        assert!(h.forward.is_empty());
+        assert_eq!(h.entries[1].parent, Some(HistoryEntryId(0)));
+
+        // Back: cursor moves to /a immediately, /a is refetched, /b becomes the forward entry.
+        let served_before = served.lock().len();
+        tab.go_back().await.expect("go back");
+        let h = next_history(&mut event_rx, |h| h.current == Some(HistoryEntryId(0))).await;
+        assert!(!h.can_go_back);
+        assert_eq!(h.forward.len(), 1);
+        assert_eq!(h.forward[0].id, HistoryEntryId(1));
+        assert_eq!(h.forward[0].url.as_str(), b);
+        // The traversal commits (Finished + another HistoryChanged) and still has 2 entries:
+        // a traversal must not push.
+        let h = next_history(&mut event_rx, |h| h.current == Some(HistoryEntryId(0))).await;
+        assert_eq!(h.entries.len(), 2, "back must not create a new entry");
+        for _ in 0..100 {
+            if served.lock().len() > served_before {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert_eq!(
+            served.lock().last().map(String::as_str),
+            Some("/a"),
+            "back must refetch /a"
+        );
+
+        // Forward returns to /b, again without pushing.
+        tab.go_forward().await.expect("go forward");
+        let h = next_history(&mut event_rx, |h| h.current == Some(HistoryEntryId(1))).await;
+        assert!(h.can_go_back);
+        assert!(h.forward.is_empty());
+        assert_eq!(h.entries.len(), 2);
+        // A traversal announces the cursor move first and again when the load commits; wait
+        // for the commit so the document is loaded before navigating within it.
+        let _ = next_history(&mut event_rx, |h| h.current == Some(HistoryEntryId(1))).await;
+
+        // Fragment navigation within /b: a history entry, but no fetch.
+        let served_before = served.lock().len();
+        let b_frag = format!("{b}#section");
+        tab.navigate(b_frag.clone()).await.expect("navigate fragment");
+        let h = next_history(&mut event_rx, |h| h.entries.len() == 3).await;
+        assert_eq!(h.current, Some(HistoryEntryId(2)));
+        assert_eq!(h.entries[2].url.as_str(), b_frag);
+        assert_eq!(h.entries[2].parent, Some(HistoryEntryId(1)));
+        // Back to /b (same document): cursor moves, still no fetch.
+        tab.go_back().await.expect("go back from fragment");
+        let h = next_history(&mut event_rx, |h| h.current == Some(HistoryEntryId(1))).await;
+        assert_eq!(h.forward[0].id, HistoryEntryId(2));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(
+            served.lock().len(),
+            served_before,
+            "fragment navigation and same-document back must not refetch"
+        );
+
+        // Internal pages: served by the engine's registry (no fetch), real history entries,
+        // titles from the page, `about:` alias, and embedder overrides.
+        engine.internal_pages().register_html(
+            "mine",
+            "<html><head><title>Mine</title></head><body>custom</body></html>",
+        );
+        let served_before = served.lock().len();
+        tab.navigate("gosub://version").await.expect("navigate internal");
+        let h = next_history(&mut event_rx, |h| {
+            h.entries.last().is_some_and(|e| e.url.as_str() == "gosub://version")
+        })
+        .await;
+        assert_eq!(h.entries.last().unwrap().title.as_deref(), Some("Version"));
+        tab.navigate("about:blank").await.expect("navigate about");
+        let _ = next_history(&mut event_rx, |h| {
+            h.entries.last().is_some_and(|e| e.url.as_str() == "about:blank")
+        })
+        .await;
+        tab.navigate("gosub://mine").await.expect("navigate override");
+        let h = next_history(&mut event_rx, |h| {
+            h.entries.last().is_some_and(|e| e.url.as_str() == "gosub://mine")
+        })
+        .await;
+        assert_eq!(h.entries.last().unwrap().title.as_deref(), Some("Mine"));
+        // Back over internal pages traverses (no new entries) and still fetches nothing.
+        let n = h.entries.len();
+        tab.go_back().await.expect("back");
+        let h = next_history(&mut event_rx, |h| {
+            h.entries.last().is_some_and(|e| e.title.as_deref() == Some("Mine")) && h.forward.len() == 1
+        })
+        .await;
+        assert_eq!(h.entries.len(), n, "back over internal pages must not push");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(
+            served.lock().len(),
+            served_before,
+            "internal pages must never hit the network"
         );
 
         engine.close_zone(zone).await;

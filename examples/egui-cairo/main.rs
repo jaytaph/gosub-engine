@@ -1,6 +1,6 @@
 //! Minimal browser window: Cairo rasterizer + egui toolkit.
 //!
-//! Usage: cargo run --example egui-cairo -- https://example.com
+//! Usage: cargo run -p example-egui-cairo -- https://example.com
 //!
 //! Cairo/Pango need GTK4 initialised for font rendering (no GTK window is created).
 //! On headless systems set GDK_BACKEND=offscreen.
@@ -114,6 +114,7 @@ impl BrowserApp {
             cookie_store: None,
             cookie_jar: None,
             partition_policy: PartitionPolicy::None,
+            places: None,
         };
 
         let mut zone = engine
@@ -433,6 +434,12 @@ impl eframe::App for BrowserApp {
 }
 
 fn main() -> Result<(), eframe::Error> {
+    eprintln!(
+        "{} v{} — egui browser window, Cairo (CPU) rendering",
+        env!("CARGO_BIN_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .env()

@@ -1,6 +1,6 @@
 //! Minimal browser window: Cairo rasterizer + winit toolkit + softbuffer presentation.
 //!
-//! Usage: cargo run --example winit-cairo -- https://example.com
+//! Usage: cargo run -p example-winit-cairo -- https://example.com
 //!
 //! Cairo/Pango need GTK4 initialised for font rendering (no GTK window is created).
 //! On headless systems set GDK_BACKEND=offscreen.
@@ -521,6 +521,12 @@ fn draw_address_bar(buf: &mut softbuffer::Buffer<Arc<Window>, Arc<Window>>, win_
 }
 
 fn main() {
+    eprintln!(
+        "{} v{} — winit browser window, Cairo (CPU) rendering",
+        env!("CARGO_BIN_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .env()
@@ -586,6 +592,7 @@ fn main() {
         cookie_store: None,
         cookie_jar: None,
         partition_policy: PartitionPolicy::None,
+        places: None,
     };
 
     let mut zone = engine

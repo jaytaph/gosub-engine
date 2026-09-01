@@ -52,6 +52,7 @@
 //!         cookie_store: None,
 //!         cookie_jar: Some(DefaultCookieJar::new().into()),
 //!         partition_policy: PartitionPolicy::None,
+//!         places: None,
 //!     };
 //!
 //!     // 3) Create a zone (ZoneHandle)
@@ -161,6 +162,19 @@ pub use html::DefaultRenderConfig;
 /// Builds a [`gosub_config::Config`] seeded with the engine's built-in settings schema.
 pub use engine::default_settings;
 
+/// `gosub://` internal pages: the registry embedders extend/override (see [`GosubEngine::internal_pages`]).
+pub use engine::internal_pages;
+
+/// Bookmarks + visited history ("places"), per zone: the store type shells share.
+pub use engine::places;
+
+/// The engine's settings store and its value/schema types (see [`GosubEngine::settings`]).
+pub use gosub_config::settings::{Constraint, Setting, SettingInfo};
+/// Storage adapters an embedder can attach to the settings store to persist overrides.
+pub use gosub_config::storage as config_storage;
+pub use gosub_config::Config;
+pub use gosub_config::StorageAdapter;
+
 pub use engine::types::Action;
 pub use engine::types::NavigationId;
 
@@ -189,7 +203,10 @@ pub use crate::engine::cookies::ThirdPartyCookiePolicy;
 
 /// Public `events` namespace with the enums/structs:
 pub mod events {
-    pub use crate::engine::events::{EngineCommand, EngineEvent, IoCommand, MouseButton, TabCommand};
+    pub use crate::engine::events::{
+        CursorShape, DownloadId, EngineCommand, EngineEvent, HitTestResponse, HitTestToken, IoCommand, Modifiers,
+        MouseButton, TabCommand,
+    };
     pub use crate::engine::events::{NavigationEvent, ResourceEvent};
 }
 

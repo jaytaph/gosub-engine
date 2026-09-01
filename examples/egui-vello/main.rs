@@ -1,8 +1,12 @@
 //! Minimal browser window: Vello (GPU) rasterizer + egui toolkit.
 //!
-//! Usage: cargo run --example egui-vello -- https://example.com
+//! Usage: cargo run -p example-egui-vello -- https://example.com
 //!
 //! No GTK dependency - pure egui + wgpu.
+
+// wgpu's deeply nested generic types push auto-trait (`Send`/`Sync`) solving past the default
+// limit of 128; nightly's `recursion_depth_exceeding_limit` lint makes that a hard error.
+#![recursion_limit = "256"]
 
 use eframe::{egui, CreationContext};
 use gosub_engine::events::{EngineEvent, NavigationEvent, TabCommand};
@@ -202,6 +206,7 @@ impl BrowserApp {
             cookie_store: None,
             cookie_jar: None,
             partition_policy: PartitionPolicy::None,
+            places: None,
         };
 
         let mut zone = engine
@@ -514,6 +519,12 @@ impl eframe::App for BrowserApp {
 }
 
 fn main() -> Result<(), eframe::Error> {
+    eprintln!(
+        "{} v{} — egui browser window, Vello/wgpu (GPU) rendering",
+        env!("CARGO_BIN_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .env()

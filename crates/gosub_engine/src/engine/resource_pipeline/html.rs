@@ -67,8 +67,22 @@ impl HtmlPipelineImpl {
         C: RenderConfiguration,
         R: AsyncRead + Unpin + Send + 'static,
     {
+        // The main document's request is referenced by the navigation that started it, so
+        // its timings can be attributed without threading a scope through the fetch stack.
+        // Sub-resources reference a Document instead, which carries no navigation - those
+        // stay unattributed until that mapping exists.
+        let timing_scope = crate::net::req_ref_tracker::REF_REGISTRY
+            .from_net(request.reference)
+            .and_then(|r| match r {
+                crate::net::req_ref_tracker::RequestReference::Navigation(nav_id) => {
+                    Some(gosub_shared::timing::ScopeId(nav_id.0))
+                }
+                _ => None,
+            });
+
         let cfg = crate::html::HtmlParseConfig {
             max_bytes: self.max_document_bytes,
+            timing_scope,
         };
 
         let io_tx = self.io_tx.clone();
@@ -89,16 +103,35 @@ impl HtmlPipelineImpl {
             }
         }
 
+        let doc_url = meta.final_url.clone();
         let mut on_discover = |hint: ResourceHint| {
+            // A remote document must never pull file:// subresources; don't even submit
+            // them (the file loader refuses them again as defense in depth).
+            if hint.url.scheme() == "file" && doc_url.scheme() != "file" {
+                log::warn!(
+                    "refusing file:// subresource {} for remote document {}",
+                    hint.url,
+                    doc_url
+                );
+                return;
+            }
             let sub_req_id = RequestId::new();
             REF_REGISTRY.register_request(sub_req_id, hint.kind, Initiator::Parser);
+            let mut headers = sub_headers.clone();
+            if let Ok(val) = hint.kind.accept_header().parse() {
+                headers.insert(http::header::ACCEPT, val);
+            }
+            // The referrer serves double duty: gosub-sonar computes the Referer header from
+            // it (never for non-http(s) referrers), and the file loader uses it to accept
+            // subresources of file:// documents.
             let sub_req = FetchRequest::builder(Method::GET, hint.url)
                 .with_req_id(sub_req_id)
                 .with_reference(parent_ref)
                 .with_priority(hint.priority)
                 .with_initiator(Initiator::Parser.to_net())
                 .with_kind(hint.kind.to_net())
-                .with_headers(sub_headers.clone())
+                .with_headers(headers)
+                .with_referrer(doc_url.clone())
                 .with_streaming(true)
                 .with_auto_decode(true)
                 .build();
@@ -219,15 +252,9 @@ mod tests {
     "#;
 
     fn test_meta(base: &str) -> FetchResultMeta {
-        FetchResultMeta {
-            final_url: Url::parse(base).expect("valid url"),
-            status: 200,
-            status_text: "OK".into(),
-            headers: http::HeaderMap::new(),
-            content_length: None,
-            content_type: None,
-            has_body: true,
-        }
+        let mut meta = FetchResultMeta::synthetic(Url::parse(base).expect("valid url"));
+        meta.has_body = true;
+        meta
     }
 
     fn test_request(base: &str) -> (FetchRequest, FetchHandle) {
@@ -243,7 +270,6 @@ mod tests {
 
         let handle = FetchHandle {
             req_id: req.req_id,
-            key: req.key_data.clone(),
             cancel: tokio_util::sync::CancellationToken::new(),
         };
 

@@ -84,6 +84,8 @@ pub struct ZoneServices {
     pub cookie_jar: Option<CookieJarHandle>,
     /// Policy for partitioning storage (cookies, localStorage, etc.)
     pub partition_policy: PartitionPolicy,
+    /// Bookmarks + visited history for this zone (None = nothing recorded, e.g. private).
+    pub places: Option<crate::places::PlacesHandle>,
 }
 
 /// Zone context we can share downwards to tabs
@@ -110,6 +112,8 @@ pub struct ZoneContext<C: RenderConfiguration = crate::html::DefaultRenderConfig
     pub(crate) font_system: Arc<Mutex<C::FontSystem>>,
     /// Per-engine settings store, cloned from the engine context and passed on to each tab.
     pub(crate) config_store: Config,
+    /// `gosub://` page registry, shared from the engine context.
+    pub(crate) internal_pages: crate::engine::internal_pages::InternalPages,
 }
 
 // Things that are shared upwards to the engine
@@ -211,6 +215,7 @@ impl<C: RenderConfiguration> Zone<C> {
         let io_tx = engine_context.io_tx.get().cloned().ok_or(EngineError::IoNotStarted)?;
         let request_reference_map = engine_context.request_reference_map.clone();
         let config_store = engine_context.config_store.clone();
+        let internal_pages = engine_context.internal_pages.clone();
 
         let zone = Self {
             engine_context,
@@ -233,6 +238,7 @@ impl<C: RenderConfiguration> Zone<C> {
                 render_backend,
                 font_system,
                 config_store,
+                internal_pages,
             }),
             id: zone_id,
             tabs: HashMap::new(),

@@ -9,7 +9,7 @@ name = "gosub_engine"
 crate-type = ["rlib"]
 
 [dependencies]
-gosub-sonar = "0.1.0"
+gosub-sonar = "0.5.1"
 gosub_shared = { version = "0.1.1", path = "../gosub_shared" }
 gosub_config = { version = "0.1.1", path = "../gosub_config" }
 gosub_html5 = { version = "0.1.1", path = "../gosub_html5" }
@@ -32,13 +32,14 @@ futures = { workspace = true, features = ["executor"] }
 anyhow = { workspace = true }
 http = { workspace = true }
 url = { workspace = true }
+percent-encoding = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 log = { workspace = true }
 tracing = { workspace = true }
 
 r2d2 = { version = "0.8", optional = true }
-r2d2_sqlite = { version = "0.33", optional = true, features = ["bundled"] }
+r2d2_sqlite = { version = "0.34", optional = true, features = ["bundled"] }
 
 time = "0.3.41"
 tokio-util = { workspace = true, features = ["io"] }
@@ -64,7 +65,12 @@ tempfile = { workspace = true }
 [features]
 default = ["sqlite_cookie_store"]
 sqlite_cookie_store = ["r2d2", "r2d2_sqlite"]
+sqlite_places = ["r2d2", "r2d2_sqlite"]
 metrics = []
+# Records fetch timings (net.fetch.*, net.ttfb) into the shared timing table by
+# wrapping the per-request net observer. Off by default: it is opt-in instrumentation,
+# and with it off no wrapper is constructed at all.
+timing = ["gosub_shared/timing"]
 
 [lints]
 workspace = true

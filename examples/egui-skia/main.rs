@@ -1,6 +1,6 @@
 //! Minimal browser window: Skia (CPU) rasterizer + egui toolkit.
 //!
-//! Usage: cargo run --example egui-skia -- https://example.com
+//! Usage: cargo run -p example-egui-skia -- https://example.com
 //!
 //! No GTK dependency - Skia has its own font system.
 
@@ -114,6 +114,7 @@ impl BrowserApp {
             cookie_store: None,
             cookie_jar: None,
             partition_policy: PartitionPolicy::None,
+            places: None,
         };
 
         let mut zone = engine
@@ -415,6 +416,12 @@ impl eframe::App for BrowserApp {
 }
 
 fn main() -> Result<(), eframe::Error> {
+    eprintln!(
+        "{} v{} — egui browser window, Skia (CPU) rendering",
+        env!("CARGO_BIN_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .env()

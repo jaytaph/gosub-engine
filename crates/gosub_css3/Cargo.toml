@@ -10,6 +10,7 @@ description = "CSS3 parser for Gosub"
 gosub_shared = { version = "0.1.1", registry = "gosub", path = "../gosub_shared", features = [] }
 gosub_interface = { version = "0.1.1", registry = "gosub", path = "../gosub_interface", features = [] }
 log = { workspace = true }
+parking_lot = { workspace = true }
 anyhow = { workspace = true, features = [] }
 colors-transform = "0.2.11"
 serde_json = { workspace = true }
@@ -19,6 +20,11 @@ indexmap = { version = "2.13.0", optional = true }
 
 [dev-dependencies]
 simple_logger = { workspace = true }
+criterion = { workspace = true, features = ["html_reports"] }
+
+[[bench]]
+name = "css_parser"
+harness = false
 
 [features]
 default = []
