@@ -74,8 +74,35 @@ impl EngineEventEmitter {
 }
 
 impl NetObserver for EngineEventEmitter {
+    /// Policy for what is worth capturing lives in one place; see
+    /// [`crate::net::emitter::should_capture_body`].
+    fn body_capture_limit(&self, headers: &http::HeaderMap, content_length: Option<u64>) -> Option<usize> {
+        crate::net::emitter::should_capture_body(headers, content_length)
+    }
+
     fn on_event(&self, ev: NetEvent) {
         match ev {
+            NetEvent::RequestSent { url, method, headers } => {
+                self.emit(ResourceEvent::RequestSent {
+                    request_id: self.req_id,
+                    reference: self.reference,
+                    url: url.to_string(),
+                    method: method.to_string(),
+                    headers: headers
+                        .iter()
+                        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+                        .collect(),
+                });
+            }
+            NetEvent::BodyPreview { url, body, truncated } => {
+                self.emit(ResourceEvent::BodyPreview {
+                    request_id: self.req_id,
+                    reference: self.reference,
+                    url: url.to_string(),
+                    body,
+                    truncated,
+                });
+            }
             NetEvent::Started { url } => {
                 self.emit(ResourceEvent::Started {
                     request_id: self.req_id,

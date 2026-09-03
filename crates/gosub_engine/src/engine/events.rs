@@ -418,6 +418,37 @@ pub enum ResourceEvent {
         url: String,
         reason: CancelReason,
     },
+    /// The request line and headers this hop actually sent. One per hop, so a redirect
+    /// chain reports each leg.
+    RequestSent {
+        /// Request this belongs to
+        request_id: RequestId,
+        /// What initiated it
+        reference: RequestReference,
+        /// Target of this hop
+        url: String,
+        /// HTTP method
+        method: String,
+        /// Headers the net stack set, as name/value pairs
+        headers: Vec<(String, String)>,
+    },
+    /// The first bytes of the response body, capped at the net stack's peek window.
+    ///
+    /// Only emitted while body capture is switched on -- see
+    /// [`crate::net::emitter::set_capture_body_previews`]. Off by default, because copying a
+    /// few kilobytes per request is wasted on every page nobody is inspecting.
+    BodyPreview {
+        /// Request this belongs to
+        request_id: RequestId,
+        /// What initiated it
+        reference: RequestReference,
+        /// URL the body belongs to
+        url: String,
+        /// The bytes, exactly as received: not decoded, not necessarily UTF-8
+        body: Vec<u8>,
+        /// Whether the body continued past the preview
+        truncated: bool,
+    },
     Headers {
         request_id: RequestId,
         reference: RequestReference,
