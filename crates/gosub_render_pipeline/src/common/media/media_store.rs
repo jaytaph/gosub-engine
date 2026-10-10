@@ -28,6 +28,16 @@ pub enum MediaRequest {
     Pending,
 }
 
+/// Who asked for an image, which is what decides how a secure page fetches it over plain
+/// `http` (Mixed Content): Fetch's request initiator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaInitiator {
+    /// An `<img src>` or a CSS image: upgraded to `https`.
+    Plain,
+    /// An `<img>` using `srcset` or `<picture>` (Fetch's `imageset`): blocked.
+    ImageSet,
+}
+
 /// Whoever can put a URL's bytes into the resource handoff.
 ///
 /// The media store does not fetch. It asks for what it needs and waits for the bytes to
@@ -49,7 +59,7 @@ pub trait MediaSource: Send + Sync {
     /// Claiming and asking are one operation on purpose. Split in two, the page can change
     /// between them, and then the consumer waits under one scope while the bytes are
     /// deposited under another -- which reads as an image that took the timeout to fail.
-    fn acquire(&self, url: &str) -> Acquired;
+    fn acquire(&self, url: &str, initiator: MediaInitiator) -> Acquired;
 }
 
 /// What a [`MediaSource`] did with a request.
@@ -209,7 +219,12 @@ impl MediaStore {
     /// per src) starts and `Pending` is returned without blocking layout. On completion the
     /// `completed` flag rises and the engine's [`take_completed`](Self::take_completed) poll
     /// triggers a reflow. Takes `&Arc<Self>` so the fetch thread can share the store.
-    pub fn request_media(self: &Arc<Self>, src: &str) -> MediaRequest {
+    ///
+    /// The cache and the in-flight set are keyed by URL alone, so one initiator's result answers
+    /// the other's request. Bytes are fine (a secure page only gets them over `https`), but a
+    /// failure is cached too: an `http` URL refused as an `imageset` request shows as broken for
+    /// a plain `<img src>` of the same URL on that page, which would have been upgraded.
+    pub fn request_media(self: &Arc<Self>, src: &str, initiator: MediaInitiator) -> MediaRequest {
         let h = hash_from_string(src);
 
         if let Some(media_id) = self.cache.read().get(&h) {
@@ -224,7 +239,7 @@ impl MediaStore {
         // Synchronous mode: fetch on the calling thread. `load_media` caches even
         // failures (as the placeholder), so the lookup below normally succeeds.
         if self.synchronous_fetch.load(Ordering::Relaxed) {
-            let loaded = self.load_media(src);
+            let loaded = self.load_media(src, initiator);
             self.pending.write().remove(&h);
             if loaded.is_ok() {
                 self.completed.store(true, Ordering::Relaxed);
@@ -240,7 +255,7 @@ impl MediaStore {
         let spawned = std::thread::Builder::new().name("media-fetch".into()).spawn(move || {
             // `load_media` handles caching, and caches the placeholder on failure so a dead URL
             // is never re-fetched. We only need to clear the in-flight marker and signal completion.
-            let _ = store.load_media(&src_owned);
+            let _ = store.load_media(&src_owned, initiator);
             store.pending.write().remove(&h);
             store.completed.store(true, Ordering::Relaxed);
         });
@@ -420,7 +435,7 @@ impl MediaStore {
 
     /// Loads `src` into the store, caching by src so repeat calls never reload. Fetch/decode
     /// failures cache the placeholder id, so a dead URL skips the network on later calls.
-    pub fn load_media(&self, src: &str) -> anyhow::Result<MediaId> {
+    pub fn load_media(&self, src: &str, initiator: MediaInitiator) -> anyhow::Result<MediaId> {
         let h = hash_from_string(src);
         let cache = self.cache.read();
         if let Some(media_id) = cache.get(&h) {
@@ -429,7 +444,7 @@ impl MediaStore {
         }
         drop(cache);
 
-        let result = self.load_media_from_source(src);
+        let result = self.load_media_from_source(src, initiator);
 
         let media_id = match result {
             Ok(media_id) => media_id,
@@ -511,14 +526,14 @@ impl MediaStore {
         Some(media_id)
     }
 
-    fn load_media_from_source(&self, src: &str) -> anyhow::Result<MediaId> {
+    fn load_media_from_source(&self, src: &str, initiator: MediaInitiator) -> anyhow::Result<MediaId> {
         log::debug!("Loading non-cached media from path: {}", src);
         // `data:` URIs carry the bytes inline - decode them directly instead of going to the network.
         let (mime, bytes) = if let Some(rest) = src.strip_prefix("data:") {
             let (mime, bytes) = decode_data_uri(rest)?;
             (mime, Bytes::from(bytes))
         } else {
-            self.fetch_resource(src)?
+            self.fetch_resource(src, initiator)?
         };
 
         // A synchronous fetch runs on the layout thread (the resident renderer), where
@@ -667,7 +682,7 @@ impl MediaStore {
     /// with the policy, cache and observation that belong to it, and the bytes come back
     /// through the handoff. Classification is left to the decoder registry, which treats the
     /// content type as a hint only.
-    fn fetch_resource(&self, src: &str) -> anyhow::Result<(Option<String>, Bytes)> {
+    fn fetch_resource(&self, src: &str, initiator: MediaInitiator) -> anyhow::Result<(Option<String>, Bytes)> {
         let url = Url::parse(src)?;
         let _t = gosub_shared::timing_guard!(gosub_shared::timing::Timing::NetFetchImage, src);
 
@@ -679,7 +694,7 @@ impl MediaStore {
         };
         // The source claims and asks in one step, and hands back the scope it used; waiting
         // under a scope this side worked out separately would race a page change.
-        let scope = match source.acquire(src) {
+        let scope = match source.acquire(src, initiator) {
             Acquired::Under(scope) => scope,
             Acquired::Later => return Err(NotYet.into()),
             Acquired::Unowned => {
@@ -947,7 +962,7 @@ mod tests {
     const PAGE: gosub_shared::subresource::Scope = 7;
 
     impl MediaSource for FakeSource {
-        fn acquire(&self, url: &str) -> Acquired {
+        fn acquire(&self, url: &str, _initiator: MediaInitiator) -> Acquired {
             if gosub_shared::subresource::claim(PAGE, url) {
                 self.asked.lock().push(url.to_string());
                 match &self.answer {
@@ -987,7 +1002,7 @@ mod tests {
             let (store, source) = wired(Some(encode(ImageFormat::Png)));
 
             let (content_type, body) = store
-                .fetch_resource("https://example.test/unclaimed.png")
+                .fetch_resource("https://example.test/unclaimed.png", MediaInitiator::Plain)
                 .expect("bytes should arrive");
 
             assert_eq!(source.asked.lock().as_slice(), ["https://example.test/unclaimed.png"]);
@@ -1006,7 +1021,9 @@ mod tests {
             gosub_shared::subresource::complete(PAGE, url, Some("image/png".into()), encode(ImageFormat::Png));
 
             let (store, source) = wired(None);
-            let (_, body) = store.fetch_resource(url).expect("the delivered bytes");
+            let (_, body) = store
+                .fetch_resource(url, MediaInitiator::Plain)
+                .expect("the delivered bytes");
 
             assert!(source.asked.lock().is_empty(), "should not have asked for it again");
             assert!(!body.is_empty());
@@ -1020,7 +1037,7 @@ mod tests {
         exclusively(|| {
             let store = MediaStore::new();
             let err = store
-                .fetch_resource("https://example.test/nosource.png")
+                .fetch_resource("https://example.test/nosource.png", MediaInitiator::Plain)
                 .expect_err("should not load");
             assert!(err.to_string().contains("no media source"), "got: {err}");
         });
@@ -1061,7 +1078,7 @@ mod decoded_budget_tests {
         let store = Arc::new(MediaStore::new());
         store.set_synchronous_fetch(true);
         let before = store.resident_bytes();
-        let MediaRequest::Ready(id) = store.request_media(&data_uri(64, 32, 7)) else {
+        let MediaRequest::Ready(id) = store.request_media(&data_uri(64, 32, 7), MediaInitiator::Plain) else {
             panic!("synchronous load should be ready");
         };
         // Layout gets the size; nothing was decoded for it.
@@ -1083,7 +1100,7 @@ mod decoded_budget_tests {
         // Each image is 40 000 bytes of pixels; room for two, or one with its copy.
         store.set_decoded_budget(90_000);
         store.set_synchronous_fetch(true);
-        let first = match store.request_media(&data_uri(100, 100, 1)) {
+        let first = match store.request_media(&data_uri(100, 100, 1), MediaInitiator::Plain) {
             MediaRequest::Ready(id) => id,
             MediaRequest::Pending => panic!("synchronous load should be ready"),
         };
@@ -1093,7 +1110,7 @@ mod decoded_budget_tests {
         let _copy = image.premultiplied_bgra();
         assert_eq!(store.resident_bytes(), before_copy + 40_000);
 
-        let second = match store.request_media(&data_uri(100, 100, 2)) {
+        let second = match store.request_media(&data_uri(100, 100, 2), MediaInitiator::Plain) {
             MediaRequest::Ready(id) => id,
             MediaRequest::Pending => panic!("synchronous load should be ready"),
         };
@@ -1110,10 +1127,12 @@ mod decoded_budget_tests {
         store.set_decoded_budget(90_000);
         store.set_synchronous_fetch(true);
         let ids: Vec<MediaId> = (0..4u8)
-            .map(|seed| match store.request_media(&data_uri(100, 100, seed)) {
-                MediaRequest::Ready(id) => id,
-                MediaRequest::Pending => panic!("synchronous load should be ready"),
-            })
+            .map(
+                |seed| match store.request_media(&data_uri(100, 100, seed), MediaInitiator::Plain) {
+                    MediaRequest::Ready(id) => id,
+                    MediaRequest::Pending => panic!("synchronous load should be ready"),
+                },
+            )
             .collect();
 
         let resident = |store: &MediaStore| -> usize {
@@ -1134,6 +1153,8 @@ mod decoded_budget_tests {
         assert_eq!(back.image.as_raw()[0], 0);
         assert!(store.entries.read().contains_key(&ids[0]));
         assert!(resident(&store) <= 2);
-        assert!(matches!(store.request_media(&data_uri(100, 100, 0)), MediaRequest::Ready(id) if id == ids[0]));
+        assert!(
+            matches!(store.request_media(&data_uri(100, 100, 0), MediaInitiator::Plain), MediaRequest::Ready(id) if id == ids[0])
+        );
     }
 }

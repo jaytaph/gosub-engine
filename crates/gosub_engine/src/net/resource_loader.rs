@@ -16,7 +16,7 @@
 //! [`BrokeredLoader`]: crate::net::brokered_loader::BrokeredLoader
 
 use crate::net::types::ResourceKind;
-use gosub_render_pipeline::common::media::{Acquired, MediaSource};
+use gosub_render_pipeline::common::media::{Acquired, MediaInitiator, MediaSource};
 use gosub_shared::subresource::Scope;
 use std::fmt;
 use std::sync::Arc;
@@ -140,10 +140,10 @@ impl LoaderMediaSource {
 }
 
 impl MediaSource for LoaderMediaSource {
-    fn acquire(&self, url: &str) -> Acquired {
+    fn acquire(&self, url: &str, initiator: MediaInitiator) -> Acquired {
         let loaded = Url::parse(url)
             .map_err(|e| LoadError::UnsupportedUrl(format!("{url}: {e}")))
-            .and_then(|parsed| self.loader.load(&parsed, ResourceKind::Image));
+            .and_then(|parsed| self.loader.load(&parsed, ResourceKind::image(initiator)));
         // Always answered, one way or the other, so the store's `take` never waits out its
         // timeout on an entry nobody is going to fill.
         match loaded {

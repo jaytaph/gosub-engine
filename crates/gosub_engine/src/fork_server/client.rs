@@ -1611,18 +1611,20 @@ mod tests {
         let url = |path: &str| url::Url::parse(&format!("https://site.test{path}")).unwrap();
         let expected = |len: usize| (0..len).map(|i| (i % 251) as u8).collect::<Vec<u8>>();
 
-        let in_band = ResourceLoader::load(&*loader, &url("/in-band"), ResourceKind::Image).expect("in band");
+        let in_band =
+            ResourceLoader::load(&*loader, &url("/in-band"), ResourceKind::Image { imageset: false }).expect("in band");
         assert_eq!(in_band.body.len(), MAX_IN_BAND_RESOURCE);
-        let shared = ResourceLoader::load(&*loader, &url("/shared"), ResourceKind::Image).expect("through a memfd");
+        let shared = ResourceLoader::load(&*loader, &url("/shared"), ResourceKind::Image { imageset: false })
+            .expect("through a memfd");
         assert_eq!(shared.status, 200);
         assert_eq!(shared.content_type.as_deref(), Some("image/png"));
         assert_eq!(&shared.body[..], &expected(MAX_IN_BAND_RESOURCE + 1)[..]);
-        match ResourceLoader::load(&*loader, &url("/too-large"), ResourceKind::Image) {
+        match ResourceLoader::load(&*loader, &url("/too-large"), ResourceKind::Image { imageset: false }) {
             Err(LoadError::Failed(reason)) => assert!(reason.contains("cannot reach the renderer"), "{reason}"),
             other => panic!("expected a failed load, got {other:?}"),
         }
         // Still talking after all three: the exchange survived.
-        assert!(ResourceLoader::load(&*loader, &url("/in-band"), ResourceKind::Image).is_ok());
+        assert!(ResourceLoader::load(&*loader, &url("/in-band"), ResourceKind::Image { imageset: false }).is_ok());
 
         drop(loader);
         broker.join().expect("broker thread");
@@ -1939,14 +1941,16 @@ mod tests {
             let url = url::Url::parse("https://img.test/waiting").unwrap();
             let loader: MediaLoader = std::sync::Arc::new(crate::net::resource_loader::NoResourceLoader);
             for _ in 0..MAX_MEDIA_QUEUE {
-                queue
-                    .waiting
-                    .push_back((url.clone(), ResourceKind::Image, std::sync::Arc::clone(&loader)));
+                queue.waiting.push_back((
+                    url.clone(),
+                    ResourceKind::Image { imageset: false },
+                    std::sync::Arc::clone(&loader),
+                ));
             }
         }
         let url = url::Url::parse("https://img.test/one-more").unwrap();
         let loader: MediaLoader = std::sync::Arc::new(crate::net::resource_loader::NoResourceLoader);
-        let answer = cache.lookup_or_fetch(&url, ResourceKind::Image, loader);
+        let answer = cache.lookup_or_fetch(&url, ResourceKind::Image { imageset: false }, loader);
         assert!(matches!(answer, Err(LoadError::Failed(_))), "{answer:?}");
         assert_eq!(cache.queue.lock().waiting.len(), MAX_MEDIA_QUEUE);
         assert!(!cache.in_flight.lock().contains(url.as_str()));

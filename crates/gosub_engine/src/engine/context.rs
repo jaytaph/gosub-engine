@@ -2135,8 +2135,11 @@ impl<C: RenderConfiguration> BrowsingContext<C> {
                     }
                 }
                 Some("img") if out.image_url.is_none() => {
-                    if let Some(src) = doc.attribute(id, "src") {
-                        out.image_url = Some(resolve(src));
+                    // The candidate layout fetched, not necessarily `src`.
+                    if let Some(selected) =
+                        gosub_render_pipeline::common::media::image_source::select_in_document::<C>(doc, id)
+                    {
+                        out.image_url = Some(resolve(&selected.url));
                     }
                 }
                 _ => {}
