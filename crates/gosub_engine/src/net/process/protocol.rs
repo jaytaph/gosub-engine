@@ -179,13 +179,17 @@ impl RequestContext {
                 MixedContentPolicy::Upgrade => MixedContent::Upgrade,
                 MixedContentPolicy::Block => MixedContent::Block,
             }),
-            mode: Some(match req.mode {
-                RequestMode::NoCors => Mode::NoCors,
-                RequestMode::Cors => Mode::Cors,
-                RequestMode::SameOrigin => Mode::SameOrigin,
-                RequestMode::Navigate => Mode::Navigate,
-                RequestMode::Websocket => Mode::Websocket,
-            }),
+            // A mode newer than this protocol travels as none, and the broker
+            // rebuilds the request with sonar's default, like a destination
+            // token it cannot read.
+            mode: match req.mode {
+                RequestMode::NoCors => Some(Mode::NoCors),
+                RequestMode::Cors => Some(Mode::Cors),
+                RequestMode::SameOrigin => Some(Mode::SameOrigin),
+                RequestMode::Navigate => Some(Mode::Navigate),
+                RequestMode::Websocket => Some(Mode::Websocket),
+                _ => None,
+            },
             destination: Some(req.destination.as_str().to_string()),
         }
     }
