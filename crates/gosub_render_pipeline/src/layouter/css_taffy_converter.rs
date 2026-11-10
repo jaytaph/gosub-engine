@@ -36,6 +36,7 @@ impl<'a> CssTaffyConverter<'a> {
         self.style.has(Prop::Display).then_some(self.style.box_group.display)
     }
 
+    /// The taffy style for the element's computed style.
     pub fn convert(&self, is_inline: bool) -> Style {
         let _ = is_inline; // parameter kept for API compatibility; inline wrapping handled by caller
         let mut ts = Style::default();

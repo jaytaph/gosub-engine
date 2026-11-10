@@ -55,6 +55,7 @@ fn nonzero_dimension(raw: &str) -> Option<String> {
     (number != 0.0).then(|| css_dimension(value))
 }
 
+/// A parsed dimension as CSS text: `80px` or `50%`.
 fn css_dimension(value: DimensionValue) -> String {
     match value {
         DimensionValue::Length(number) => format!("{number}px"),

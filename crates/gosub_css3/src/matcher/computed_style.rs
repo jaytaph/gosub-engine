@@ -1566,6 +1566,8 @@ fn resolve_border_spacing(map: &CssProperties, style: &mut ComputedStyle, font_s
     }
 }
 
+/// The box group: display, position, overflow, opacity, aspect-ratio and the rest of
+/// [`BoxGroup`](gosub_interface::style::BoxGroup).
 fn resolve_box(map: &CssProperties, style: &mut ComputedStyle, font_size: f32) {
     read!(map, style, Display, box_mut, display, display);
     // `list-item` is one more keyword of the same value, which `display` reads past; a box can
